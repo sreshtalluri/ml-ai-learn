@@ -15,4 +15,13 @@ export const LAB_COMPONENTS: Record<string, ComponentType> = {
   backprop: dynamic(() => import("./BackpropLab")),
   attention: dynamic(() => import("./AttentionLab")),
   decoding: dynamic(() => import("./DecodingLab")),
+  "fit-explorer": dynamic(() => import("./FitExplorerLab")),
+  "decision-tree": dynamic(() => import("./DecisionTreeLab")),
+  boosting: dynamic(() => import("./BoostingLab")),
+  pca: dynamic(() => import("./PcaLab")),
+  convolution: dynamic(() => import("./ConvolutionLab")),
+  tokenizer: dynamic(() => import("./TokenizerLab")),
+  rag: dynamic(() => import("./RagLab")),
+  architecture: dynamic(() => import("./ArchitectureLab")),
+  "prompt-injection": dynamic(() => import("./PromptInjectionLab")),
 };

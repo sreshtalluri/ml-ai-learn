@@ -36,7 +36,17 @@ Follow one request through a support assistant:
 
 ## 2. Visualization
 
+<!-- lab:architecture -->
 ![Architecture diagram: client to API gateway to orchestration, which connects in both directions to cache, retrieval, model, and allowlisted tools; retrieval and the other components feed logging and monitoring, evaluation, and governance.](../../figures/production-architecture.png)
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/architecture/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Trace the **Normal** scenario and predict which hop dominates the latency before you reach it.
+2. Switch to **Outage**. Which two patterns keep the request from failing, and what would happen without a timeout?
+3. In **Tool call**, find the step where the application, not the model, decides whether the refund runs.
 
 ## 3. The math
 

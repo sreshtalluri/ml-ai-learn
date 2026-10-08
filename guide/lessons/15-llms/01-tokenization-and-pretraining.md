@@ -31,9 +31,19 @@ related: [decoding, adapting-llms, learning-paradigms]
 
 ## 2. Visualization
 
+<!-- lab:tokenizer -->
 ![Left: for six short strings, the count of characters versus UTF-8 bytes; accented characters and symbols take more bytes than characters. Right: an illustrative bar chart where the loss on a token falls as more context tokens are available.](../../figures/tokenization-and-pretraining.png)
 
 *Right panel is illustrative (not from a real model): more context usually makes the next token more predictable, which is why the same word costs less loss late in a document than at its start.*
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/tokenizer/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Start at 0 merges and predict how many tokens your sentence has. Then step merges up and watch which pairs join first.
+2. Type a word that never appears in the training corpus. Predict how it will be split, then check.
+3. Press **Fill the context** and shrink the window. What has to give when text no longer fits?
 
 ## 3. The math
 

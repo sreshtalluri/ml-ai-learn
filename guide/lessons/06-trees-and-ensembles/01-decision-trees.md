@@ -30,9 +30,19 @@ Grow the tree without limit, though, and it carves out a leaf for every odd trai
 
 ## 2. Visualization
 
+<!-- lab:decision-tree -->
 ![Four decision surfaces on synthetic two-moon data. A depth-2 tree draws a few axis-aligned rectangles. An unlimited tree fits every training point with jagged regions. A random forest and gradient boosting produce smoother regions.](../../figures/decision-trees.png)
 
 *Synthetic "two moons" data with noise. Tree boundaries are always axis-aligned rectangles. The unlimited tree reaches 100% training accuracy.*
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/decision-tree/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Before splitting the root, guess which feature (age or income) gives the bigger Gini decrease. Press **Best split** to check.
+2. Drag the threshold slowly and watch the decrease. Where does it peak, and why is that the threshold the algorithm picks?
+3. Keep splitting small leaves until there are 8 or more. Training accuracy climbs; explain why that is a warning sign, not a success.
 
 Measured on the same data (test half):
 

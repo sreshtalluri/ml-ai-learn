@@ -44,6 +44,11 @@ Compare with a recurrent network, which reads left to right and squeezes everyth
 *Interactive version: type a sentence and step through Q, K, V, $QK^\top$, scaling, the causal mask, softmax, and the weighted sum, with tensor shapes at every stage. It includes the worked example below. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/attention/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. In the course example, predict which value the output mostly copies before stepping to the end.
+2. Turn off the causal mask. Which cells of the heatmap change, and why must a decoder keep them masked?
+
 What to notice:
 - Every row of an attention matrix sums to 1: each query distributes one unit of attention.
 - With the causal mask, row $i$ has zeros after column $i$. The first token can only attend to itself, so its weight is exactly 1.

@@ -39,6 +39,11 @@ Two things are worth noticing:
 *Interactive version: place centroids yourself, step through assignment and update, change K and the initialization seed, and try the stretched, uneven, and ring datasets. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/kmeans/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Load **Rings** and predict whether any choice of 2 centroids can separate the inner ring from the outer one. Run it.
+2. On **Blobs**, change the seed a few times with K = 3. Do all runs end at the same inertia? Why not?
+
 What to notice:
 - Inertia (the total squared distance to centers) always decreases as K grows, so "lowest inertia" would pick K = n. Look for the **elbow** where adding clusters stops helping much.
 - Silhouette rewards clusters that are tight *and* far apart, so it can peak and then fall.

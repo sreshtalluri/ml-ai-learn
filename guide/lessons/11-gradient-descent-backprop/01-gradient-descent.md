@@ -42,6 +42,11 @@ Three things decide how well it works:
 *Interactive version: click to choose a starting point, change the learning rate, add mini-batch noise, and race gradient descent, momentum, and Adam on three surfaces. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/gradient-descent/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Predict whether η = 0.19 converges on the narrow bowl. Step it and watch the zig-zag.
+2. Press **Compare all three** and step 30 times. Which optimizer is closest to the minimum, and is that what you expected?
+
 What to notice:
 - At $\eta = 0.19$ the steep direction overshoots every step: $\theta_2$ flips sign and shrinks slowly, the classic zig-zag.
 - At $\eta = 0.21$ each overshoot is *larger* than the last. The loss grows forever: divergence.

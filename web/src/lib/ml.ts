@@ -326,3 +326,34 @@ export function fmt(v: number, d = 3): string {
   const s = v.toFixed(d);
   return /^-0\.?0*$/.test(s) ? s.slice(1) : s;
 }
+
+// ---------- polynomial regression ----------
+
+/** Solve A x = b by Gaussian elimination with partial pivoting (small dense systems). */
+export function solve(A: Mat, b: Vec): Vec {
+  const n = b.length;
+  const M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = c + 1; r < n; r++) {
+      const f = M[r][c] / M[c][c];
+      for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  const x = Array(n).fill(0);
+  for (let r = n - 1; r >= 0; r--) x[r] = (M[r][n] - M[r].slice(r + 1, n).reduce((s, v, k) => s + v * x[r + 1 + k], 0)) / M[r][r];
+  return x;
+}
+
+/** Least-squares polynomial fit (tiny ridge for numerical stability). Returns coefficients, lowest power first. */
+export function polyFit(x: Vec, y: Vec, degree: number, ridge = 1e-9): Vec {
+  const d = degree + 1;
+  const X = x.map((v) => Array.from({ length: d }, (_, k) => v ** k));
+  const XtX = Array.from({ length: d }, (_, i) => Array.from({ length: d }, (_, j) => X.reduce((s, r) => s + r[i] * r[j], 0) + (i === j && i > 0 ? ridge : 0)));
+  const Xty = Array.from({ length: d }, (_, i) => X.reduce((s, r, n) => s + r[i] * y[n], 0));
+  return solve(XtX, Xty);
+}
+
+export const polyEval = (c: Vec, x: number) => c.reduce((s, v, k) => s + v * x ** k, 0);

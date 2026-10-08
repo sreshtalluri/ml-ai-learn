@@ -38,6 +38,11 @@ The work done for later layers is reused by earlier ones, so computing gradients
 *Interactive version: the one-neuron example below, with every input editable and all nine steps recomputed live. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/backprop/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Change the label to y = 0. Predict the sign of each gradient before looking.
+2. Set η to 5 and predict whether the loss goes down. Why can a correct gradient still make things worse?
+
 ## 3. The math
 
 ### Symbols

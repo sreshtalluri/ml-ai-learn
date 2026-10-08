@@ -13,7 +13,7 @@ Prefer interactive labs and progress tracking? The same content runs as a websit
 
 Every lesson has the same six layers: **intuition, visualization, math, implementation, engineering, knowledge check.**
 
-Suggested pace: 12 weeks at 5 to 7 hours per week ([12-week plan](lessons/20-projects/01-twelve-week-plan.md)).
+Suggested pace: 12 weeks at 5 to 7 hours per week ([12-week plan](lessons/20-projects/01-twelve-week-plan.md)). Short on time? See the [learning paths](learning-paths.md): a 4-week AI-engineering fast track and an interview-prep pass.
 
 ### Run the code
 

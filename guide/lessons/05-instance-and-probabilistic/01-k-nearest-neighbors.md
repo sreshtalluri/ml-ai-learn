@@ -42,6 +42,11 @@ KNN does no work at training time; it just stores the data. All the work happens
 *Interactive version: drag the query point, change K and the distance metric, toggle scaling, and watch the leave-one-out accuracy. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/knn/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Leave scaling off and drag the query left and right. Predict whether the prediction changes, then check.
+2. Compare leave-one-out accuracy at K = 1 and K = 25 with scaling on. Which generalizes better here?
+
 What to notice:
 - **K = 1** draws a region around every single point, including mislabeled or unusual ones. It fits the training data perfectly and generalizes worse (high variance).
 - **K = 15** produces a smooth boundary close to the true rule (buy if older than about 45).

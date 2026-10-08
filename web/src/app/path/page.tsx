@@ -24,7 +24,7 @@ export default function PathPage() {
         Guided mode: work top to bottom. Each lesson moves from intuition to visualization, math, code, and engineering, then ends with a knowledge check.
         Reference mode: jump straight to any lesson, <Link href="/models/" className="text-accent hover:underline">model</Link>, or <Link href="/cheatsheets/" className="text-accent hover:underline">cheat sheet</Link>.
       </p>
-      <p className="mt-2 text-sm text-faint">Suggested pace: 12 weeks at 5 to 7 hours per week. See the <Link href="/learn/twelve-week-plan/" className="underline">12-week plan</Link>.</p>
+      <p className="mt-2 text-sm text-faint">Short on time? <Link href="/learning-paths/" className="underline">Learning paths</Link> include a 4-week AI-engineering fast track and an interview-prep pass. Suggested full pace: 12 weeks at 5 to 7 hours per week (<Link href="/learn/twelve-week-plan/" className="underline">12-week plan</Link>).</p>
 
       <div className="mt-12 space-y-14">
         {PHASES.map((ph) => (

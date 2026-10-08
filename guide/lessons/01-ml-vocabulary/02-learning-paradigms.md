@@ -40,6 +40,11 @@ Think about how people learn.
 *Interactive version: answer three questions about your problem, or load one of seven scenarios (house prices, fraud, customer segments, anomaly detection, next-token prediction, recommendation, robot control). [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/paradigm-guide/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Before loading a scenario, decide which paradigm fits fraud detection. Then load it and compare.
+2. Change only the first answer (the feedback signal) and watch the recommendation change. Why does the signal matter more than the output type?
+
 ## 3. The math
 
 ### Symbols

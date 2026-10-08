@@ -39,7 +39,17 @@ So assume the model *can* be manipulated, and design so that a manipulated model
 
 ## 2. Visualization
 
+<!-- lab:prompt-injection -->
 ![Diagram with three zones. Left, untrusted input: user messages, retrieved documents, web pages and emails, tool outputs. Middle, the model, whose system prompt is the only trusted text and which proposes actions as structured tool calls. Right, controls enforced by code: schema validation, allowlist and permission check, least-privilege credentials, human approval if risky, audit log.](../../figures/ai-security.png)
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/prompt-injection/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Turn on only the prompt-level defense. Predict how many of the four attacks it stops, then check.
+2. Turn on the tool allowlist alone. Why does it stop every tool-based attack even when the model is fooled?
+3. Which single defense stops the image-link exfiltration, and why don't the tool controls help with it?
 
 ## 3. The math
 

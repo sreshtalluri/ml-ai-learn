@@ -40,6 +40,11 @@ Generation is a loop: feed the prompt, get a distribution over the next token, p
 *Interactive version: adjust temperature, top-k, and top-p on the same logits, then sample and count outcomes. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/decoding/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Predict how many tokens top-p = 0.9 keeps, then set it and count.
+2. Set T = 0.1 and sample 20 times. Then T = 1.8. What happens to the variety and to the chance of a wrong city?
+
 ## 3. The math
 
 ### Symbols
