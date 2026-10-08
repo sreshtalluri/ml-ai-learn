@@ -1,0 +1,55 @@
+title: Decision trees
+lesson: decision-trees
+questions:
+  - id: dt-gini
+    type: numeric
+    difficulty: easy
+    prompt: A node has class counts [3, 1]. What is its Gini impurity?
+    answer: 0.375
+    tolerance: 0.0001
+    explanation: $1 - (0.75^2 + 0.25^2) = 1 - (0.5625 + 0.0625) = 0.375$.
+  - id: dt-decrease
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Parent [6, 6]. A split gives left [5, 1] and right [1, 5]. What is the Gini decrease? (4 decimals)
+    answer: 0.2222
+    tolerance: 0.001
+    explanation: |
+      Parent Gini 0.5. Each child: $1 - (5/6)^2 - (1/6)^2 = 1 - 0.6944 - 0.0278 = 0.2778$. Weighted 0.2778. Decrease $0.5 - 0.2778 = 0.2222$.
+  - id: dt-entropy
+    type: numeric
+    difficulty: medium
+    prompt: What is the entropy (in bits) of a node with counts [4, 4]?
+    answer: 1
+    tolerance: 0.0001
+    explanation: $-2 \times 0.5\log_2 0.5 = 1$ bit, the maximum for two classes.
+  - id: dt-scale
+    type: single
+    difficulty: easy
+    prompt: Why don't decision trees need feature scaling?
+    options:
+      - They standardize features internally.
+      - Each split compares one feature to a threshold, so rescaling a feature just rescales its threshold.
+      - They only work with binary features.
+      - They do need scaling.
+    answer: 1
+    explanation: Splits depend on the ordering of values, not their scale.
+  - id: dt-overfit
+    type: multi
+    difficulty: medium
+    prompt: Which settings reduce overfitting in a single decision tree? Select all that apply.
+    options:
+      - Lower max_depth
+      - Higher min_samples_leaf
+      - Cost-complexity pruning (ccp_alpha > 0)
+      - Removing all depth limits
+    answer: [0, 1, 2]
+    explanation: All three restrict how finely the tree can carve the training data.
+  - id: dt-id
+    type: short
+    difficulty: hard
+    prompt: A tree's top split is on `customer_id`, with a huge impurity decrease. What is going on and what do you do?
+    sample_answer: |
+      An ID has a unique value per row, so a tree can split it to isolate individual examples and look very "pure" on training data, but it carries no generalizable information (new customers have new IDs). Drop ID-like columns, and check feature importance with permutation importance on validation data rather than impurity importance.
+    explanation: High-cardinality features inflate impurity-based importance.

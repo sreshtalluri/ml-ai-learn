@@ -1,0 +1,59 @@
+title: DBSCAN, hierarchical clustering, and Gaussian mixtures
+lesson: density-hierarchical-and-mixture-clustering
+questions:
+  - id: cl-core
+    type: single
+    difficulty: medium
+    prompt: |
+      DBSCAN with ε = 1 and min_samples = 3. Point P has two other points within distance 1. What is P?
+    options:
+      - Noise
+      - A core point
+      - A border point
+      - It depends on K
+    answer: 1
+    explanation: Counting P itself, there are 3 points within ε, which meets min_samples, so P is core.
+  - id: cl-noise
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Points 0, 0.5, 1.0, 5.0, 9.0, 9.4 with ε = 0.6 and min_samples = 3. How many points are noise?
+    answer: 3
+    tolerance: 0
+    explanation: Only 0.5 is core (0, 0.5, 1.0); 0 and 1.0 are its border points. 5.0 is isolated; 9.0 and 9.4 have only 2 points each in range and no core neighbor. Noise = 5.0, 9.0, 9.4.
+  - id: cl-method
+    type: match
+    difficulty: medium
+    prompt: Match each need to a method.
+    pairs:
+      - ["Crescent-shaped clusters plus outliers", "DBSCAN"]
+      - ["Probability that a point belongs to each cluster", "Gaussian mixture"]
+      - ["Explore nested groupings at several levels", "Hierarchical clustering"]
+      - ["Millions of points, roughly round clusters", "K-means"]
+    explanation: Pick by cluster shape, need for soft assignments, nesting, and scale.
+  - id: cl-gmm
+    type: numeric
+    difficulty: hard
+    prompt: |
+      A two-component mixture has weights 0.5 and 0.5. At point $x$, the component densities are 0.2 and 0.05. What is the responsibility of component 1?
+    answer: 0.8
+    tolerance: 0.0001
+    explanation: $\frac{0.5 \times 0.2}{0.5 \times 0.2 + 0.5 \times 0.05} = \frac{0.1}{0.125} = 0.8$.
+  - id: cl-density
+    type: single
+    difficulty: medium
+    prompt: A dataset has one very dense cluster and one sparse cluster. Why might DBSCAN struggle?
+    options:
+      - DBSCAN requires K.
+      - A single ε small enough for the dense cluster labels the sparse one as noise; one large enough for the sparse cluster merges things in the dense region.
+      - DBSCAN only works in 2D.
+      - It can't handle more than two clusters.
+    answer: 1
+    explanation: HDBSCAN handles varying densities better.
+  - id: cl-anomaly
+    type: short
+    difficulty: medium
+    prompt: How could you use a Gaussian mixture model for anomaly detection, and what still needs a human decision?
+    sample_answer: |
+      Fit the GMM on normal data, then score new points by their likelihood (or negative log-likelihood); unusually low likelihood means the point doesn't fit any learned component. The threshold that turns a score into an alert still has to be chosen, ideally with labeled past incidents and the cost of false alarms versus misses.
+    explanation: Scores rank unusualness; thresholds are product decisions.
