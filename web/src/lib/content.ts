@@ -232,6 +232,7 @@ export function routeForFile(rel: string): string | null {
   let m: RegExpMatchArray | null;
   if (norm === "README.md") return "/path/";
   if (norm === "glossary.md") return "/glossary/";
+  if (norm === "learning-paths.md") return "/learning-paths/";
   if ((m = norm.match(/^lessons\/([^/]+)\/README\.md$/))) return `/modules/${m[1]}/`;
   if ((m = norm.match(/^lessons\/[^/]+\/\d\d-(.+)\.md$/))) return `/learn/${m[1]}/`;
   if ((m = norm.match(/^models\/(.+)\.md$/)) && m[1] !== "README") return `/models/${m[1]}/`;

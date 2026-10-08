@@ -40,6 +40,11 @@ Why the activation function? Without it, every layer is a weighted sum of a weig
 *Interactive version: change the number of inputs, hidden units, and outputs, switch activations, click any weight to edit it, and follow every number and shape. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/nn-forward/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Pick a hidden neuron whose z is negative with ReLU. Predict what changing its outgoing weight does to the output, then try.
+2. Switch the activation to sigmoid and watch the hidden values. What range do they stay in?
+
 What to notice:
 - ReLU is zero for all negative inputs and has a slope of exactly 1 for positive ones. It is cheap and its gradient doesn't shrink for positive values, which is why it is the default in hidden layers.
 - Sigmoid and tanh flatten out at both ends. Large inputs give gradients near zero ("saturation"), which slows learning in deep stacks.

@@ -42,6 +42,12 @@ With more than one feature (size, bedrooms, age), the line becomes a flat plane 
 *Interactive version: drag points, tilt the line, toggle L1/L2 penalties, and watch MSE and MAE update live. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/linear-regression/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Press **Add outlier** and predict which way the best-fit line will tilt before pressing **Best fit**.
+2. Raise the learning rate past 0.04 and press **Gradient step** a few times. Predict what MSE does first.
+3. Switch to L1 and raise λ. At what value does the slope hit exactly zero, and why doesn't L2 do the same?
+
 What to notice:
 - Each orange segment is one residual. MSE is the average of their squared lengths.
 - A single far-away point produces a long segment whose square dominates the sum. That is why MSE is sensitive to outliers.

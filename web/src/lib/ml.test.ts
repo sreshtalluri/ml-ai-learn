@@ -192,3 +192,20 @@ describe("seeded rng", () => {
     expect([a(), a(), a()]).toEqual([b(), b(), b()]);
   });
 });
+
+describe("polynomial regression", () => {
+  it("recovers an exact quadratic", () => {
+    const x = [-1, -0.5, 0, 0.5, 1], y = x.map((v) => 1 + 2 * v - 3 * v * v);
+    const c = ml.polyFit(x, y, 2);
+    expect(c[0]).toBeCloseTo(1, 6);
+    expect(c[1]).toBeCloseTo(2, 6);
+    expect(c[2]).toBeCloseTo(-3, 6);
+    expect(ml.polyEval(c, 0.25)).toBeCloseTo(1 + 0.5 - 0.1875, 6);
+  });
+  it("degree 1 matches the closed-form line", () => {
+    const x = [1, 2, 3], y = [2, 4, 5];
+    const c = ml.polyFit(x, y, 1, 0);
+    expect(c[1]).toBeCloseTo(1.5, 9);
+    expect(c[0]).toBeCloseTo(2 / 3, 9);
+  });
+});

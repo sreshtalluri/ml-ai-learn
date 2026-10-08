@@ -30,9 +30,19 @@ High variance is not the same as usefulness. The direction that varies most migh
 
 ## 2. Visualization
 
+<!-- lab:pca -->
 ![Four panels. A small 2D dataset with PC1 (orange) along the main spread and PC2 (teal) at a right angle, points projected onto PC1. Cumulative explained variance for the 64-pixel digits dataset, crossing 90% at 31 components. Digits embedded in 2D by PCA (overlapping colors) and by t-SNE (well-separated colored islands).](../../figures/pca.png)
 
 *Left: the worked example below; PC1 keeps 84% of the variance. Right: t-SNE separates the digit classes far more visibly than PCA, but distances between its islands and their sizes are not meaningful.*
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/pca/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Guess the angle of PC1 by eye before pressing **Snap to PC1**.
+2. Rotate the axis 90° away from PC1. What share of variance is kept now, and which eigenvalue is it?
+3. Set the correlation to 0. Why does every angle keep about the same variance, and what does that mean for compression?
 
 ## 3. The math
 

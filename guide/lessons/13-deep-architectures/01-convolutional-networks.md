@@ -30,9 +30,19 @@ A convolutional layer instead uses small kernels, say 3×3. Each kernel looks at
 
 ## 2. Visualization
 
+<!-- lab:convolution -->
 ![A 5 by 5 image whose left three columns are 0 and right two columns are 9, with the top-left 3 by 3 window highlighted. A 3 by 3 vertical-edge kernel with columns −1, 0, 1. The 3 by 3 feature map: 0 in the first column and 27 in the others. A max-pooled 2 by 2 output of a separate 4 by 4 map.](../../figures/convolutional-networks.png)
 
 *The kernel responds strongly (27) wherever a dark-to-bright vertical edge falls inside its window and gives 0 over flat regions.*
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/convolution/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Before clicking, predict the feature-map value where the window sits entirely on the bright region. Then click that cell.
+2. Switch the image to the horizontal edge but keep the vertical-edge kernel. Predict the output, then check.
+3. Set stride 2, then padding 1. Use the size formula to predict each output size before you look.
 
 ## 3. The math
 

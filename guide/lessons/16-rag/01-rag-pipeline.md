@@ -33,9 +33,19 @@ related: [llm-evaluation, ai-security, production-architecture]
 
 ## 2. Visualization
 
+<!-- lab:rag -->
 ![Left: evidence recall at 3 rises from 0.4 with 8-word chunks to 1.0 with 50-word chunks, while the number of context words sent to the model rises linearly. Right: a bar chart of five ranked results with relevant results at ranks 2 and 4, annotated with discounted gains, giving recall@3 0.5, reciprocal rank 0.5, and nDCG@5 0.651.](../../figures/rag-pipeline.png)
 
 *Synthetic four-document collection and five queries, retrieved with TF-IDF. Very small chunks split the evidence sentence across chunk boundaries; bigger chunks find it but send more text (cost, latency, and distraction) to the model. The right panel is the metric example from the next lesson.*
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/rag/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Pick the **Retrieval miss** question. Predict whether a better prompt could fix the answer, then turn on semantic matching instead.
+2. Shrink chunks to 8 words. Predict what happens to evidence recall, then raise the chunk size and compare.
+3. Set k = 1 and try each question in turn. Which still get their evidence into the context, and does the reranker change any of them?
 
 ## 3. The math
 

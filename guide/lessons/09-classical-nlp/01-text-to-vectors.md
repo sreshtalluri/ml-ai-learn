@@ -45,6 +45,11 @@ Raw counts overweight common words. **TF-IDF** multiplies each count by how rare
 *Interactive version: edit a corpus and see TF, DF, IDF, and TF-IDF for every word, with a worked calculation for any cell and a document-similarity matrix. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/tfidf/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Predict the IDF of "the" before clicking its column. Then check the worked calculation.
+2. Add a near-duplicate document. Which pair of documents gets the highest cosine similarity?
+
 ## 3. The math
 
 ### Symbols

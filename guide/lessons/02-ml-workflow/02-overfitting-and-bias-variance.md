@@ -29,11 +29,20 @@ Fit points that follow a wavy curve plus noise:
 
 ## 2. Visualization
 
+<!-- lab:fit-explorer -->
 ![Four panels. Degree 1 underfits the sine-shaped data (train MSE 0.275, validation 0.27). Degree 4 follows it (0.075 and 0.09). Degree 15 wiggles wildly (0.056 and 0.52). A validation curve shows training error falling steadily with degree while validation error is lowest around degree 3 to 5 and rises after.](../../figures/overfitting-and-bias-variance.png)
 
 *Synthetic data: 30 training points from $y = \sin(2\pi x)$ plus noise, 200 validation points. Training error keeps falling as complexity grows; validation error falls, bottoms out (degree 5 here), then rises.*
 
-*Interactive: the KNN lab shows the same trade-off with K (try K = 1 versus K = 25). [Open the KNN lab](https://sreshtalluri.github.io/ml-ai-learn/labs/knn/).*
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/fit-explorer/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. Before you move anything: at degree 15 with 20 points, will validation error be higher or lower than at degree 3? Check with the slider.
+2. Keep degree 12 and raise training points to 60. Predict what happens to the gap between the two curves, then look.
+3. Set noise to 0. Which degree is best now, and why does the overfitting almost disappear?
+
 
 ## 3. The math
 

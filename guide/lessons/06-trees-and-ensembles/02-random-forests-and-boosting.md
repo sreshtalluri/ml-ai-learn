@@ -30,9 +30,19 @@ A single deep tree has low bias but high variance: retrain on slightly different
 
 ## 2. Visualization
 
+<!-- lab:boosting -->
 ![Left: gradient boosting accuracy versus number of trees for learning rates 0.5 and 0.05, showing the larger learning rate peaking early and the smaller one improving steadily. Right: four data points with the boosted prediction after zero to three rounds, stepping closer to the points each round.](../../figures/random-forests-and-boosting.png)
 
 *Synthetic data. A large learning rate gets good quickly and then overfits (training accuracy keeps rising while test accuracy stalls); a small learning rate needs more trees but is steadier. Right: the worked example below, round by round.*
+
+*Interactive version: [open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/boosting/).*
+<!-- /lab -->
+
+**Try it** (predict first, then check):
+
+1. At round 0 the prediction is a flat line. Predict where the first stump will split, then step to round 1.
+2. Set the learning rate to 1.0, then to 0.05. Which reaches its best test error in fewer rounds, and which has the lower best error?
+3. Press **Too many rounds**. Training error keeps falling; find the round where test error was lowest. That's what early stopping picks.
 
 ## 3. The math
 

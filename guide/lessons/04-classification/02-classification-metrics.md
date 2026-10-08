@@ -45,6 +45,12 @@ Raising the threshold makes the model pickier: precision usually rises, recall f
 *Interactive version: move the threshold and the cost of each error, and watch the confusion matrix, metrics, ROC point, and calibration curve update. [Open the lab](https://sreshtalluri.github.io/ml-ai-learn/labs/threshold/).*
 <!-- /lab -->
 
+**Try it** (predict first, then check):
+
+1. Before moving the threshold, predict whether lowering it raises or lowers precision. Then check.
+2. Set a false negative to cost 50 and a false positive 1. Where does the cheapest threshold move, and does accuracy agree?
+3. Toggle the overconfident model. Which curve changes, ROC or calibration, and why?
+
 ## 3. The math
 
 ### Symbols
