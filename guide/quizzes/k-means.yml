@@ -1,0 +1,111 @@
+title: K-means clustering
+lesson: k-means
+questions:
+  - id: km-update
+    type: fill
+    difficulty: easy
+    prompt: |
+      Cluster 1 contains the points $(2, 4)$, $(4, 6)$, and $(6, 2)$. After the update step, what is its centroid? Answer as `(x, y)`.
+    answer: ["(4, 4)", "(4,4)", "4,4", "4, 4"]
+    explanation: |
+      The mean of the x-coordinates is $(2+4+6)/3 = 4$ and of the y-coordinates $(4+6+2)/3 = 4$, so $\mu_1 = (4, 4)$.
+
+  - id: km-inertia
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Using that centroid $(4, 4)$, what is the cluster's contribution to inertia (sum of squared distances)?
+    answer: 16
+    tolerance: 0.001
+    explanation: |
+      $(2,4)$: $4 + 0 = 4$. $(4,6)$: $0 + 4 = 4$. $(6,2)$: $4 + 4 = 8$. Total $= 16$.
+
+  - id: km-assign
+    type: single
+    difficulty: easy
+    prompt: |
+      Centroids are $\mu_1 = (0, 0)$ and $\mu_2 = (6, 0)$. Which cluster does the point $(2, 3)$ join?
+    options:
+      - Cluster 1, squared distance 13 versus 25
+      - Cluster 2, squared distance 13 versus 25
+      - Cluster 1, because it was created first
+      - It is a tie
+    answer: 0
+    explanation: |
+      To $\mu_1$: $4 + 9 = 13$. To $\mu_2$: $16 + 9 = 25$. The nearer centroid wins.
+
+  - id: km-order
+    type: order
+    difficulty: easy
+    prompt: Put the K-means algorithm in order.
+    options:
+      - Choose K and initialize K centroids (for example with k-means++)
+      - Assign every point to its nearest centroid
+      - Move every centroid to the mean of its assigned points
+      - Repeat assignment and update until assignments stop changing
+    explanation: Initialize, then alternate the two steps until convergence.
+
+  - id: km-choose-k
+    type: single
+    difficulty: medium
+    prompt: |
+      A teammate picks K = 40 for 50,000 customers because "inertia was lowest at K = 40, the largest value I tried." What is wrong with this reasoning?
+    options:
+      - Nothing; lower inertia always means better clusters.
+      - Inertia always decreases as K grows, so it cannot choose K by itself.
+      - Inertia increases with K, so K = 40 must be a mistake.
+      - K-means cannot run with more than 10 clusters.
+    answer: 1
+    explanation: |
+      With K = n every point is its own cluster and inertia is 0. Use the elbow, silhouette, stability across seeds, and whether the clusters are actionable.
+    why_not:
+      - Lower inertia is guaranteed by more clusters, regardless of real structure.
+      - Correct.
+      - The opposite is true.
+      - There is no such limit.
+
+  - id: km-failures
+    type: multi
+    difficulty: hard
+    prompt: For which datasets would K-means likely produce misleading clusters? Select all that apply.
+    options:
+      - Two concentric rings
+      - Three round, well-separated blobs of similar size
+      - One huge diffuse group next to one tiny dense group
+      - Two long, parallel, elongated bands
+    answer: [0, 2, 3]
+    explanation: |
+      K-means draws straight boundaries halfway between centroids and prefers round clusters of similar size. Rings, very unequal sizes, and elongated bands all violate those assumptions. Round, separated blobs are its ideal case.
+    why_not:
+      - Correct. No pair of centroids can separate an inner ring from an outer one.
+      - This is exactly the case K-means is designed for.
+      - Correct. It tends to split the big group and absorb the small one.
+      - Correct. It often cuts across the bands instead of along them.
+
+  - id: km-local
+    type: single
+    difficulty: medium
+    prompt: |
+      You run K-means twice on the same data with different random seeds and get inertias of 462.8 and 2359.7. What is the best explanation and fix?
+    options:
+      - The data changed between runs; reload it.
+      - K-means converged to different local optima; use k-means++ and several initializations, keeping the best.
+      - The second run has a bug; K-means is deterministic.
+      - Inertia is random noise; average the two values.
+    answer: 1
+    explanation: |
+      Lloyd's algorithm only guarantees a local optimum. Initialization decides which one. `n_init=10` with k-means++ is the standard defense.
+    why_not:
+      - Same data was used; the difference comes from initialization.
+      - Correct.
+      - K-means depends on its random initialization unless the seed is fixed.
+      - Inertia is a deterministic function of the final clustering, not noise.
+
+  - id: km-cluster-meaning
+    type: short
+    difficulty: hard
+    prompt: |
+      Marketing wants to launch a campaign for "cluster 3: bargain hunters" found by K-means. What would you check before agreeing?
+    sample_answer: |
+      Whether the cluster is real and stable: rerun with different seeds and subsamples and see if it reappears; check silhouette and whether a different K changes it. Whether features were scaled and chosen sensibly. Whether the "bargain hunter" label is supported by the features that distinguish the cluster (look at centroid values), and validate with domain experts or a small experiment. A K-means cluster is a hypothesis, not a verified customer type, and cluster numbers change between runs.
+    explanation: Distinguish a discovered cluster from a verified real-world category.

@@ -1,0 +1,57 @@
+title: Random forests and gradient boosting
+lesson: random-forests-and-boosting
+questions:
+  - id: ens-f1
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Boosting with $F_0 = 50$ and learning rate 0.2. A tree predicts residual $h = 15$ for an example. What is $F_1$ for that example?
+    answer: 53
+    tolerance: 0.0001
+    explanation: $50 + 0.2 \times 15 = 53$.
+  - id: ens-residual
+    type: fill
+    difficulty: medium
+    prompt: |
+      Targets $y = [3, 5, 10]$ and $F_0 = \bar{y}$. What are the first residuals? Answer like `[a, b, c]`.
+    answer: ["[-3, -1, 4]", "[-3,-1,4]", "-3,-1,4", "-3, -1, 4"]
+    explanation: $\bar{y} = 6$, so residuals are $3-6, 5-6, 10-6 = [-3, -1, 4]$.
+  - id: ens-compare
+    type: match
+    difficulty: medium
+    prompt: Match each property to bagging or boosting.
+    pairs:
+      - ["Trees trained independently, in parallel", "Bagging (random forest)"]
+      - ["Each tree fits the errors of the ensemble so far", "Boosting"]
+      - ["Mainly reduces variance", "Bagging (random forest)"]
+      - ["Mainly reduces bias; needs early stopping", "Boosting"]
+    explanation: Bagging averages; boosting corrects sequentially.
+  - id: ens-lr
+    type: single
+    difficulty: medium
+    prompt: You halve the learning rate of a gradient-boosting model. What should you usually do with the number of trees?
+    options:
+      - Halve it.
+      - Roughly double it (and let early stopping pick the exact number).
+      - Keep it the same.
+      - Set it to 1.
+    answer: 1
+    explanation: Each tree contributes half as much, so more trees are needed to reach the same fit.
+  - id: ens-rf-features
+    type: single
+    difficulty: medium
+    prompt: Why does a random forest consider only a random subset of features at each split?
+    options:
+      - To train faster, with no effect on accuracy.
+      - To decorrelate the trees, so averaging reduces variance more.
+      - To avoid scaling features.
+      - To make each tree shallower.
+    answer: 1
+    explanation: If every tree picks the same strong feature first, trees are highly correlated and averaging helps less.
+  - id: ens-extrapolate
+    type: short
+    difficulty: hard
+    prompt: A gradient-boosting model forecasts sales well in testing, but in a month when prices hit an all-time high its predictions flatten out. Why?
+    sample_answer: |
+      Tree ensembles predict piecewise-constant values learned from the training range. For inputs beyond that range, every tree lands in its outermost leaf, so predictions stop changing: tree models can't extrapolate trends. Options: add features that stay in range (ratios, differences), use a linear or hybrid model for the trend, and monitor for inputs outside the training distribution.
+    explanation: Leaves hold constants, so trees can't extrapolate.

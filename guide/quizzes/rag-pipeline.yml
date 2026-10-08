@@ -1,0 +1,59 @@
+title: The RAG pipeline
+lesson: rag-pipeline
+questions:
+  - id: rag-chunks
+    type: numeric
+    difficulty: medium
+    prompt: A 900-word document is chunked with size 300 and overlap 0. How many chunks?
+    answer: 3
+    tolerance: 0
+    explanation: Chunks start at 0, 300, and 600.
+  - id: rag-cos
+    type: numeric
+    difficulty: easy
+    prompt: Normalized query vector $[0.6, 0.8]$ and normalized chunk vector $[0.8, 0.6]$. What is their cosine similarity?
+    answer: 0.96
+    tolerance: 0.0001
+    explanation: |
+      For unit vectors, cosine equals the dot product: $0.48 + 0.48 = 0.96$.
+  - id: rag-order
+    type: order
+    difficulty: easy
+    prompt: Order the RAG pipeline stages.
+    options:
+      - Ingest and clean documents
+      - Chunk documents
+      - Embed and index chunks with metadata
+      - Retrieve candidates for the query
+      - Rerank candidates
+      - Generate a grounded answer with citations
+    explanation: Indexing happens ahead of time; retrieval, reranking, and generation happen per query.
+  - id: rag-diagnose
+    type: single
+    difficulty: hard
+    prompt: Users report wrong answers. For a failing question you find that the correct chunk is not in the top 20 retrieved results. Where should you work?
+    options:
+      - The generation prompt
+      - Retrieval (chunking, query handling, hybrid search, embedding model)
+      - The decoding temperature
+      - Fine-tuning the LLM on the documents
+    answer: 1
+    explanation: If evidence never reaches the model, the prompt and decoding can't help. Fix retrieval and measure recall@k.
+  - id: rag-hybrid
+    type: multi
+    difficulty: medium
+    prompt: When does sparse (BM25/TF-IDF) retrieval help a dense retriever? Select all that apply.
+    options:
+      - Queries containing exact product codes or error IDs
+      - Rare technical terms the embedding model handles poorly
+      - Paraphrased questions with no shared words
+      - Names and acronyms
+    answer: [0, 1, 3]
+    explanation: Sparse retrieval excels at exact terms; paraphrases are where dense retrieval shines. Hybrid combines both.
+  - id: rag-permissions
+    type: short
+    difficulty: hard
+    prompt: An internal assistant indexes all company documents. How do you make sure an employee never receives content from documents they aren't allowed to see?
+    sample_answer: |
+      Store access-control metadata with every chunk and apply the user's permissions as a filter in the retrieval query itself, so unauthorized chunks are never retrieved or placed in the prompt. Don't rely on the model to withhold information it was given. Also check permissions at ingestion, keep them in sync when access changes, and audit-log which chunks were served to whom.
+    explanation: Enforce authorization in the retrieval layer, before the model sees anything.

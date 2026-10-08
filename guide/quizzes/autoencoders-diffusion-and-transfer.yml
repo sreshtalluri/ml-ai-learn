@@ -1,0 +1,55 @@
+title: Autoencoders, diffusion, and transfer learning
+lesson: autoencoders-diffusion-and-transfer
+questions:
+  - id: ae-noise
+    type: numeric
+    difficulty: medium
+    prompt: With $\bar\alpha_t = 0.81$, $x_0 = 3$, and $\epsilon = 1$, what is $x_t = \sqrt{\bar\alpha_t}x_0 + \sqrt{1-\bar\alpha_t}\epsilon$? (3 decimals)
+    answer: 3.136
+    tolerance: 0.002
+    explanation: $0.9 \times 3 + \sqrt{0.19} \times 1 = 2.7 + 0.436 = 3.136$.
+  - id: ae-head
+    type: numeric
+    difficulty: easy
+    prompt: A frozen backbone outputs 768-dimensional features. How many trainable parameters does a new 3-class linear head (with biases) have?
+    answer: 2307
+    tolerance: 0
+    explanation: $768 \times 3 + 3 = 2307$.
+  - id: ae-bottleneck
+    type: single
+    difficulty: easy
+    prompt: Why does an autoencoder need a bottleneck (or another constraint)?
+    options:
+      - To make training faster.
+      - Without it, the network could learn the identity function and copy inputs without learning useful structure.
+      - Because decoders can't be wide.
+      - To make outputs probabilities.
+    answer: 1
+    explanation: The constraint forces a compressed representation.
+  - id: ae-diffusion
+    type: single
+    difficulty: medium
+    prompt: What does a standard diffusion model's network learn to predict during training?
+    options:
+      - The class label of the image
+      - The noise that was added to a clean sample at a random step
+      - The next pixel
+      - The number of diffusion steps
+    answer: 1
+    explanation: The simplified DDPM loss is the squared error between the true and predicted noise.
+  - id: ae-transfer
+    type: match
+    difficulty: medium
+    prompt: Match the situation to a transfer-learning strategy.
+    pairs:
+      - ["300 labeled images, similar to the pretraining domain", "Freeze the backbone and train a new head"]
+      - ["20,000 labeled images", "Fine-tune top layers with a small learning rate"]
+      - ["Millions of in-domain images, very different domain", "Fine-tune everything or pretrain in-domain"]
+    explanation: More data and a bigger domain gap justify updating more of the model.
+  - id: ae-anomaly
+    type: short
+    difficulty: hard
+    prompt: Describe how to build an autoencoder-based anomaly detector for server metrics and one way it can fail.
+    sample_answer: |
+      Train an autoencoder on windows of metrics from normal operation only, compute reconstruction error on a validation set of normal windows, and set the alert threshold at a high percentile (tuned with any labeled incidents). Flag new windows whose error exceeds it. It can fail if the autoencoder generalizes too well and reconstructs anomalies accurately, if "normal" training data contains unlabeled incidents, or if normal behavior drifts (new traffic patterns) and creates false alarms.
+    explanation: Reconstruction error ranks unusualness; thresholds and training data quality decide usefulness.

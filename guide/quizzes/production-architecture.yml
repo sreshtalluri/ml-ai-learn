@@ -1,0 +1,56 @@
+title: Production architecture
+lesson: production-architecture
+questions:
+  - id: pa-little
+    type: numeric
+    difficulty: easy
+    prompt: Requests arrive at 30 per second and spend 2 seconds in the system. How many are in flight on average?
+    answer: 60
+    tolerance: 0
+    explanation: Little's law, $L = \lambda W = 30 \times 2 = 60$.
+  - id: pa-route
+    type: numeric
+    difficulty: medium
+    prompt: 70% of traffic goes to a model costing 0.2 cents per request and 30% to one costing 2 cents. What is the blended cost per request in cents?
+    answer: 0.74
+    tolerance: 0.0001
+    explanation: $0.7 \times 0.2 + 0.3 \times 2 = 0.14 + 0.6 = 0.74$.
+  - id: pa-match
+    type: match
+    difficulty: medium
+    prompt: Match each concern to the component that should own it.
+    pairs:
+      - ["Rate limits and authentication", "API gateway"]
+      - ["Choosing which model handles a request", "Orchestration"]
+      - ["Filtering documents by the user's permissions", "Retrieval"]
+      - ["Retention and audit policies", "Governance"]
+    explanation: Each concern has a natural home in the architecture.
+  - id: pa-tool
+    type: single
+    difficulty: hard
+    prompt: The model emits a tool call to `refund_order(order_id=991, amount=500)`. What should the application do?
+    options:
+      - Execute it; the model decided.
+      - Validate the arguments with a schema, check the tool is allowlisted and that this user may refund this order (and the amount), require approval if above a threshold, then execute with an idempotency key.
+      - Ask the model whether it is sure.
+      - Ignore all tool calls.
+    answer: 1
+    explanation: Tool calls are requests. Authorization, validation, approvals, and idempotency are enforced in code.
+  - id: pa-batch
+    type: single
+    difficulty: easy
+    prompt: You need to classify 2 million archived support tickets once. Which inference mode fits best?
+    options:
+      - Online, one request per ticket as fast as possible
+      - Batch inference, optimized for throughput and cost
+      - Streaming chat
+      - Manual review
+    answer: 1
+    explanation: No user is waiting, so batch for throughput and lower cost.
+  - id: pa-schema
+    type: short
+    difficulty: medium
+    prompt: Why use structured outputs with schema validation instead of parsing the model's free-form text?
+    sample_answer: |
+      Free-form text varies in wording and format, so regex parsing breaks silently. A schema defines exactly which fields, types, and ranges are allowed; validation rejects anything else, so downstream code never acts on malformed or unexpected values. Failures become explicit (retry or fall back safely), and the contract is testable.
+    explanation: Validation turns probabilistic text into a checked interface.

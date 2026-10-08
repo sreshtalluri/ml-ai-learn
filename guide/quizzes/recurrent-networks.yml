@@ -1,0 +1,58 @@
+title: Recurrent networks, LSTMs, and GRUs
+lesson: recurrent-networks
+questions:
+  - id: rnn-step
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Scalar RNN with $w_x = 1$, $w_h = 0.5$, $b = 0$, $h_{t-1} = 0.4$, $x_t = 0.3$. What is the pre-activation $w_x x_t + w_h h_{t-1}$?
+    answer: 0.5
+    tolerance: 0.0001
+    explanation: $0.3 + 0.5 \times 0.4 = 0.5$; then $h_t = \tanh(0.5) = 0.462$.
+  - id: rnn-vanish
+    type: numeric
+    difficulty: medium
+    prompt: In a linear RNN with recurrent weight 0.5, what factor scales the gradient flowing back 10 steps? (4 decimals)
+    answer: 0.001
+    tolerance: 0.0001
+    explanation: $0.5^{10} = 0.000977 \approx 0.0010$.
+  - id: rnn-lstm
+    type: single
+    difficulty: medium
+    prompt: Which LSTM component lets information and gradients flow across many steps with little change?
+    options:
+      - The output gate alone
+      - The cell state, updated additively and scaled by the forget gate
+      - The input embedding
+      - The softmax layer
+    answer: 1
+    explanation: $c_t = f_t \odot c_{t-1} + i_t \odot \tilde{c}_t$; with $f_t \approx 1$ the cell state passes through almost unchanged.
+  - id: rnn-parallel
+    type: single
+    difficulty: medium
+    prompt: Why can't a vanilla RNN be parallelized across time steps during training?
+    options:
+      - It has too many parameters.
+      - Step t needs the hidden state from step t − 1, so steps must be computed in order.
+      - GPUs don't support recurrence.
+      - It uses softmax.
+    answer: 1
+    explanation: Transformers compute all positions at once because attention doesn't depend on a previous step's output during training.
+  - id: rnn-clip
+    type: single
+    difficulty: easy
+    prompt: Training an RNN, the loss suddenly becomes NaN. What is the standard first fix?
+    options:
+      - Increase the learning rate.
+      - Gradient clipping (and possibly a lower learning rate).
+      - Remove the hidden state.
+      - Use a larger batch of zeros.
+    answer: 1
+    explanation: Exploding gradients through time are common in RNNs; clipping caps the gradient norm.
+  - id: rnn-choose
+    type: short
+    difficulty: hard
+    prompt: When might you still choose a GRU over a transformer today?
+    sample_answer: |
+      For streaming or on-device settings: a GRU processes one step at a time with constant memory and tiny compute, which suits real-time sensor or audio streams and low-power hardware. A transformer's cost grows with context length and usually needs more data. For small time-series problems a GRU (or gradient boosting on lag features) can be a simpler, adequate baseline.
+    explanation: The trade-off is per-step cost and memory versus parallel training and long-range modeling.

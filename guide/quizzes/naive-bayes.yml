@@ -1,0 +1,56 @@
+title: Naive Bayes
+lesson: naive-bayes
+questions:
+  - id: nb-smooth
+    type: numeric
+    difficulty: easy
+    prompt: |
+      In spam, a word appears 4 times out of 96 total words. The vocabulary has 200 words. What is its Laplace-smoothed likelihood $(4 + 1)/(96 + 200)$? (4 decimals)
+    answer: 0.0169
+    tolerance: 0.0002
+    explanation: $5 / 296 = 0.0169$.
+  - id: nb-posterior
+    type: numeric
+    difficulty: medium
+    prompt: Unnormalized scores are spam $6 \times 10^{-5}$ and ham $2 \times 10^{-5}$. What is $P(\text{spam} \mid x)$?
+    answer: 0.75
+    tolerance: 0.0001
+    explanation: $6 / (6 + 2) = 0.75$.
+  - id: nb-zero
+    type: single
+    difficulty: medium
+    prompt: Without smoothing, what happens if an email contains a word that never appeared in any training spam?
+    options:
+      - The word is ignored.
+      - P(spam | email) becomes exactly 0, no matter how spammy the other words are.
+      - The model raises an error.
+      - The prior takes over.
+    answer: 1
+    explanation: One zero factor makes the whole product zero.
+  - id: nb-variant
+    type: match
+    difficulty: medium
+    prompt: Match each feature type to a Naive Bayes variant.
+    pairs:
+      - ["Word counts in documents", "Multinomial NB"]
+      - ["Whether each word is present or absent", "Bernoulli NB"]
+      - ["Continuous sensor readings", "Gaussian NB"]
+    explanation: The variant defines the per-feature likelihood distribution.
+  - id: nb-logs
+    type: single
+    difficulty: medium
+    prompt: Why do implementations add log-probabilities instead of multiplying probabilities?
+    options:
+      - Logs make the model more accurate.
+      - Products of thousands of small probabilities underflow to 0 in floating point; sums of logs don't.
+      - Logs remove the need for smoothing.
+      - Logs make probabilities sum to 1.
+    answer: 1
+    explanation: The argmax is unchanged because log is monotonic.
+  - id: nb-calib
+    type: short
+    difficulty: hard
+    prompt: A Naive Bayes spam filter outputs probabilities like 0.99999 and 0.00001 for most emails, even borderline ones. Explain why.
+    sample_answer: |
+      The independence assumption treats correlated words as separate pieces of evidence, so related words ("free", "money", "offer") multiply the same signal several times. The product becomes extreme, pushing posteriors toward 0 or 1. The class ranking can still be good, but the probabilities are overconfident; calibrate them on held-out data if they are used as probabilities.
+    explanation: Double-counted evidence produces overconfident posteriors.

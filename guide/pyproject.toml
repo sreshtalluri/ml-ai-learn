@@ -1,0 +1,9 @@
+[project]
+name = "ml-ai-learn-guide"
+version = "0.1.0"
+description = "Runnable code and figure scripts for the ML to LLM course"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "matplotlib>=3.8", "scikit-learn>=1.4"]
+
+[tool.uv]
+package = false

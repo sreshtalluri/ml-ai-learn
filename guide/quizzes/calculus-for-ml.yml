@@ -1,0 +1,56 @@
+title: Calculus for ML
+lesson: calculus-for-ml
+questions:
+  - id: calc-deriv
+    type: numeric
+    difficulty: easy
+    prompt: For $f(t) = 3t^2 - 2t + 7$, what is $f'(2)$?
+    answer: 10
+    tolerance: 0
+    explanation: $f'(t) = 6t - 2$, so $f'(2) = 12 - 2 = 10$.
+  - id: calc-partial
+    type: numeric
+    difficulty: medium
+    prompt: For $L(x, y) = x^2 y + 3y$, what is $\partial L / \partial y$ at $(2, 5)$?
+    answer: 7
+    tolerance: 0
+    explanation: Holding $x$ fixed, $\partial L/\partial y = x^2 + 3 = 4 + 3 = 7$.
+  - id: calc-min
+    type: numeric
+    difficulty: easy
+    prompt: At what value of $t$ does $f(t) = t^2 - 6t + 1$ reach its minimum?
+    answer: 3
+    tolerance: 0
+    explanation: $f'(t) = 2t - 6 = 0$ gives $t = 3$.
+  - id: calc-chain
+    type: numeric
+    difficulty: medium
+    prompt: |
+      $L = z^2$ and $z = 3w + 1$. What is $dL/dw$ at $w = 1$?
+    answer: 24
+    tolerance: 0
+    explanation: $dL/dz = 2z = 2(4) = 8$; $dz/dw = 3$; product $= 24$.
+  - id: calc-sigmoid
+    type: numeric
+    difficulty: medium
+    prompt: The sigmoid's derivative is $\sigma(z)(1 - \sigma(z))$. What is its maximum possible value?
+    answer: 0.25
+    tolerance: 0.0001
+    explanation: |
+      It peaks at $z = 0$ where $\sigma = 0.5$: $0.5 \times 0.5 = 0.25$. Stacking many sigmoids multiplies factors of at most 0.25, which is one cause of vanishing gradients.
+  - id: calc-direction
+    type: single
+    difficulty: medium
+    prompt: The gradient of a loss at the current parameters is $(3, -2)$. Which direction lowers the loss fastest (locally)?
+    options:
+      - (3, -2)
+      - (-3, 2)
+      - (0, 0)
+      - (2, 3)
+    answer: 1
+    explanation: The gradient points uphill; the steepest descent direction is its negative.
+    why_not:
+      - That is the steepest ascent direction.
+      - Correct.
+      - Not moving doesn't lower the loss.
+      - This direction is perpendicular to the gradient, so to first order it doesn't change the loss.

@@ -1,0 +1,59 @@
+title: Tokenization and pretraining
+lesson: tokenization-and-pretraining
+questions:
+  - id: tok-loss
+    type: numeric
+    difficulty: easy
+    prompt: The model assigns probability 0.25 to the actual next token. What is the cross-entropy for that token (natural log, 3 decimals)?
+    answer: 1.386
+    tolerance: 0.002
+    explanation: $-\ln 0.25 = \ln 4 = 1.386$.
+  - id: tok-ppl
+    type: numeric
+    difficulty: medium
+    prompt: A model's mean next-token loss on a test set is $\ln 20$. What is its perplexity?
+    answer: 20
+    tolerance: 0.001
+    explanation: Perplexity is $e^{\text{loss}} = e^{\ln 20} = 20$.
+  - id: tok-bpe
+    type: single
+    difficulty: medium
+    prompt: |
+      Word counts: "hug" ×10, "pug" ×5, "hugs" ×5. Starting from characters, which pair does BPE merge first?
+    options:
+      - h u
+      - u g (appears 20 times)
+      - g s
+      - p u
+    answer: 1
+    explanation: |
+      "u g" appears in every word: 10 + 5 + 5 = 20 times, more than "h u" (15).
+  - id: tok-shift
+    type: single
+    difficulty: medium
+    prompt: When computing the language-modeling loss, why are targets shifted one position relative to inputs?
+    options:
+      - To save memory.
+      - Because the model at position k predicts the token at position k + 1.
+      - To skip the first token, which is always wrong.
+      - It isn't necessary.
+    answer: 1
+    explanation: Inputs are tokens 1..T−1; targets are tokens 2..T.
+  - id: tok-cost
+    type: multi
+    difficulty: medium
+    prompt: Which statements about tokens are true? Select all that apply.
+    options:
+      - API cost and context limits are measured in tokens.
+      - The same sentence always has the same number of tokens in every model.
+      - Non-English text and code often take more tokens per word than English prose.
+      - Perplexities from models with different tokenizers aren't directly comparable.
+    answer: [0, 2, 3]
+    explanation: Different tokenizers segment text differently, which changes counts and the meaning of per-token loss.
+  - id: tok-truth
+    type: short
+    difficulty: hard
+    prompt: Explain why pretraining on next-token prediction can produce a model that states false things confidently.
+    sample_answer: |
+      The objective rewards assigning high probability to text that tends to appear, not to text that is true. Fluent, plausible-sounding continuations can be likely even when wrong, especially for rare facts the model saw little of. The model has no built-in mechanism to check claims against a source, and confident phrasing is itself just likely text, not a calibrated signal of certainty.
+    explanation: Likely text is not the same as true text; that is why grounding, tools, and verification exist.

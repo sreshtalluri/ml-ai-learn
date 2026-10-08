@@ -1,0 +1,49 @@
+title: Evaluating LLM systems
+lesson: llm-evaluation
+questions:
+  - id: ev-recall
+    type: numeric
+    difficulty: easy
+    prompt: Relevance of the top 4 results is $[1, 0, 0, 1]$ and there are 4 relevant documents in total. What is recall@4?
+    answer: 0.5
+    tolerance: 0.0001
+    explanation: 2 relevant retrieved out of 4 relevant overall.
+  - id: ev-mrr
+    type: numeric
+    difficulty: medium
+    prompt: Three queries have their first relevant result at ranks 1, 4, and 2. What is the MRR? (3 decimals)
+    answer: 0.583
+    tolerance: 0.002
+    explanation: $(1 + 0.25 + 0.5)/3 = 0.583$.
+  - id: ev-ndcg
+    type: numeric
+    difficulty: hard
+    prompt: Relevance $[0, 1]$ in the top 2, with one relevant document. What is nDCG@2? (3 decimals)
+    answer: 0.631
+    tolerance: 0.002
+    explanation: DCG $= 1/\log_2 3 = 0.631$; IDCG $= 1/\log_2 2 = 1$; ratio 0.631.
+  - id: ev-f1
+    type: numeric
+    difficulty: medium
+    prompt: Reference "the warranty lasts one year" (5 tokens). Answer "one year warranty" (3 tokens). Token F1? (3 decimals)
+    answer: 0.75
+    tolerance: 0.002
+    explanation: Overlap 3 tokens (one, year, warranty). Precision 3/3 = 1, recall 3/5 = 0.6, F1 = 2(1)(0.6)/1.6 = 0.75.
+  - id: ev-judge
+    type: multi
+    difficulty: medium
+    prompt: Which are known biases of LLM-as-judge? Select all that apply.
+    options:
+      - Preferring the answer shown first (position bias)
+      - Preferring longer answers (verbosity bias)
+      - Favoring outputs from its own model family
+      - Perfect agreement with human raters
+    answer: [0, 1, 2]
+    explanation: Randomize order, use rubrics and references, and check agreement with humans.
+  - id: ev-compare
+    type: short
+    difficulty: hard
+    prompt: A new prompt raises accuracy from 0.80 to 0.84 on a 50-case eval set. Your manager wants to ship it today. What do you check first?
+    sample_answer: |
+      Whether the gain is real: compare per case (how many fixed versus broken) and compute a paired bootstrap interval, since 2 net cases out of 50 is easily noise. Check which failure categories changed and whether anything regressed (safety, format, refusals). Check latency and cost per request. If it holds up, expand the eval set in the affected categories or run an online A/B test before a full rollout.
+    explanation: Paired, per-case comparisons plus operational metrics, before declaring a win.

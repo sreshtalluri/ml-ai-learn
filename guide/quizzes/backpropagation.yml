@@ -1,0 +1,50 @@
+title: Backpropagation
+lesson: backpropagation
+questions:
+  - id: bp-signal
+    type: numeric
+    difficulty: easy
+    prompt: A sigmoid neuron with cross-entropy loss predicts $\hat{y} = 0.8$ for a label $y = 0$. What is $\partial L/\partial z$?
+    answer: 0.8
+    tolerance: 0.0001
+    explanation: $\hat{y} - y = 0.8 - 0 = 0.8$.
+  - id: bp-weight
+    type: numeric
+    difficulty: medium
+    prompt: Same neuron, input $x_j = -3$ on that weight. What is $\partial L/\partial w_j$?
+    answer: -2.4
+    tolerance: 0.0001
+    explanation: $(\partial L/\partial z) \times x_j = 0.8 \times (-3) = -2.4$.
+  - id: bp-update
+    type: numeric
+    difficulty: medium
+    prompt: With $w_j = 0.5$ and learning rate $0.1$, what is $w_j$ after the update?
+    answer: 0.74
+    tolerance: 0.0001
+    explanation: $0.5 - 0.1 \times (-2.4) = 0.74$.
+  - id: bp-chain
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Along a path, local derivatives are 0.5, 2, and 0.25, and the loss gradient at the end is 4. What is the gradient at the start of the path?
+    answer: 1
+    tolerance: 0.0001
+    explanation: $4 \times 0.25 \times 2 \times 0.5 = 1$. Backpropagation multiplies local derivatives.
+  - id: bp-vanish
+    type: multi
+    difficulty: medium
+    prompt: Which techniques help with vanishing gradients in deep networks? Select all that apply.
+    options:
+      - ReLU activations in hidden layers
+      - Residual (skip) connections
+      - Replacing ReLU with sigmoid everywhere
+      - Normalization layers and careful initialization
+    answer: [0, 1, 3]
+    explanation: Sigmoid's derivative is at most 0.25, which shrinks gradients layer after layer.
+  - id: bp-debug
+    type: short
+    difficulty: hard
+    prompt: The weights of the first three layers of your network never change during training, while later layers train normally. Name two likely causes and how to check.
+    sample_answer: |
+      (1) Vanishing gradients: saturating activations or poor initialization shrink the gradient to near zero by the time it reaches early layers. Check by logging per-layer gradient norms. (2) A broken graph: an operation detaches the early layers (`.detach()`, converting to NumPy, `.item()`), or their parameters were frozen or not passed to the optimizer. Check `param.grad is None` and the optimizer's parameter list.
+    explanation: Per-layer gradient norms and checking that parameters are registered and attached are the standard first diagnostics.

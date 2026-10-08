@@ -1,0 +1,60 @@
+title: The portfolio project ladder
+lesson: project-ladder
+questions:
+  - id: pl-match
+    type: match
+    difficulty: easy
+    prompt: Match each project to what makes it stand out.
+    pairs:
+      - ["Tabular failure-analysis lab", "Calibration, slices, drift, explainability"]
+      - ["RAG evaluation workbench", "Separate retrieval, grounding, latency, and cost metrics"]
+      - ["Adaptive model router", "Routing by quality, privacy, latency, and budget"]
+      - ["Agent reliability sandbox", "Tool failures, permissions, and prompt injection"]
+    explanation: Each rung adds a layer of production thinking.
+  - id: pl-route
+    type: numeric
+    difficulty: medium
+    prompt: A router sends 60% of requests to a model costing 0.3 cents and 40% to one costing 1.8 cents. Everything previously went to the 1.8-cent model. What is the percentage cost saving?
+    answer: 50
+    tolerance: 0.1
+    explanation: New cost $0.6 \times 0.3 + 0.4 \times 1.8 = 0.18 + 0.72 = 0.90$ cents. Saving $(1.8 - 0.9)/1.8 = 50\%$.
+  - id: pl-mvp
+    type: single
+    difficulty: medium
+    prompt: What is the best minimum viable version for the RAG evaluation workbench?
+    options:
+      - A polished web UI with authentication
+      - Compare two chunking strategies on recall@5 and answer correctness over a labeled question set, with a paired comparison
+      - Fine-tune a model on the documents
+      - Index every document you can find
+    answer: 1
+    explanation: The MVP should produce a measured comparison end to end; polish comes later.
+  - id: pl-bullet
+    type: single
+    difficulty: medium
+    prompt: Which resume bullet is strongest?
+    options:
+      - "Worked on AI."
+      - "Built a RAG workbench that improved everything by 300%."
+      - "Built a RAG evaluation workbench measuring recall@k, groundedness, latency, and cost; chose a reranking setup supported by a paired comparison on 120 questions."
+      - "Expert in all ML models."
+    answer: 2
+    explanation: Specific, measurable, honest, and scoped.
+  - id: pl-order
+    type: order
+    difficulty: easy
+    prompt: Order the ladder from first to last.
+    options:
+      - Tabular model failure-analysis lab
+      - Semantic incident-triage system
+      - RAG evaluation workbench
+      - Adaptive model router
+      - Agent reliability sandbox
+    explanation: Each project builds on skills from the previous ones.
+  - id: pl-honest
+    type: short
+    difficulty: medium
+    prompt: An interviewer asks about a metric in your project README that you can't reproduce anymore. What should you do, and how could you have prevented it?
+    sample_answer: |
+      Say so honestly, explain how it was produced and what you'd expect if rerun, and offer to walk through the pipeline. Prevention: pin data and code versions, fix seeds, store configs and results per run, and include a one-command reproduction script in the repository.
+    explanation: Reproducibility protects your credibility as much as your results.

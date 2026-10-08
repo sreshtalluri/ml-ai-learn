@@ -1,0 +1,52 @@
+title: Word embeddings
+lesson: word-embeddings
+questions:
+  - id: emb-params
+    type: numeric
+    difficulty: easy
+    prompt: An embedding table has a vocabulary of 32,000 and dimension 512. How many parameters does it hold?
+    answer: 16384000
+    tolerance: 0
+    explanation: $32{,}000 \times 512 = 16{,}384{,}000$.
+  - id: emb-cos
+    type: numeric
+    difficulty: medium
+    prompt: Cosine similarity between $[3, 4]$ and $[4, 3]$?
+    answer: 0.96
+    tolerance: 0.0001
+    explanation: Dot product 24; both norms 5; $24/25 = 0.96$.
+  - id: emb-skipgram
+    type: single
+    difficulty: medium
+    prompt: In skip-gram, what does the model predict?
+    options:
+      - The center word from its context
+      - The context words from the center word
+      - The next sentence
+      - A document's label
+    answer: 1
+    explanation: CBOW predicts the center from the context; skip-gram does the reverse.
+  - id: emb-static
+    type: single
+    difficulty: medium
+    prompt: '"I sat by the river bank" and "I deposited cash at the bank." What does a static Word2Vec embedding give "bank"?'
+    options:
+      - Two different vectors, one per sense
+      - One vector, blending both senses
+      - No vector, because "bank" is ambiguous
+      - A random vector each time
+    answer: 1
+    explanation: Static embeddings have one row per word. Contextual (transformer) embeddings differ by sentence.
+  - id: emb-shape
+    type: fill
+    difficulty: medium
+    prompt: Token IDs have shape `[4, 20]` and the embedding dimension is 64. What is the shape after the embedding lookup? Answer like `[a, b, c]`.
+    answer: ["[4, 20, 64]", "[4,20,64]", "4,20,64", "(4, 20, 64)"]
+    explanation: Each ID is replaced by a 64-dimensional row.
+  - id: emb-rag
+    type: short
+    difficulty: hard
+    prompt: You upgrade the embedding model in a semantic search system and re-embed all incoming queries with it, but leave the stored document vectors alone. Search quality collapses. Why?
+    sample_answer: |
+      Different embedding models produce vectors in different, incompatible spaces: dimension 3 of one model means nothing in the other. Query vectors from the new model compared against document vectors from the old model give meaningless similarities. Re-embed the whole corpus with the new model (and version the index) before switching queries.
+    explanation: Queries and documents must share the same embedding model and version.

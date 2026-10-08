@@ -1,0 +1,53 @@
+title: From text to vectors
+lesson: text-to-vectors
+questions:
+  - id: tf-idf
+    type: numeric
+    difficulty: easy
+    prompt: $N = 1000$ documents; a term appears in 10 of them. What is its IDF, $\ln(N/\text{DF})$? (3 decimals)
+    answer: 4.605
+    tolerance: 0.002
+    explanation: $\ln(100) = 4.605$.
+  - id: tf-tfidf
+    type: numeric
+    difficulty: easy
+    prompt: Same term, occurring 2 times in document $d$. What is its TF-IDF in $d$? (3 decimals)
+    answer: 9.21
+    tolerance: 0.005
+    explanation: $2 \times 4.605 = 9.210$.
+  - id: tf-zero
+    type: single
+    difficulty: easy
+    prompt: A word appears in every document of the corpus. What is its TF-IDF in any document (course formula)?
+    options:
+      - Equal to its count
+      - 0
+      - 1
+      - Undefined
+    answer: 1
+    explanation: $\ln(N/N) = \ln 1 = 0$, so it contributes nothing.
+  - id: tf-cos
+    type: numeric
+    difficulty: medium
+    prompt: What is the cosine similarity between $[1, 0, 1]$ and $[1, 1, 0]$?
+    answer: 0.5
+    tolerance: 0.0001
+    explanation: Dot product 1; each norm is $\sqrt{2}$; $1/2 = 0.5$.
+  - id: tf-limits
+    type: multi
+    difficulty: medium
+    prompt: Which are genuine limitations of TF-IDF features? Select all that apply.
+    options:
+      - Synonyms like "car" and "automobile" are unrelated features.
+      - Word order beyond the n-gram window is lost.
+      - It cannot be trained quickly on large corpora.
+      - Words unseen at training time are ignored.
+    answer: [0, 1, 3]
+    explanation: TF-IDF is very fast; its weaknesses are semantics, order, and a frozen vocabulary.
+  - id: tf-stop
+    type: short
+    difficulty: medium
+    prompt: A sentiment classifier using TF-IDF with stop-word removal misclassifies "this movie was not good" as positive. Why, and what would you change?
+    sample_answer: |
+      "not" is in many stop-word lists, so it was removed and the model saw only "movie good." Keep negations (customize the stop list or skip stop-word removal) and add bigrams so "not good" becomes its own feature.
+    explanation: Aggressive cleaning can remove meaning; n-grams capture short phrases.

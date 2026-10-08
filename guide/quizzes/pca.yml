@@ -1,0 +1,53 @@
+title: PCA, t-SNE, and UMAP
+lesson: pca
+questions:
+  - id: pca-evr
+    type: numeric
+    difficulty: easy
+    prompt: Eigenvalues of a covariance matrix are 6, 3, and 1. What fraction of variance do the first two components explain?
+    answer: 0.9
+    tolerance: 0.0001
+    explanation: $(6 + 3)/(6 + 3 + 1) = 0.9$.
+  - id: pca-eig2
+    type: numeric
+    difficulty: hard
+    prompt: For covariance $\begin{bmatrix}3 & 1\\1 & 3\end{bmatrix}$, what is the largest eigenvalue?
+    answer: 4
+    tolerance: 0.0001
+    explanation: |
+      Trace 6, determinant 8: $\lambda = (6 \pm \sqrt{36 - 32})/2 = (6 \pm 2)/2$, so 4 and 2. PC1 points along $(1, 1)/\sqrt{2}$.
+  - id: pca-center
+    type: fill
+    difficulty: easy
+    prompt: Center the points $(1, 4)$, $(3, 8)$. What is the centered version of the first point? Answer like `(a, b)`.
+    answer: ["(-1, -2)", "(-1,-2)", "-1,-2", "-1, -2"]
+    explanation: The mean is $(2, 6)$, so $(1 - 2, 4 - 6) = (-1, -2)$.
+  - id: pca-scale
+    type: single
+    difficulty: medium
+    prompt: Features are income in dollars and age in years. You run PCA without standardizing. What will PC1 mostly be?
+    options:
+      - An even mix of income and age.
+      - Essentially the income axis, because its variance is millions of times larger.
+      - Essentially the age axis.
+      - Undefined.
+    answer: 1
+    explanation: PCA maximizes variance, and raw income variance dwarfs age variance. Standardize when units differ.
+  - id: pca-tsne
+    type: multi
+    difficulty: hard
+    prompt: Which conclusions from a t-SNE plot are justified? Select all that apply.
+    options:
+      - Points that are close together are likely neighbors in the original space.
+      - A cluster twice as large on the plot has twice the spread in the original space.
+      - Two clusters far apart on the plot are more different than two nearby clusters.
+      - Visible islands are hypotheses to test, not proven categories.
+    answer: [0, 3]
+    explanation: t-SNE preserves local neighborhoods; sizes and inter-cluster distances are not reliable.
+  - id: pca-why
+    type: short
+    difficulty: medium
+    prompt: Give one reason to apply PCA before training a model, and one risk.
+    sample_answer: |
+      Reason: compress many correlated features into fewer components, reducing overfitting and training time (and removing multicollinearity). Risk: PCA keeps the highest-variance directions, which may not be the ones that predict the target, so it can throw away useful low-variance signal; components are also harder to interpret.
+    explanation: Variance is not the same as task usefulness.

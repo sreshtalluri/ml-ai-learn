@@ -1,0 +1,103 @@
+title: Self-attention
+lesson: self-attention
+questions:
+  - id: att-weights
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Scaled scores for one query are $[\ln 3,\; 0]$. What attention weight goes to the first key? (Hint: $e^{\ln 3} = 3$.)
+    answer: 0.75
+    tolerance: 0.001
+    explanation: |
+      Exponentials are $3$ and $1$, sum $4$. Weights $[3/4, 1/4] = [0.75, 0.25]$.
+
+  - id: att-output
+    type: fill
+    difficulty: medium
+    prompt: |
+      Weights $[0.75, 0.25]$ and values $v_1 = [4, 0]$, $v_2 = [0, 8]$. What is the output vector? Answer as `[a, b]`.
+    answer: ["[3, 2]", "[3,2]", "3,2", "(3, 2)", "3, 2"]
+    explanation: |
+      $0.75 \times [4, 0] + 0.25 \times [0, 8] = [3, 0] + [0, 2] = [3, 2]$.
+
+  - id: att-scale
+    type: numeric
+    difficulty: easy
+    prompt: |
+      A head has $d_k = 64$. A raw query-key dot product is 24. What is the scaled score?
+    answer: 3
+    tolerance: 0.001
+    explanation: |
+      $24 / \sqrt{64} = 24 / 8 = 3$.
+
+  - id: att-shapes
+    type: match
+    difficulty: medium
+    prompt: |
+      A sequence of $n = 10$ tokens, $d_{\text{model}} = 32$, one head with $d_k = d_v = 8$. Match each tensor to its shape.
+    pairs:
+      - ["X (embeddings)", "[10, 32]"]
+      - ["W_Q", "[32, 8]"]
+      - ["Q K^T", "[10, 10]"]
+      - ["softmax(...) V", "[10, 8]"]
+    explanation: |
+      $Q = XW_Q$ is $[10, 8]$; $QK^\top$ is $[10, 8] \times [8, 10] = [10, 10]$; multiplying the weights by $V$ ($[10, 8]$) gives $[10, 8]$.
+
+  - id: att-mask
+    type: single
+    difficulty: medium
+    prompt: Why do decoder-only language models apply a causal mask during training?
+    options:
+      - To reduce memory use by half.
+      - So each position predicts the next token using only earlier tokens, matching how generation works at inference.
+      - Because softmax cannot handle more than one key.
+      - To make attention weights sum to 1.
+    answer: 1
+    explanation: |
+      Training predicts every next token in parallel. Without the mask, position $t$ could attend to token $t+1$, the very token it must predict, and the model would learn to copy instead of predict.
+    why_not:
+      - Masked entries are still computed in a naive implementation; the purpose is correctness.
+      - Correct.
+      - Softmax works over any number of keys.
+      - Softmax always produces rows summing to 1, masked or not.
+
+  - id: att-cost
+    type: single
+    difficulty: hard
+    prompt: |
+      You increase the context length from 4,000 to 16,000 tokens. Roughly how does the size of each attention score matrix change?
+    options:
+      - It stays the same; it depends only on $d_k$.
+      - It grows 4×.
+      - It grows 16×.
+      - It grows 64×.
+    answer: 2
+    explanation: |
+      The matrix is $[n, n]$, so it scales with $n^2$: $(16{,}000/4{,}000)^2 = 16$.
+    why_not:
+      - The score matrix is $n \times n$; $d_k$ affects compute per entry, not the matrix size.
+      - That would be linear scaling.
+      - Correct.
+      - That would be cubic scaling.
+
+  - id: att-order
+    type: order
+    difficulty: easy
+    prompt: Put the steps of scaled dot-product attention in order.
+    options:
+      - Project embeddings into queries, keys, and values
+      - Compute scores as query-key dot products
+      - Divide scores by the square root of d_k
+      - Apply the mask (for decoders)
+      - Softmax each row into weights
+      - Multiply the weights by the values
+    explanation: Project, compare, scale, mask, normalize, mix.
+
+  - id: att-bug
+    type: short
+    difficulty: hard
+    prompt: |
+      A team trains a small decoder language model. Training loss drops almost to zero within an hour, but generated text is gibberish. What is the most likely bug, and how would you confirm it?
+    sample_answer: |
+      The causal mask is missing or wrong, so each position can attend to the token it is supposed to predict and the model learns to copy it. Confirm by inspecting an attention weight matrix (upper triangle should be exactly zero) or by changing a future token and checking whether earlier positions' logits change. They must not.
+    explanation: Near-zero training loss with useless generation is the signature of label leakage through attention.

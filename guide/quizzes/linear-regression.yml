@@ -1,0 +1,125 @@
+title: Linear regression
+lesson: linear-regression
+questions:
+  - id: lr-mse
+    type: numeric
+    difficulty: easy
+    prompt: |
+      A model predicts $\hat{y} = [3, 5, 4]$ for targets $y = [2, 5, 7]$. What is the mean squared error?
+    answer: 3.3333
+    tolerance: 0.01
+    explanation: |
+      Residuals $y - \hat{y}$ are $-1, 0, 3$. Squared: $1, 0, 9$. MSE $= (1 + 0 + 9)/3 = 10/3 \approx 3.333$.
+
+  - id: lr-grad-w
+    type: numeric
+    difficulty: medium
+    prompt: |
+      For $\hat{y} = wx + b$ with data $x = [1, 2]$, $y = [3, 5]$, and current $w = 1$, $b = 0$, compute $\partial\,\text{MSE}/\partial w$.
+    answer: -8
+    tolerance: 0.01
+    explanation: |
+      Predictions are $1, 2$, so errors $\hat{y} - y$ are $-2, -3$.
+      $\frac{2}{n}\sum(\hat{y}_i - y_i)x_i = \frac{2}{2}[(-2)(1) + (-3)(2)] = 1 \times (-8) = -8$.
+      The gradient is negative, so gradient descent will increase $w$.
+
+  - id: lr-update
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Continuing the previous question: the bias gradient is $\partial\,\text{MSE}/\partial b = -5$. With learning rate $\eta = 0.1$, what is the new value of $b$ after one step (starting from $b = 0$)?
+    answer: 0.5
+    tolerance: 0.001
+    explanation: |
+      $b \leftarrow b - \eta \cdot \partial\text{MSE}/\partial b = 0 - 0.1 \times (-5) = 0.5$.
+
+  - id: lr-outlier
+    type: single
+    difficulty: medium
+    prompt: |
+      You add one point far above the others and refit with MSE. What happens to the line, and why?
+    options:
+      - Nothing changes; one point out of hundreds has no effect.
+      - The line tilts toward the outlier, because its large residual is squared and dominates the loss.
+      - The line moves away from the outlier to protect the other points.
+      - The slope becomes exactly zero.
+    answer: 1
+    explanation: |
+      Squaring makes a residual of 10 cost 100, as much as a hundred residuals of 1. Minimizing MSE therefore pulls the fit toward the outlier. MAE or Huber loss are more robust choices when outliers are expected.
+    why_not:
+      - A single large residual can dominate a sum of squares, even among many points.
+      - Correct. The squared term grows quadratically with distance.
+      - Least squares has no mechanism that pushes away from points; every residual pulls the line toward its point.
+      - The slope changes, but there is no reason for it to become zero.
+
+  - id: lr-debug-lr
+    type: single
+    difficulty: hard
+    prompt: |
+      Your from-scratch gradient descent prints a loss of 52, then 410, then 3,300, then `inf`. Features are raw square footage (values around 2,000). What is the most likely fix?
+    options:
+      - Train for more steps so it converges.
+      - Standardize the feature or lower the learning rate; the steps are overshooting.
+      - Remove the bias term.
+      - Switch the loss from MSE to MAE.
+    answer: 1
+    explanation: |
+      A loss that grows geometrically means each update overshoots the minimum by more than it started. The gradient with respect to $w$ scales with $x$, so raw values around 2,000 make the steps enormous. Standardizing $x$ (mean 0, std 1) or shrinking $\eta$ fixes it.
+    why_not:
+      - More steps of a diverging process only diverge further.
+      - Correct. Scale and learning rate together set the step size.
+      - The bias is not the cause; the weight gradient scales with the large feature values.
+      - MAE changes robustness to outliers but does not fix a step size that is too large.
+
+  - id: lr-assumptions
+    type: multi
+    difficulty: medium
+    prompt: |
+      A residual plot (residual vs. prediction) shows a clear U-shape, and the spread of residuals grows with the prediction. Which conclusions are justified? Select all that apply.
+    options:
+      - The relationship is probably nonlinear; consider polynomial features or a tree model.
+      - Error variance is not constant; predicting log(y) may help.
+      - The model is overfitting.
+      - The data has leakage.
+    answer: [0, 1]
+    explanation: |
+      A U-shape means systematic error that depends on the prediction, so a straight line is missing curvature. A fan shape means heteroscedasticity. Neither pattern is evidence of overfitting (compare train vs. validation error for that) or leakage (look for features unavailable at prediction time).
+    why_not:
+      - Correct. Curvature in residuals means a missing nonlinear term.
+      - Correct. Growing spread is heteroscedasticity; a log transform often stabilizes it.
+      - Overfitting is diagnosed by a gap between training and validation error, not by residual shape.
+      - Nothing in a residual plot indicates leakage.
+
+  - id: lr-loss-vs-metric
+    type: match
+    difficulty: easy
+    prompt: Match each term to its role.
+    pairs:
+      - ["MSE during training", "Loss the optimizer minimizes"]
+      - ["RMSE in a report", "Metric in the target's units for humans"]
+      - ["Learning rate", "Hyperparameter chosen before training"]
+      - ["Slope w", "Parameter learned from data"]
+    explanation: |
+      Loss is what training optimizes; a metric is how people judge the result (they can coincide, but serve different purposes). Parameters are learned; hyperparameters are set outside training.
+
+  - id: lr-loop
+    type: order
+    difficulty: easy
+    prompt: Put one iteration of gradient descent for linear regression in order.
+    options:
+      - Compute predictions $\hat{y} = wx + b$
+      - Compute residuals and the loss
+      - Compute gradients $\partial L/\partial w$ and $\partial L/\partial b$
+      - Update parameters by stepping against the gradients
+    explanation: |
+      Forward pass, measure, differentiate, update. This is the same loop that trains neural networks, with backpropagation computing the gradients.
+
+  - id: lr-causal
+    type: short
+    difficulty: hard
+    prompt: |
+      A house-price model has a large positive weight on "has a swimming pool". A product manager wants to tell sellers that adding a pool raises the price by that amount. What would you say?
+    sample_answer: |
+      The weight measures association in the training data while holding the other included features fixed. It is not a causal effect. Houses with pools differ in ways the model may not capture (neighborhood, lot size, climate), so the weight absorbs those differences. Estimating the effect of adding a pool needs causal methods (comparable before/after sales, controlled comparisons), not a regression coefficient.
+    explanation: |
+      Correlation versus causation: a predictive model can be accurate while its coefficients have no interventional meaning.

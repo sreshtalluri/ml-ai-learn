@@ -1,0 +1,51 @@
+title: The Python toolkit
+lesson: python-toolkit
+questions:
+  - id: py-broadcast
+    type: fill
+    difficulty: medium
+    prompt: What is the shape of `A + B` when `A.shape == (8, 1)` and `B.shape == (6,)`? Answer like `(a, b)`.
+    answer: ["(8, 6)", "(8,6)", "8,6", "[8, 6]"]
+    explanation: Align from the right; 1 stretches to 6, and the missing leading dimension of B becomes 1 and stretches to 8.
+  - id: py-axis
+    type: fill
+    difficulty: easy
+    prompt: For `X` of shape `(200, 5)`, what is the shape of `X.mean(axis=0)`? Answer like `(n,)`.
+    answer: ["(5,)", "(5)", "5", "[5]"]
+    explanation: Averaging over rows (axis 0) leaves one value per column.
+  - id: py-standardize
+    type: numeric
+    difficulty: medium
+    prompt: A column has values [2, 4, 6]. What is the standardized value of 6, using the population standard deviation? (4 decimals)
+    answer: 1.2247
+    tolerance: 0.001
+    explanation: Mean 4; deviations −2, 0, 2; variance $8/3$; std $1.633$. $(6-4)/1.633 = 1.2247$.
+  - id: py-leak
+    type: single
+    difficulty: medium
+    prompt: Where should missing values be imputed (for example with the median)?
+    options:
+      - On the full dataset before splitting, so all splits are consistent.
+      - Using statistics computed on the training split only, then applied to validation and test.
+      - Separately on each split with its own median.
+      - Never; drop every row with a missing value.
+    answer: 1
+    explanation: Statistics from validation or test data leak information. Fit imputers inside the training pipeline.
+  - id: py-repro
+    type: multi
+    difficulty: easy
+    prompt: Which practices make an experiment reproducible? Select all that apply.
+    options:
+      - Fixing random seeds
+      - Pinning package versions
+      - Recording the dataset version
+      - Re-running until the metric looks good
+    answer: [0, 1, 2]
+    explanation: Seeds, versions, and data snapshots let anyone reproduce the run. Re-running until it looks good is cherry-picking.
+  - id: py-bug
+    type: short
+    difficulty: hard
+    prompt: Your MSE computed with NumPy is far larger than scikit-learn's `mean_squared_error` on the same predictions. Predictions have shape `(n, 1)` and targets `(n,)`. Explain.
+    sample_answer: |
+      `y_pred - y` broadcasts `(n, 1)` against `(n,)` into an `(n, n)` matrix of every prediction minus every target, so the mean is over n² meaningless differences. Flatten predictions with `.ravel()` (or reshape targets) before subtracting.
+    explanation: The classic silent broadcasting bug.

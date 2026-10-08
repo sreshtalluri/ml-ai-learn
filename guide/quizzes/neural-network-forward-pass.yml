@@ -1,0 +1,99 @@
+title: The neural-network forward pass
+lesson: neural-network-forward-pass
+questions:
+  - id: nn-neuron
+    type: numeric
+    difficulty: easy
+    prompt: |
+      A ReLU neuron has weights $w = [2, -1, 0.5]$ and bias $b = -1$. What is its output for $x = [1, 3, 4]$?
+    answer: 0
+    tolerance: 0.0001
+    explanation: |
+      $z = 2(1) + (-1)(3) + 0.5(4) - 1 = 2 - 3 + 2 - 1 = 0$. $\text{ReLU}(0) = 0$.
+
+  - id: nn-sigmoid-out
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Hidden activations are $a = [1, 0, 2]$, output weights $[0.5, 3, -0.25]$, output bias $0$, and the output uses a sigmoid. What is $\hat{y}$? (3 decimals)
+    answer: 0.5
+    tolerance: 0.001
+    explanation: |
+      $z = 0.5(1) + 3(0) - 0.25(2) + 0 = 0.5 - 0.5 = 0$, and $\sigma(0) = 0.5$. The large weight 3 had no effect because its input activation was 0.
+
+  - id: nn-params
+    type: numeric
+    difficulty: medium
+    prompt: How many trainable parameters does a network with layers 10 → 32 → 32 → 3 (all fully connected, with biases) have?
+    answer: 1507
+    tolerance: 0
+    explanation: |
+      $10 \times 32 + 32 = 352$; $32 \times 32 + 32 = 1056$; $32 \times 3 + 3 = 99$. Total $352 + 1056 + 99 = 1507$.
+
+  - id: nn-shape
+    type: fill
+    difficulty: medium
+    prompt: |
+      A batch $X$ has shape `[64, 20]`. It passes through `nn.Linear(20, 128)` then `nn.ReLU()` then `nn.Linear(128, 5)`. What is the output shape? Answer like `[a, b]`.
+    answer: ["[64, 5]", "[64,5]", "64,5", "(64, 5)", "(64,5)"]
+    explanation: |
+      The batch dimension is preserved: $[64,20] \to [64,128] \to [64,128] \to [64,5]$.
+
+  - id: nn-collapse
+    type: single
+    difficulty: medium
+    prompt: |
+      Someone builds a 10-layer network but forgets every activation function. On XOR data it reaches about 50% accuracy. Why?
+    options:
+      - Ten layers are too few for XOR.
+      - Without nonlinearities the whole network is equivalent to a single linear layer, which cannot separate XOR.
+      - The learning rate must be too high.
+      - XOR requires convolutional layers.
+    answer: 1
+    explanation: |
+      $W_{10}\cdots W_1 x + (\text{bias terms})$ is one matrix times $x$ plus one bias. A linear decision boundary cannot solve XOR, no matter how many layers produced it.
+    why_not:
+      - One hidden layer with a nonlinearity is enough.
+      - Correct.
+      - Even perfectly optimized, a linear model cannot exceed chance on XOR.
+      - An MLP with a nonlinearity solves it easily.
+
+  - id: nn-output
+    type: match
+    difficulty: easy
+    prompt: Match the task to the right output layer.
+    pairs:
+      - ["Predict a house price", "1 unit, no activation, MSE loss"]
+      - ["Spam or not spam", "1 unit, sigmoid, binary cross-entropy"]
+      - ["Pick one of 10 digit classes", "10 units, softmax, categorical cross-entropy"]
+      - ["Several independent tags per image", "One sigmoid unit per tag, binary cross-entropy each"]
+    explanation: |
+      Softmax forces probabilities to compete and sum to 1, which suits exactly one correct class. Independent tags need independent sigmoids.
+
+  - id: nn-dead
+    type: multi
+    difficulty: hard
+    prompt: |
+      After a few training steps with a large learning rate, 70% of a layer's ReLU units output 0 for every training example. Which statements are true? Select all that apply.
+    options:
+      - Those units get zero gradient, so they are unlikely to recover on their own.
+      - A smaller learning rate, better initialization, or a leaky variant of ReLU can help.
+      - This is expected and harmless; ReLU is supposed to output zeros.
+      - The network's effective capacity has dropped.
+    answer: [0, 1, 3]
+    explanation: |
+      ReLU's derivative is 0 for negative inputs, so a unit that is negative for every example never updates: a dead ReLU. Some zeros per example are normal (sparsity), but units that are zero for *all* examples are wasted capacity.
+    why_not:
+      - Correct.
+      - Correct. Leaky ReLU keeps a small slope for negative inputs.
+      - Zeros for some inputs are fine; zeros for every input mean the unit is dead.
+      - Correct.
+
+  - id: nn-softmax-twice
+    type: short
+    difficulty: hard
+    prompt: |
+      A teammate's PyTorch classifier ends with `nn.Softmax(dim=1)` and is trained with `nn.CrossEntropyLoss`. Accuracy is mediocre and training is slow. What is wrong, and how do you fix it?
+    sample_answer: |
+      `CrossEntropyLoss` expects raw logits and applies log-softmax internally. Applying softmax first means the loss sees softmax of probabilities: a squashed, nearly flat distribution with tiny gradients. Remove the final `nn.Softmax` from the model, train on logits, and apply softmax only at inference when you need probabilities.
+    explanation: Return logits from the model and let the loss function do the squashing; it is both correct and numerically stable.

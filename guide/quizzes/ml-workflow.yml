@@ -1,0 +1,67 @@
+title: Workflow, splits, and leakage
+lesson: ml-workflow
+questions:
+  - id: wf-split
+    type: match
+    difficulty: medium
+    prompt: Match each problem to the right split.
+    pairs:
+      - ["Forecast next week's sales", "Time split"]
+      - ["Diagnose disease from multiple scans per patient", "Group split by patient"]
+      - ["Classify independent product reviews, 2% negative", "Stratified random split"]
+      - ["Predict house prices from a single snapshot of listings", "Random split"]
+    explanation: Match the split to how production data will differ from training data.
+  - id: wf-leak
+    type: multi
+    difficulty: medium
+    prompt: Which are data leakage? Select all that apply.
+    options:
+      - Fitting a StandardScaler on the full dataset before the train-test split
+      - Including `days_until_cancellation` when predicting cancellation
+      - Using a customer's account age at prediction time
+      - Exact duplicate rows appearing in both train and test
+    answer: [0, 1, 3]
+    explanation: Scaler statistics include test data; days-until-cancellation encodes the label; duplicates let the model memorize test answers. Account age at prediction time is legitimate.
+  - id: wf-baseline
+    type: numeric
+    difficulty: easy
+    prompt: In a dataset with 950 negatives and 50 positives, what accuracy does "always predict negative" achieve?
+    answer: 0.95
+    tolerance: 0.0001
+    explanation: 950 / 1000 = 0.95. Any model must be judged against this, and accuracy is the wrong metric here.
+  - id: wf-suspicious
+    type: single
+    difficulty: hard
+    prompt: Your churn model has 0.99 AUC, and 80% of its importance comes from `last_login_date`. What is most likely?
+    options:
+      - The model found a genuinely powerful signal.
+      - The feature leaks the outcome (churned customers stop logging in, so the date was taken after churn began).
+      - The model is underfitting.
+      - AUC is miscalculated.
+    answer: 1
+    explanation: An overwhelming single feature and a near-perfect score on a hard problem are classic leakage smells. Check when the feature is computed relative to the prediction time.
+  - id: wf-test
+    type: single
+    difficulty: medium
+    prompt: You compared 40 model variants on the test set and picked the best. What is wrong with reporting its test score?
+    options:
+      - Nothing.
+      - The test set has been used for selection, so the score is optimistically biased; use a validation set or CV for selection and keep a fresh test set.
+      - 40 is too few variants.
+      - The test set should be larger than the training set.
+    answer: 1
+    explanation: Selecting on the test set turns it into a validation set. The winner's score includes luck.
+  - id: wf-order
+    type: order
+    difficulty: easy
+    prompt: Order the workflow steps.
+    options:
+      - Frame the decision and metric
+      - Collect and version data
+      - Explore for missing values, duplicates, and leakage
+      - Split into train, validation, and test
+      - Fit a baseline
+      - Train and tune models
+      - Evaluate and analyze errors
+      - Deploy and monitor
+    explanation: Framing and splitting come before any modeling.

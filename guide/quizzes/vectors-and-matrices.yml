@@ -1,0 +1,62 @@
+title: Vectors and matrices
+lesson: vectors-and-matrices
+questions:
+  - id: vm-dot
+    type: numeric
+    difficulty: easy
+    prompt: Compute $[2, -1, 4] \cdot [3, 5, 0.5]$.
+    answer: 3
+    tolerance: 0.0001
+    explanation: $2 \times 3 + (-1) \times 5 + 4 \times 0.5 = 6 - 5 + 2 = 3$.
+  - id: vm-shape
+    type: fill
+    difficulty: easy
+    prompt: |
+      $X$ has shape `[32, 128]` and $W$ has shape `[128, 10]`. What is the shape of $XW$? Answer like `[a, b]`.
+    answer: ["[32, 10]", "[32,10]", "32,10", "(32, 10)"]
+    explanation: The inner dimension 128 matches and disappears; the outer dimensions remain.
+  - id: vm-entry
+    type: numeric
+    difficulty: medium
+    prompt: |
+      $A = \begin{bmatrix}1 & 2\\ 0 & 3\end{bmatrix}$, $B = \begin{bmatrix}4 & 1\\ 2 & 5\end{bmatrix}$. What is the entry in row 2, column 2 of $AB$?
+    answer: 15
+    tolerance: 0
+    explanation: |
+      Row 2 of $A$ is $[0, 3]$, column 2 of $B$ is $[1, 5]$: $0 \times 1 + 3 \times 5 = 15$.
+  - id: vm-cos
+    type: numeric
+    difficulty: medium
+    prompt: What is the cosine similarity between $[1, 0]$ and $[1, 1]$? (4 decimals)
+    answer: 0.7071
+    tolerance: 0.001
+    explanation: Dot product 1; lengths 1 and $\sqrt{2}$; $1/\sqrt{2} = 0.7071$ (a 45° angle).
+  - id: vm-bug
+    type: single
+    difficulty: hard
+    prompt: |
+      `y_hat` has shape `[100, 1]` and `y` has shape `[100]`. You compute `((y_hat - y) ** 2).mean()` in NumPy. What happens?
+    options:
+      - An error is raised.
+      - The correct MSE is returned.
+      - Broadcasting produces a `[100, 100]` matrix, so the "MSE" is wrong but no error is raised.
+      - The result is a `[100]` vector.
+    answer: 2
+    explanation: |
+      `[100, 1] - [100]` broadcasts to `[100, 100]`: every prediction minus every target. The mean of that is a meaningless number. Reshape one side first.
+    why_not:
+      - NumPy broadcasts silently; that is the danger.
+      - It looks plausible but averages 10,000 cross pairs.
+      - Correct.
+      - "`.mean()` reduces to a scalar, after the wrong broadcast."
+  - id: vm-commute
+    type: multi
+    difficulty: medium
+    prompt: Which statements are true? Select all that apply.
+    options:
+      - If $A$ is $[2, 3]$ and $B$ is $[3, 2]$, both $AB$ and $BA$ exist but have different shapes.
+      - Matrix multiplication is commutative.
+      - "`A * B` in NumPy multiplies element-wise."
+      - A dot product of perpendicular vectors is 0.
+    answer: [0, 2, 3]
+    explanation: $AB$ is $[2, 2]$ and $BA$ is $[3, 3]$. Matrix products are generally not commutative. `*` is element-wise; `@` is the matrix product.

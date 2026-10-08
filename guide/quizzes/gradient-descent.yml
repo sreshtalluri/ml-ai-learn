@@ -1,0 +1,107 @@
+title: Gradient descent
+lesson: gradient-descent
+questions:
+  - id: gd-step
+    type: numeric
+    difficulty: easy
+    prompt: |
+      For $f(\theta) = (\theta - 3)^2$, starting at $\theta = 0$ with learning rate $\eta = 0.25$, what is $\theta$ after one gradient-descent step?
+    answer: 1.5
+    tolerance: 0.001
+    explanation: |
+      $f'(\theta) = 2(\theta - 3) = 2(0 - 3) = -6$. Update: $0 - 0.25 \times (-6) = 1.5$.
+
+  - id: gd-2d
+    type: fill
+    difficulty: medium
+    prompt: |
+      $f(x, y) = x^2 + 3y^2$. At $(1, 1)$ with $\eta = 0.1$, what is the new point after one step? Answer as `(x, y)`.
+    answer: ["(0.8, 0.4)", "(0.8,0.4)", "0.8,0.4", "0.8, 0.4"]
+    explanation: |
+      $\nabla f = (2x, 6y) = (2, 6)$. New point $= (1 - 0.2,\; 1 - 0.6) = (0.8, 0.4)$.
+
+  - id: gd-limit
+    type: numeric
+    difficulty: hard
+    prompt: |
+      For $f(x, y) = \tfrac12(x^2 + 50y^2)$, what is the largest learning rate for which plain gradient descent converges (the strict upper limit)?
+    answer: 0.04
+    tolerance: 0.0001
+    explanation: |
+      Curvatures are 1 and 50. Each step multiplies $y$ by $1 - 50\eta$, which needs $|1 - 50\eta| < 1$, so $\eta < 2/50 = 0.04$. The steepest direction sets the limit.
+
+  - id: gd-curves
+    type: match
+    difficulty: medium
+    prompt: Match each training-loss curve to its most likely cause.
+    pairs:
+      - ["Loss falls, then shoots up to NaN", "Learning rate too high or exploding gradients"]
+      - ["Loss barely moves for thousands of steps", "Learning rate too low or no gradient flowing"]
+      - ["Loss bounces around a level and never settles", "Constant learning rate too large near the minimum"]
+      - ["Training loss falls, validation loss rises", "Overfitting, not an optimizer problem"]
+    explanation: |
+      Reading curves is a core debugging skill. Note the last one: the optimizer is doing its job; the model is memorizing.
+
+  - id: gd-batch
+    type: single
+    difficulty: medium
+    prompt: Why is mini-batch gradient descent the default rather than full-batch?
+    options:
+      - It computes the exact gradient more cheaply.
+      - Many cheap, slightly noisy steps make more progress per unit of compute, and batches parallelize well on GPUs.
+      - Full-batch gradient descent cannot reach a minimum.
+      - Mini-batches remove the need for a learning rate.
+    answer: 1
+    explanation: |
+      A mini-batch gradient is an unbiased but noisy estimate. You get many updates per epoch instead of one, and hardware processes a batch in parallel.
+    why_not:
+      - It estimates, rather than computes exactly.
+      - Correct.
+      - Full-batch can converge; it is just slow on large datasets.
+      - Every variant needs a learning rate.
+
+  - id: gd-adam
+    type: single
+    difficulty: hard
+    prompt: |
+      Parameter A has gradients around 100, parameter B around 0.01. With plain SGD at one learning rate, A's steps are 10,000× larger. What does Adam do differently?
+    options:
+      - It clips both gradients to 1.
+      - It divides each parameter's averaged gradient by the root of its averaged squared gradient, so step sizes are comparable.
+      - It uses the second derivative (Hessian) to pick the exact step.
+      - It skips updates for parameters with small gradients.
+    answer: 1
+    explanation: |
+      Adam's update is roughly $\eta\, \hat m / \sqrt{\hat s}$, which is about $\eta$ in magnitude for steady gradients, whatever their scale.
+    why_not:
+      - That is gradient clipping, a different technique.
+      - Correct.
+      - Adam is a first-order method; it never computes the Hessian.
+      - Every parameter is updated every step.
+
+  - id: gd-zero-grad
+    type: single
+    difficulty: medium
+    prompt: |
+      A PyTorch training loop omits `optimizer.zero_grad()`. Loss behaves erratically and diverges. Why?
+    options:
+      - PyTorch adds new gradients to the stored ones, so each step uses the sum of all past gradients.
+      - The optimizer stops updating weights.
+      - The forward pass reuses the previous batch.
+      - Nothing; `zero_grad` is optional.
+    answer: 0
+    explanation: |
+      `.backward()` accumulates into `.grad`. Without clearing, the effective gradient grows every step, acting like an exploding learning rate.
+    why_not:
+      - Correct.
+      - The optimizer still steps; it steps with the wrong gradients.
+      - The data loader is unaffected.
+      - It is required unless you deliberately accumulate gradients across batches.
+
+  - id: gd-explain
+    type: short
+    difficulty: medium
+    prompt: Explain to a new engineer why standardizing input features usually lets a model train faster with gradient descent.
+    sample_answer: |
+      Features on very different scales make the loss surface a long, narrow valley: the loss is far more sensitive to some weights than others. Gradient descent must use a learning rate small enough for the steepest direction, so it crawls along the gentle ones. Standardizing makes the curvature more similar in every direction (a rounder bowl), so a single larger learning rate works for all weights.
+    explanation: This is the conditioning argument from the worked example, where the steepest curvature sets the speed limit $\eta < 2/\lambda_{\max}$.
