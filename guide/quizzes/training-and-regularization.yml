@@ -1,0 +1,55 @@
+title: Training and regularization
+lesson: training-and-regularization
+questions:
+  - id: tr-dropout
+    type: fill
+    difficulty: medium
+    prompt: Activations `[2, 6, 4]`, dropout $p = 0.5$, mask `[0, 1, 1]`. What is the training-time output? Answer like `[a, b, c]`.
+    answer: ["[0, 12, 8]", "[0,12,8]", "0,12,8", "0, 12, 8"]
+    explanation: Kept units are scaled by $1/(1 - 0.5) = 2$.
+  - id: tr-ln
+    type: numeric
+    difficulty: medium
+    prompt: Layer-normalize $[2, 4, 6]$ ($\gamma = 1$, $\beta = 0$, ignore $\epsilon$). What is the normalized value of 6? (3 decimals)
+    answer: 1.225
+    tolerance: 0.002
+    explanation: Mean 4; variance $(4 + 0 + 4)/3 = 2.667$; std 1.633; $(6 - 4)/1.633 = 1.225$.
+  - id: tr-early
+    type: single
+    difficulty: easy
+    prompt: Validation loss is lowest at epoch 12 and rises afterwards while training loss keeps falling. Which weights should you deploy?
+    options:
+      - The final epoch's
+      - Epoch 12's (the best validation checkpoint)
+      - Epoch 1's
+      - An average of all epochs
+    answer: 1
+    explanation: That is early stopping: keep the checkpoint with the best validation performance.
+  - id: tr-match
+    type: match
+    difficulty: medium
+    prompt: Match each technique to what it does.
+    pairs:
+      - ["Dropout", "Randomly zeroes activations during training"]
+      - ["Weight decay", "Shrinks weights toward zero each step"]
+      - ["Layer normalization", "Rescales each example's activations to zero mean, unit variance"]
+      - ["Learning-rate warmup", "Starts with small steps to stabilize early training"]
+    explanation: Different mechanisms, shared goal of stable training and better generalization.
+  - id: tr-eval
+    type: single
+    difficulty: medium
+    prompt: A model with dropout gives slightly different predictions every time you call it on the same input in production. What's wrong?
+    options:
+      - The data loader shuffles.
+      - The model is still in training mode, so dropout is active; call `model.eval()`.
+      - Dropout should be increased.
+      - Floating-point noise.
+    answer: 1
+    explanation: Dropout must be disabled at inference.
+  - id: tr-search
+    type: short
+    difficulty: hard
+    prompt: Why is random search often more efficient than grid search when only one or two of several hyperparameters really matter?
+    sample_answer: |
+      A grid repeats the same few values of each hyperparameter many times. With 9 trials on a 3×3 grid you only test 3 values of the important one. Random search samples a new value of every hyperparameter in every trial, so 9 trials test 9 distinct values of the important one, making it more likely to land near its best value. It's a coverage argument, not a guarantee for every run.
+    explanation: Bergstra and Bengio's observation; Bayesian optimization goes further by modeling the score.

@@ -1,0 +1,49 @@
+title: Convolutional networks
+lesson: convolutional-networks
+questions:
+  - id: cnn-cell
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A 2×2 kernel $\begin{bmatrix}1 & 0\\0 & -1\end{bmatrix}$ is applied to the patch $\begin{bmatrix}5 & 2\\3 & 1\end{bmatrix}$ (no bias). What is the output value?
+    answer: 4
+    tolerance: 0
+    explanation: $5(1) + 2(0) + 3(0) + 1(-1) = 4$.
+  - id: cnn-size
+    type: numeric
+    difficulty: medium
+    prompt: Input 64×64, kernel 3×3, stride 2, padding 1. What is the output height?
+    answer: 32
+    tolerance: 0
+    explanation: $\lfloor (64 - 3 + 2)/2 \rfloor + 1 = \lfloor 31.5 \rfloor + 1 = 32$.
+  - id: cnn-params
+    type: numeric
+    difficulty: medium
+    prompt: A conv layer has 3 input channels, 16 output channels, 5×5 kernels, and biases. How many parameters?
+    answer: 1216
+    tolerance: 0
+    explanation: $16 \times (3 \times 25 + 1) = 16 \times 76 = 1216$.
+  - id: cnn-pool
+    type: fill
+    difficulty: easy
+    prompt: Max-pool the 2×2 window `[[2, 7], [5, 1]]`. What is the result?
+    answer: ["7"]
+    explanation: Max pooling keeps the largest value.
+  - id: cnn-bias
+    type: multi
+    difficulty: medium
+    prompt: Which inductive biases make CNNs data-efficient on images? Select all that apply.
+    options:
+      - Local receptive fields (each unit sees a small patch)
+      - Weight sharing (the same kernel at every position)
+      - Global attention between every pair of pixels
+      - Pooling for tolerance to small shifts
+    answer: [0, 1, 3]
+    explanation: Global attention is the transformer's inductive bias, which needs more data.
+  - id: cnn-transfer
+    type: short
+    difficulty: medium
+    prompt: You have 2,000 labeled product photos in 10 classes. Outline a sensible first approach.
+    sample_answer: |
+      Start from a CNN (or vision transformer) pretrained on a large dataset such as ImageNet. Replace the final classification layer with a 10-class head, freeze the backbone at first and train the head, then optionally unfreeze the top layers with a small learning rate. Use label-preserving augmentation and a held-out validation set. Training from scratch on 2,000 images would badly overfit.
+    explanation: Transfer learning plus augmentation is the default for small image datasets.
