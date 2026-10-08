@@ -19,7 +19,7 @@ const X_DOM: [number, number] = [0, 11];
 const Y_DOM: [number, number] = [-2, 30];
 
 export default function LinearRegressionLab() {
-  const initial = useMemo(makeData, []);
+  const initial = useMemo(() => makeData(), []);
   const [pts, setPts] = useState<Pt[]>(initial);
   const [w, setW] = useState(1);
   const [b, setB] = useState(4);

@@ -104,7 +104,7 @@ export function Markdown({ source, file }: { source: string; file: string }) {
     table({ children }) {
       return <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table>{children}</table></div>;
     },
-    blockquote({ node, children, ...props }: any) {
+    blockquote({ children, ...props }: any) {
       const title = props["data-title"];
       return (
         <blockquote className={props.className}>
