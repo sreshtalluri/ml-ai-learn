@@ -78,7 +78,7 @@ with the softmax applied to each row separately:
 A_{ij} = \frac{\exp(S'_{ij})}{\sum_{l} \exp(S'_{il})}, \qquad \text{output}_i = \sum_j A_{ij}\, v_j
 ```
 
-### Why divide by $\sqrt{d_k}$
+### Why divide by the square root of d_k
 
 If the entries of $q$ and $k$ are independent with mean 0 and variance 1, then $q \cdot k = \sum_{m=1}^{d_k} q_m k_m$ is a sum of $d_k$ terms each with variance 1, so its variance is $d_k$ and its standard deviation is $\sqrt{d_k}$. The script measures 2.00, 7.98, and 22.42 for $d_k = 4, 64, 512$, against $\sqrt{d_k} = 2, 8, 22.6$. Dividing by $\sqrt{d_k}$ brings scores back to unit scale, so softmax stays in its responsive range.
 
