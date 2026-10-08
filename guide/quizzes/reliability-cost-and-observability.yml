@@ -1,0 +1,48 @@
+title: Reliability, cost, and observability
+lesson: reliability-cost-and-observability
+questions:
+  - id: rel-retry
+    type: numeric
+    difficulty: easy
+    prompt: Independent transient failures occur 5% of the time. With two retries (three attempts total), what fraction of requests fail?
+    answer: 0.000125
+    tolerance: 0.000001
+    explanation: $0.05^3 = 0.000125$.
+  - id: rel-chain
+    type: numeric
+    difficulty: medium
+    prompt: Three dependencies in series each have 98% availability. What is end-to-end availability? (4 decimals)
+    answer: 0.9412
+    tolerance: 0.0002
+    explanation: $0.98^3 = 0.941192$.
+  - id: rel-quant
+    type: numeric
+    difficulty: medium
+    prompt: How many GB do the weights of a 13-billion-parameter model need in int8? (1 GB = $10^9$ bytes)
+    answer: 13
+    tolerance: 0.01
+    explanation: 8 bits = 1 byte per parameter, so 13 GB. In fp16 it would be 26 GB.
+  - id: rel-cache
+    type: numeric
+    difficulty: easy
+    prompt: Misses cost 2 cents, hits cost nothing, and the hit rate is 25%. What is the average cost per request in cents?
+    answer: 1.5
+    tolerance: 0.0001
+    explanation: $0.75 \times 2 = 1.5$.
+  - id: rel-pattern
+    type: match
+    difficulty: medium
+    prompt: Match each pattern to the problem it solves.
+    pairs:
+      - ["Circuit breaker", "Stops hammering a dependency that keeps failing"]
+      - ["Idempotency key", "Makes retried side effects happen only once"]
+      - ["Exponential backoff with jitter", "Spreads retries out so they don't synchronize"]
+      - ["Fallback response", "Keeps the feature usable when a dependency is down"]
+    explanation: Each pattern addresses a different failure mode.
+  - id: rel-drift
+    type: short
+    difficulty: hard
+    prompt: A month after launch, your RAG assistant's thumbs-down rate doubles, though uptime and latency look normal. What would you investigate, and in what order?
+    sample_answer: |
+      First, what changed: deployments of prompts, model version (including silent provider updates), embedding model, or index; and whether the index is stale (new documents not ingested). Then input drift: are users asking new kinds of questions (cluster recent queries and compare with launch)? Then retrieval quality on recent failing queries (is the evidence retrieved?) versus generation (is it grounded?). Use traces with versions and retrieved IDs, add the failures to the eval set, and fix the root cause.
+    explanation: Quality monitoring needs version tracking, drift analysis, and per-layer diagnosis.

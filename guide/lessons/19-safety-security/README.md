@@ -1,6 +1,6 @@
 ---
 title: Safety and security
-summary: Threat-model AI systems: prompt injection, data exfiltration, tool abuse, and the controls that contain them.
+summary: "Threat-model AI systems: prompt injection, data exfiltration, tool abuse, and the controls that contain them."
 skill: engineering
 ---
 

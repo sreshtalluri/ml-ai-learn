@@ -1,6 +1,6 @@
 ---
 title: Training and regularization
-summary: Make networks generalize: weight decay, dropout, early stopping, normalization, augmentation, schedules, and tuning.
+summary: "Make networks generalize: weight decay, dropout, early stopping, normalization, augmentation, schedules, and tuning."
 skill: deep-learning
 ---
 

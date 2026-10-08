@@ -1,6 +1,6 @@
 ---
 title: LLM evaluation
-summary: Measure LLM systems layer by layer: task quality, retrieval, grounding, safety, and operations.
+summary: "Measure LLM systems layer by layer: task quality, retrieval, grounding, safety, and operations."
 skill: llms
 ---
 

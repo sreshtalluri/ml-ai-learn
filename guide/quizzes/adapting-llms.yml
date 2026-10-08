@@ -1,0 +1,60 @@
+title: Adapting LLMs
+lesson: adapting-llms
+questions:
+  - id: ad-lora
+    type: numeric
+    difficulty: medium
+    prompt: LoRA with rank $r = 4$ on a $1024 \times 1024$ matrix. How many parameters are trained?
+    answer: 8192
+    tolerance: 0
+    explanation: $4 \times (1024 + 1024) = 8192$, versus 1,048,576 for the full matrix (0.78%).
+  - id: ad-where
+    type: match
+    difficulty: medium
+    prompt: Match each technique to what it changes.
+    pairs:
+      - ["Few-shot prompting", "The context at runtime"]
+      - ["RAG", "The context at runtime, with retrieved documents"]
+      - ["LoRA", "A small set of added weights"]
+      - ["Full fine-tuning", "All of the model's weights"]
+    explanation: Context-side techniques need no training; weight-side techniques do.
+  - id: ad-choose
+    type: single
+    difficulty: medium
+    prompt: A support bot must answer using the current refund policy, which changes monthly. What is the best primary approach?
+    options:
+      - Fine-tune monthly on the new policy.
+      - Retrieve the current policy at query time (RAG) and cite it.
+      - Raise the temperature.
+      - Pretrain a new model.
+    answer: 1
+    explanation: Frequently changing facts belong in context, where updating is a re-index, and citations make answers checkable.
+  - id: ad-behavior
+    type: single
+    difficulty: medium
+    prompt: Despite careful prompting, a model keeps drifting from your brand voice and output structure across thousands of requests. What is a reasonable next step?
+    options:
+      - Add more documents to the RAG index.
+      - Parameter-efficient fine-tuning (e.g. LoRA) on high-quality examples of the desired voice and structure.
+      - Lower top-k to 1.
+      - Switch to a smaller context window.
+    answer: 1
+    explanation: Voice and format are behaviors; fine-tuning shapes behavior. Evaluate before and after.
+  - id: ad-halluc
+    type: multi
+    difficulty: medium
+    prompt: Which measures meaningfully reduce harmful hallucinations in a Q&A product? Select all that apply.
+    options:
+      - Grounding answers in retrieved sources with citations
+      - Letting the model say "I don't know" when sources lack the answer
+      - Setting temperature to 0 and assuming answers are now correct
+      - Verifying claims against sources and human review for high-stakes answers
+    answer: [0, 1, 3]
+    explanation: Temperature affects randomness, not truthfulness.
+  - id: ad-dpo
+    type: short
+    difficulty: hard
+    prompt: In one or two sentences, what does preference optimization (RLHF or DPO) train on, and what does it change about the model?
+    sample_answer: |
+      It trains on prompts paired with responses ranked by humans (or a model), such as a preferred and a rejected answer, and adjusts the weights so the model assigns higher probability to preferred-style responses. It mainly shapes behavior (helpfulness, harmlessness, tone, refusals) rather than adding knowledge.
+    explanation: Preference data shapes how the model responds, not what facts it knows.

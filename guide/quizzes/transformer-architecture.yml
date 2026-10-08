@@ -1,0 +1,55 @@
+title: The transformer architecture
+lesson: transformer-architecture
+questions:
+  - id: tx-ffn
+    type: numeric
+    difficulty: medium
+    prompt: How many parameters (with biases) does a feed-forward sublayer have with $d = 256$ and $d_{\text{ff}} = 1024$?
+    answer: 525568
+    tolerance: 0
+    explanation: $2 \times 256 \times 1024 + 1024 + 256 = 524{,}288 + 1{,}280 = 525{,}568$.
+  - id: tx-attn
+    type: numeric
+    difficulty: medium
+    prompt: How many parameters (with biases) do the Q, K, V, and O projections have together with $d = 256$?
+    answer: 263168
+    tolerance: 0
+    explanation: $4 \times 256^2 + 4 \times 256 = 262{,}144 + 1{,}024 = 263{,}168$.
+  - id: tx-residual
+    type: single
+    difficulty: medium
+    prompt: What does a residual connection $x + F(x)$ buy you in a deep transformer?
+    options:
+      - It halves the parameters.
+      - Gradients flow directly through the addition, and each block only needs to learn a change to its input.
+      - It removes the need for attention.
+      - It applies the causal mask.
+    answer: 1
+    explanation: Residual paths make deep stacks trainable.
+  - id: tx-family
+    type: match
+    difficulty: easy
+    prompt: Match each task to the most natural transformer family.
+    pairs:
+      - ["Producing sentence embeddings for search", "Encoder-only"]
+      - ["Open-ended chat responses", "Decoder-only"]
+      - ["Translating English to German", "Encoder-decoder"]
+    explanation: Bidirectional understanding, causal generation, or input-to-output transformation.
+  - id: tx-cross
+    type: single
+    difficulty: medium
+    prompt: In cross-attention inside an encoder-decoder model, where do queries, keys, and values come from?
+    options:
+      - All from the encoder
+      - Queries from the decoder; keys and values from the encoder outputs
+      - Queries from the encoder; keys and values from the decoder
+      - All from the decoder
+    answer: 1
+    explanation: Each decoder position asks questions of the full encoded input.
+  - id: tx-scaling
+    type: short
+    difficulty: hard
+    prompt: You double a model's context length from 8k to 16k tokens. Which costs grow, and roughly how?
+    sample_answer: |
+      Weights don't change. Attention-score computation during prefill grows about 4× (quadratic in length), feed-forward compute grows about 2× (linear), and the KV cache memory per sequence doubles (linear), which often limits batch size. Per generated token with a KV cache, cost grows roughly linearly with the context already processed.
+    explanation: Separate quadratic attention terms from linear feed-forward and KV-cache terms.

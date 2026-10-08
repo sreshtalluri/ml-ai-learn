@@ -1,6 +1,6 @@
 ---
 title: Gradient descent and backpropagation
-summary: How models learn: follow the gradient downhill, and compute that gradient efficiently with the chain rule.
+summary: "How models learn: follow the gradient downhill, and compute that gradient efficiently with the chain rule."
 skill: deep-learning
 ---
 

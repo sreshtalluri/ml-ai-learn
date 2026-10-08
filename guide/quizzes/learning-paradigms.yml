@@ -57,6 +57,7 @@ questions:
       K was chosen by a person, and K-means returns K groups even for random data. Check stability, interpretability, and usefulness before naming them.
     why_not:
       - K-means does not choose K.
+      - Correct.
       - They may be useful; they are unverified, not meaningless.
       - Numbering has nothing to do with the number of clusters.
 

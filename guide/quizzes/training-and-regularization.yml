@@ -24,7 +24,8 @@ questions:
       - Epoch 1's
       - An average of all epochs
     answer: 1
-    explanation: That is early stopping: keep the checkpoint with the best validation performance.
+    explanation: |
+      That is early stopping: keep the checkpoint with the best validation performance.
   - id: tr-match
     type: match
     difficulty: medium

@@ -1,0 +1,51 @@
+title: Decoding
+lesson: decoding
+questions:
+  - id: dec-temp
+    type: numeric
+    difficulty: medium
+    prompt: Logits $[\ln 4, 0]$ at temperature $T = 0.5$. What probability does the first token get? (3 decimals)
+    answer: 0.941
+    tolerance: 0.002
+    explanation: Scaled logits $[2\ln 4, 0] = [\ln 16, 0]$; exponentials $[16, 1]$; $16/17 = 0.941$. At $T = 1$ it would be $4/5 = 0.8$.
+  - id: dec-topk
+    type: numeric
+    difficulty: easy
+    prompt: Probabilities $[0.4, 0.3, 0.2, 0.1]$ with top-k = 2. What is the renormalized probability of the first token? (4 decimals)
+    answer: 0.5714
+    tolerance: 0.001
+    explanation: Keep $[0.4, 0.3]$, sum 0.7; $0.4/0.7 = 0.571$.
+  - id: dec-topp
+    type: numeric
+    difficulty: medium
+    prompt: Same probabilities $[0.4, 0.3, 0.2, 0.1]$ with top-p = 0.85. How many tokens are kept?
+    answer: 3
+    tolerance: 0
+    explanation: Cumulative 0.4, 0.7, 0.9; the first three are needed to reach 0.85.
+  - id: dec-choose
+    type: match
+    difficulty: medium
+    prompt: Match each task to a sensible decoding setting.
+    pairs:
+      - ["Extract fields into JSON", "Greedy (temperature near 0) with a schema"]
+      - ["Brainstorm 20 product names", "Higher temperature sampling"]
+      - ["General chat assistant", "Temperature about 0.7, top-p about 0.9"]
+    explanation: Determinism for structure, diversity for creativity, a balance for chat.
+  - id: dec-truth
+    type: single
+    difficulty: medium
+    prompt: A model answers a factual question wrongly. You set temperature to 0. What happens?
+    options:
+      - It now answers correctly.
+      - It gives its single most likely answer every time, which may still be wrong.
+      - It refuses to answer.
+      - It produces random tokens.
+    answer: 1
+    explanation: Temperature controls randomness, not knowledge. Grounding (RAG) or tools address correctness.
+  - id: dec-beam
+    type: short
+    difficulty: hard
+    prompt: Why does beam search often produce bland, generic text in open-ended generation, even though it finds higher-probability sequences than sampling?
+    sample_answer: |
+      Beam search maximizes total sequence probability, and the most probable continuations are generic and safe (common phrases, short answers, repetition), while interesting human text includes many moderately unlikely tokens. Maximizing likelihood over long outputs pushes toward the "average" continuation, so it's better suited to tasks with one correct output, like translation, than to open-ended writing.
+    explanation: High likelihood is not the same as high quality for open-ended text.

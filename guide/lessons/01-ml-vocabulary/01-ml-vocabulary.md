@@ -24,15 +24,15 @@ related: [learning-paradigms, linear-regression, ml-workflow]
 You want to predict house prices.
 
 - Each house in your data is a **sample** (also called an observation, example, or row).
-- What you know about it (size, bedrooms, location) are **features**, written $x$.
-- What you want to predict (the sale price) is the **target**; in a training set it is the **label**, written $y$.
+- What you know about it (size, bedrooms, location) are [features](../../glossary.md#feature), written $x$.
+- What you want to predict (the sale price) is the **target**; in a training set it is the [label](../../glossary.md#label), written $y$.
 - Your **model** is a function $f_\theta(x)$ that outputs a **prediction** $\hat{y}$.
-- The numbers inside the model that training adjusts (slopes, weights) are **parameters** $\theta$.
-- Settings you choose *before* training (how complex the model may be, how fast it learns) are **hyperparameters**.
-- A **loss** scores how wrong a prediction is in a way the optimizer can minimize.
-- A **metric** is how people judge the model: RMSE in dollars, precision, latency.
+- The numbers inside the model that training adjusts (slopes, weights) are [parameters](../../glossary.md#parameter) $\theta$.
+- Settings you choose *before* training (how complex the model may be, how fast it learns) are [hyperparameters](../../glossary.md#hyperparameter).
+- A [loss](../../glossary.md#loss) scores how wrong a prediction is in a way the optimizer can minimize.
+- A [metric](../../glossary.md#metric) is how people judge the model: RMSE in dollars, precision, latency.
 - **Training** fits the parameters on known examples; **inference** uses the fitted model on new ones.
-- **Generalization** is how well the model does on data it never saw. That is the only performance that matters.
+- [Generalization](../../glossary.md#generalization) is how well the model does on data it never saw. That is the only performance that matters.
 
 ## 2. Visualization
 

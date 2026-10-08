@@ -31,7 +31,7 @@ questions:
     prompt: A fraud model is trained with binary cross-entropy but judged by "fraud caught when reviewing the top 100 alerts per day." What is this an example of?
     options:
       - A bug; loss and metric must be identical.
-      - Loss and metric serving different purposes: one trains, one judges business value.
+      - "Loss and metric serving different purposes: one trains, one judges business value."
       - Overfitting.
       - Data leakage.
     answer: 1

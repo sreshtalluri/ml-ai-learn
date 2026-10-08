@@ -36,7 +36,8 @@ questions:
     prompt: The sigmoid's derivative is $\sigma(z)(1 - \sigma(z))$. What is its maximum possible value?
     answer: 0.25
     tolerance: 0.0001
-    explanation: It peaks at $z = 0$ where $\sigma = 0.5$: $0.5 \times 0.5 = 0.25$. Stacking many sigmoids multiplies factors of at most 0.25, which is one cause of vanishing gradients.
+    explanation: |
+      It peaks at $z = 0$ where $\sigma = 0.5$: $0.5 \times 0.5 = 0.25$. Stacking many sigmoids multiplies factors of at most 0.25, which is one cause of vanishing gradients.
   - id: calc-direction
     type: single
     difficulty: medium

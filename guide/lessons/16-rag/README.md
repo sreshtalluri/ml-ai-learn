@@ -1,6 +1,6 @@
 ---
 title: Retrieval-augmented generation
-summary: Ground LLM answers in your documents: ingest, chunk, embed, retrieve, rerank, generate, and evaluate.
+summary: "Ground LLM answers in your documents: ingest, chunk, embed, retrieve, rerank, generate, and evaluate."
 skill: llms
 ---
 
