@@ -1,0 +1,62 @@
+title: Probability and statistics
+lesson: probability-and-statistics
+questions:
+  - id: ps-bayes
+    type: numeric
+    difficulty: medium
+    prompt: |
+      2% of transactions are fraud. A detector flags 90% of fraud and 10% of legitimate transactions. What is $P(\text{fraud} \mid \text{flagged})$? (3 decimals)
+    answer: 0.155
+    tolerance: 0.002
+    explanation: |
+      $\frac{0.9 \times 0.02}{0.9 \times 0.02 + 0.1 \times 0.98} = \frac{0.018}{0.018 + 0.098} = \frac{0.018}{0.116} = 0.155$.
+  - id: ps-expect
+    type: numeric
+    difficulty: easy
+    prompt: A bet pays 10 with probability 0.2 and loses 3 with probability 0.8. What is its expected value?
+    answer: -0.4
+    tolerance: 0.0001
+    explanation: $10 \times 0.2 + (-3) \times 0.8 = 2 - 2.4 = -0.4$.
+  - id: ps-var
+    type: numeric
+    difficulty: medium
+    prompt: What is the variance of a Bernoulli variable with $p = 0.3$?
+    answer: 0.21
+    tolerance: 0.0001
+    explanation: $p(1-p) = 0.3 \times 0.7 = 0.21$.
+  - id: ps-flip
+    type: single
+    difficulty: medium
+    prompt: |
+      "95% of people with the disease test positive." Which quantity is that?
+    options:
+      - P(disease | positive)
+      - P(positive | disease)
+      - P(disease)
+      - P(positive)
+    answer: 1
+    explanation: It conditions on having the disease. Confusing it with P(disease | positive) is the prosecutor's fallacy.
+  - id: ps-causal
+    type: single
+    difficulty: medium
+    prompt: |
+      Users who enable dark mode churn 30% less. A PM wants to force dark mode on everyone to cut churn. What's the best response?
+    options:
+      - Ship it; the correlation is strong.
+      - The correlation may come from engaged users being more likely to explore settings; run an A/B test to measure the causal effect.
+      - Correlation always implies causation for large samples.
+      - Remove dark mode.
+    answer: 1
+    explanation: Engagement is a plausible confounder. Only an intervention (randomized experiment) isolates the causal effect.
+  - id: ps-se
+    type: single
+    difficulty: hard
+    prompt: |
+      Model A scores 0.872 and model B 0.865 accuracy on the same 500-example test set. What should you conclude?
+    options:
+      - A is clearly better.
+      - The difference (0.007) is well within sampling noise (standard error about 0.015); compare with a paired test or a larger set before deciding.
+      - B is better because it is simpler.
+      - The test set must be broken.
+    answer: 1
+    explanation: $\sqrt{0.87 \times 0.13 / 500} \approx 0.015$. A 0.7-point gap is not evidence of a real difference. Paired comparisons (on which examples each gets right) are more sensitive.

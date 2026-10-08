@@ -1,0 +1,55 @@
+title: Overfitting and the bias-variance trade-off
+lesson: overfitting-and-bias-variance
+questions:
+  - id: bv-diagnose
+    type: match
+    difficulty: easy
+    prompt: Match each pair of errors to its diagnosis.
+    pairs:
+      - ["Train 0.30, validation 0.31 (target ≈ 0.05)", "Underfitting (high bias)"]
+      - ["Train 0.01, validation 0.40", "Overfitting (high variance)"]
+      - ["Train 0.06, validation 0.07", "Good fit"]
+    explanation: Look at both the level and the gap.
+  - id: bv-var
+    type: numeric
+    difficulty: medium
+    prompt: Predictions at a point across four training sets are 2, 4, 6, 8. What is the variance (divide by 4)?
+    answer: 5
+    tolerance: 0
+    explanation: Mean 5; squared deviations 9, 1, 1, 9; average 20/4 = 5.
+  - id: bv-bias
+    type: numeric
+    difficulty: medium
+    prompt: The same predictions (2, 4, 6, 8) with truth 7. What is bias²?
+    answer: 4
+    tolerance: 0
+    explanation: Mean prediction 5; $(7 - 5)^2 = 4$.
+  - id: bv-remedy
+    type: multi
+    difficulty: medium
+    prompt: A model overfits. Which remedies are appropriate? Select all that apply.
+    options:
+      - Collect more training data
+      - Increase regularization strength
+      - Increase polynomial degree
+      - Use early stopping
+    answer: [0, 1, 3]
+    explanation: More data, regularization, and early stopping reduce variance. Higher degree increases it.
+  - id: bv-learning-curve
+    type: single
+    difficulty: hard
+    prompt: Training and validation error have converged at the same high value as the training set grew. What will doubling the data likely do?
+    options:
+      - Fix the problem.
+      - Very little; the model is bias-limited, so improve features or model capacity.
+      - Cause overfitting.
+      - Increase training error to the validation error.
+    answer: 1
+    explanation: Converged, high curves mean the model can't represent the pattern. More of the same data won't change that.
+  - id: bv-reflect
+    type: short
+    difficulty: medium
+    prompt: Explain why a model with lower training loss can have worse test performance.
+    sample_answer: |
+      Training loss rewards fitting the specific training examples, including their noise. A more flexible model can keep lowering training loss by memorizing noise, which doesn't repeat in new data, so its predictions on unseen examples get worse. That is overfitting: variance rises faster than bias falls.
+    explanation: Generalization is measured on unseen data; training loss can keep falling while validation loss rises.

@@ -1,0 +1,56 @@
+title: Regularization and regression metrics
+lesson: regularization-and-regression-metrics
+questions:
+  - id: reg-ridge
+    type: numeric
+    difficulty: medium
+    prompt: One feature with $s_{xx} = 4$ and $s_{xy} = 6$. What is the ridge weight $s_{xy}/(s_{xx} + \lambda)$ for $\lambda = 2$?
+    answer: 1
+    tolerance: 0.0001
+    explanation: $6 / (4 + 2) = 1$. The OLS weight would be $6/4 = 1.5$.
+  - id: reg-lasso
+    type: numeric
+    difficulty: medium
+    prompt: Same data, lasso with $\lambda = 4$. What is $\max(|s_{xy}| - \lambda/2, 0)/s_{xx}$?
+    answer: 1
+    tolerance: 0.0001
+    explanation: $(6 - 2)/4 = 1$. With $\lambda \ge 12$ the weight would be exactly 0.
+  - id: reg-rmse
+    type: numeric
+    difficulty: easy
+    prompt: Errors are $[3, -4, 0, 5]$. What is the RMSE? (3 decimals)
+    answer: 3.536
+    tolerance: 0.002
+    explanation: Squares $9, 16, 0, 25$ sum to 50; mean 12.5; $\sqrt{12.5} = 3.536$. (MAE would be 3.)
+  - id: reg-choose
+    type: match
+    difficulty: medium
+    prompt: Match each situation to the best-suited metric.
+    pairs:
+      - ["Delivery-time errors where every minute late costs the same", "MAE"]
+      - ["Load forecasting where one huge miss causes a blackout", "RMSE"]
+      - ["Comparing against simply predicting the average", "R²"]
+      - ["Sales forecasts for products of very different sizes, never near zero", "MAPE"]
+    explanation: Match the metric's penalty shape to the cost of errors.
+  - id: reg-scale
+    type: single
+    difficulty: medium
+    prompt: Why must features be standardized before ridge or lasso?
+    options:
+      - It makes training faster but doesn't change the result.
+      - The penalty compares weight sizes, and a weight's size depends on its feature's units.
+      - Lasso cannot handle negative values.
+      - Standardization removes multicollinearity.
+    answer: 1
+    explanation: Without scaling, a feature in small units needs a big weight and gets penalized more, regardless of importance.
+  - id: reg-correlated
+    type: single
+    difficulty: hard
+    prompt: Two features are nearly identical copies. What do ridge and lasso typically do?
+    options:
+      - Both zero out both features.
+      - Ridge splits the weight between them; lasso tends to keep one and zero the other, somewhat arbitrarily.
+      - Lasso splits the weight; ridge keeps one.
+      - Both keep exactly the same weights as OLS.
+    answer: 1
+    explanation: The squared penalty is smallest when weight is shared; the absolute penalty is indifferent to how weight is split and its corner at zero favors sparse solutions.

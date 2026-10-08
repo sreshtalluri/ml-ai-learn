@@ -1,0 +1,53 @@
+title: Logistic regression
+lesson: logistic-regression
+questions:
+  - id: lg-prob
+    type: numeric
+    difficulty: easy
+    prompt: A logistic model has logit $z = 0$. What probability does it predict?
+    answer: 0.5
+    tolerance: 0.0001
+    explanation: $\sigma(0) = 1/(1 + e^0) = 1/2$.
+  - id: lg-bce
+    type: numeric
+    difficulty: medium
+    prompt: The model predicts $\hat{p} = 0.8$ for an example whose true label is 0. What is the binary cross-entropy (natural log, 3 decimals)?
+    answer: 1.609
+    tolerance: 0.002
+    explanation: $-\ln(1 - 0.8) = -\ln 0.2 = 1.609$.
+  - id: lg-grad
+    type: numeric
+    difficulty: medium
+    prompt: For $\hat{p} = 0.7$, $y = 1$, and feature value $x = 4$, what is $\partial L/\partial w$?
+    answer: -1.2
+    tolerance: 0.0001
+    explanation: $(\hat{p} - y)x = (0.7 - 1)(4) = -1.2$.
+  - id: lg-odds
+    type: single
+    difficulty: medium
+    prompt: A feature's weight is $\ln 2 \approx 0.693$. What does a one-unit increase in that feature do?
+    options:
+      - Adds 0.693 to the probability.
+      - Doubles the odds p/(1 − p).
+      - Doubles the probability.
+      - Nothing; weights aren't interpretable.
+    answer: 1
+    explanation: The logit is the log-odds, so adding $\ln 2$ multiplies the odds by $e^{\ln 2} = 2$. The probability change depends on where you start.
+  - id: lg-xor
+    type: single
+    difficulty: medium
+    prompt: Why does plain logistic regression fail on XOR-shaped data?
+    options:
+      - It needs more training steps.
+      - Its decision boundary $w \cdot x + b = 0$ is a straight line, which can't separate XOR.
+      - Cross-entropy is undefined for XOR.
+      - It only works on balanced data.
+    answer: 1
+    explanation: Add an interaction feature ($x_1 x_2$) or use a nonlinear model.
+  - id: lg-softmax
+    type: numeric
+    difficulty: hard
+    prompt: Logits are $[\ln 4, 0, 0]$. What probability does softmax assign to the first class?
+    answer: 0.6667
+    tolerance: 0.001
+    explanation: Exponentials $[4, 1, 1]$, sum 6, so $4/6 = 0.667$.

@@ -1,0 +1,56 @@
+title: The language of ML
+lesson: ml-vocabulary
+questions:
+  - id: voc-match
+    type: match
+    difficulty: easy
+    prompt: Match each item from a decision-tree project to its term.
+    pairs:
+      - ["Maximum tree depth", "Hyperparameter"]
+      - ["The split threshold chosen at the root", "Parameter"]
+      - ["Customer age", "Feature"]
+      - ["Whether the customer churned", "Label"]
+    explanation: Depth is set before training; split thresholds are learned from data.
+  - id: voc-residual
+    type: numeric
+    difficulty: easy
+    prompt: A model predicts 82 for a sample whose label is 75. What is the squared-error loss?
+    answer: 49
+    tolerance: 0
+    explanation: Residual $75 - 82 = -7$; squared $49$.
+  - id: voc-pred
+    type: numeric
+    difficulty: easy
+    prompt: With $w = [2, -1]$, $b = 3$, and $x = [4, 5]$, what is $\hat{y} = w \cdot x + b$?
+    answer: 6
+    tolerance: 0
+    explanation: $2 \times 4 - 1 \times 5 + 3 = 8 - 5 + 3 = 6$.
+  - id: voc-loss-metric
+    type: single
+    difficulty: medium
+    prompt: A fraud model is trained with binary cross-entropy but judged by "fraud caught when reviewing the top 100 alerts per day." What is this an example of?
+    options:
+      - A bug; loss and metric must be identical.
+      - Loss and metric serving different purposes: one trains, one judges business value.
+      - Overfitting.
+      - Data leakage.
+    answer: 1
+    explanation: Cross-entropy is differentiable and trainable; "precision at 100" reflects the real constraint. Picking a threshold or ranking that serves the metric is a separate step.
+  - id: voc-generalize
+    type: single
+    difficulty: medium
+    prompt: Which number best estimates how the model will perform for new customers next month?
+    options:
+      - Training accuracy
+      - Accuracy on a held-out set drawn from the most recent period
+      - Accuracy on the data used to choose hyperparameters
+      - The final training loss
+    answer: 1
+    explanation: Only data the model and your tuning never saw, split the way the future differs, estimates generalization.
+  - id: voc-skew
+    type: short
+    difficulty: hard
+    prompt: Your model scored well offline, but in production its predictions are noticeably worse from day one. Name one likely vocabulary-level cause and how to check it.
+    sample_answer: |
+      Training-serving skew: features at inference are computed differently from training (different code path, units, missing-value handling, or time window). Log production feature values and compare their distributions against the training features for the same entities; better, share one feature pipeline for both.
+    explanation: Inference must reproduce training-time feature computation exactly.
