@@ -5,7 +5,7 @@ export interface CalcField {
   key: string;
   label: string;
   /** number: "0.5"; vector: "1, 2, 3"; matrix: "1, 2; 3, 4" (rows split by ;); text: free text (one doc per line) */
-  kind: "number" | "vector" | "matrix" | "text";
+  kind: "number" | "word" | "vector" | "matrix" | "text";
   default: string;
   hint?: string;
 }

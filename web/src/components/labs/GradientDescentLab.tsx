@@ -142,7 +142,7 @@ export default function GradientDescentLab() {
             </defs>
             <g clipPath="url(#gd-clip)">
               {heat.cells.map((c, i) => (
-                <rect key={i} x={sx(c.x) - heat.cw / 2} y={sy(c.y) - heat.ch / 2} width={heat.cw + 0.5} height={heat.ch + 0.5} fill="var(--c-blue)" opacity={0.04 + c.v * 0.42} />
+                <rect key={i} x={sx(c.x) - heat.cw / 2} y={sy(c.y) - heat.ch / 2} width={heat.cw + 1} height={heat.ch + 1} fill={`color-mix(in srgb, var(--c-blue) ${Math.round(4 + c.v * 42)}%, var(--surface))`} />
               ))}
               <circle cx={sx(s.minimum[0])} cy={sy(s.minimum[1])} r={5} fill="none" stroke="var(--text)" strokeWidth={1.5} />
               {OPTS.filter((o) => enabled[o.id]).map((o) => {

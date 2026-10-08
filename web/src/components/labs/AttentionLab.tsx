@@ -57,13 +57,13 @@ function MatrixView({ m, rows, cols, title, shape, heat, focusRow, digits = 2 }:
 }
 
 const STEPS = [
-  { title: "Tokens and embeddings", tex: "X = E[\\text{tokens}] + P" },
-  { title: "Project to queries, keys, values", tex: "Q = XW_Q,\\quad K = XW_K,\\quad V = XW_V" },
-  { title: "Compare every query with every key", tex: "S = QK^\\top" },
-  { title: "Scale by the square root of the key dimension", tex: "S' = S / \\sqrt{d_k}" },
-  { title: "Apply the causal mask", tex: "S'_{ij} = -\\infty \\text{ for } j > i" },
-  { title: "Softmax each row into attention weights", tex: "A = \\text{softmax}(S') \\text{ (row-wise)}" },
-  { title: "Weighted sum of values", tex: "\\text{output} = AV" },
+  { short: "Embed", title: "Tokens and embeddings", tex: "X = E[\\text{tokens}] + P" },
+  { short: "Q, K, V", title: "Project to queries, keys, values", tex: "Q = XW_Q,\\quad K = XW_K,\\quad V = XW_V" },
+  { short: "QKᵀ", title: "Compare every query with every key", tex: "S = QK^\\top" },
+  { short: "Scale", title: "Scale by the square root of the key dimension", tex: "S' = S / \\sqrt{d_k}" },
+  { short: "Mask", title: "Apply the causal mask", tex: "S'_{ij} = -\\infty \\text{ for } j > i" },
+  { short: "Softmax", title: "Softmax each row into attention weights", tex: "A = \\text{softmax}(S') \\text{ (row-wise)}" },
+  { short: "Output", title: "Weighted sum of values", tex: "\\text{output} = AV" },
 ];
 
 export default function AttentionLab() {
@@ -187,7 +187,7 @@ export default function AttentionLab() {
             <li key={i}>
               <button type="button" disabled={disabled} onClick={() => setStepIdx(i)} aria-current={i === cur ? "step" : undefined}
                 className={`rounded-full px-2.5 py-1 border ${i === cur ? "border-accent bg-accent-soft text-accent" : i < cur ? "border-line text-ink" : "border-line text-faint"} disabled:opacity-30`}>
-                {i + 1}. {s.title.split(" ").slice(0, 2).join(" ")}
+                {i + 1}. {s.short}
               </button>
             </li>
           );
