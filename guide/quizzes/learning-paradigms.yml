@@ -1,0 +1,121 @@
+title: Learning paradigms
+lesson: learning-paradigms
+questions:
+  - id: lp-match
+    type: match
+    difficulty: easy
+    prompt: Match each problem to its most natural paradigm.
+    pairs:
+      - ["Predict house prices from past sales", "Supervised regression"]
+      - ["Group customers by purchasing behavior, no predefined segments", "Unsupervised clustering"]
+      - ["Pretrain a language model on web text", "Self-supervised learning"]
+      - ["Teach a robot arm to stack blocks from success signals", "Reinforcement learning"]
+    explanation: |
+      Ask what feedback exists: known prices (labels), no labels, labels hidden in the text itself, or rewards after actions.
+
+  - id: lp-pairs
+    type: numeric
+    difficulty: easy
+    prompt: |
+      Next-token prediction on a single sequence of 50 tokens creates how many (context, target) training pairs?
+    answer: 49
+    tolerance: 0
+    explanation: |
+      Every token except the first can be a target, using all earlier tokens as context: $50 - 1 = 49$.
+
+  - id: lp-fraud
+    type: single
+    difficulty: medium
+    prompt: |
+      Fraud is confirmed by chargebacks that arrive up to 60 days later. Which framing is best for a first production model?
+    options:
+      - Unsupervised clustering, because fraud labels are imperfect.
+      - Supervised classification on confirmed historical labels, validated with a time-based split.
+      - Reinforcement learning, because blocking a card is an action.
+      - Supervised regression predicting the transaction amount.
+    answer: 1
+    explanation: |
+      Reliable (if delayed) labels exist, so supervised learning is the strongest baseline. A time split mirrors deployment: train on the past, predict the future. Unsupervised anomaly scores make useful extra features.
+    why_not:
+      - Imperfect labels are still far more informative than none.
+      - Correct.
+      - RL is unnecessary when logged outcomes give direct supervision, and exploring by letting fraud through is costly.
+      - The amount is an input, not the target.
+
+  - id: lp-cluster-claim
+    type: single
+    difficulty: medium
+    prompt: |
+      K-means on user behavior finds 5 clusters. A slide says "we discovered 5 types of users." What is the most accurate statement?
+    options:
+      - Correct; K-means finds the true number of groups.
+      - K-means returns as many clusters as you ask for; the 5 clusters are hypotheses that need validation.
+      - The clusters are definitely meaningless.
+      - It should be 4 types, because cluster numbering starts at 0.
+    answer: 1
+    explanation: |
+      K was chosen by a person, and K-means returns K groups even for random data. Check stability, interpretability, and usefulness before naming them.
+    why_not:
+      - K-means does not choose K.
+      - They may be useful; they are unverified, not meaningless.
+      - Numbering has nothing to do with the number of clusters.
+
+  - id: lp-leak
+    type: multi
+    difficulty: hard
+    prompt: |
+      You are predicting at signup whether a customer will churn within 90 days. Which features would leak information unavailable at prediction time? Select all that apply.
+    options:
+      - Number of support tickets filed in the first 90 days
+      - Acquisition channel (ad, referral, organic)
+      - Whether the account was closed
+      - Plan chosen at signup
+    answer: [0, 2]
+    explanation: |
+      Only information available at the moment of prediction (signup) is allowed. Tickets filed during the next 90 days and account closure happen after signup. Closure is practically the label.
+    why_not:
+      - Correct. It is measured over the very window you are predicting.
+      - Known at signup, so it is fine.
+      - Correct. This is close to the target itself.
+      - Known at signup, so it is fine.
+
+  - id: lp-checklist
+    type: order
+    difficulty: medium
+    prompt: Order the problem-formulation checklist.
+    options:
+      - Define the decision the system must support
+      - Identify the prediction unit
+      - Check that a trustworthy target exists
+      - List what information is available at prediction time
+      - Choose a metric that matches the cost of errors
+      - Build a simple baseline before a complex model
+    explanation: Decision first, model last.
+
+  - id: lp-semi
+    type: single
+    difficulty: hard
+    prompt: |
+      In self-training, the model labels unlabeled data with its own confident predictions and retrains. What is the main risk?
+    options:
+      - It always lowers accuracy.
+      - Confident mistakes become training labels, so the model can reinforce its own errors (confirmation bias).
+      - It needs more labels than supervised learning.
+      - It only works for regression.
+    answer: 1
+    explanation: |
+      Pseudo-labels are only as good as the model producing them. Use a high confidence threshold, monitor against a held-out labeled set, and stop if validation accuracy drops.
+    why_not:
+      - It often helps when classes are well separated; it is not guaranteed either way.
+      - Correct.
+      - Its purpose is to use fewer labels.
+      - It works for classification, and variants exist for regression.
+
+  - id: lp-reflect
+    type: short
+    difficulty: medium
+    prompt: |
+      Why can LLMs be pretrained on trillions of tokens when even the largest human-labeled datasets have only millions of examples?
+    sample_answer: |
+      Because pretraining is self-supervised: the target for each position is simply the next token in the text, so every token of raw text is a free label. No human annotation is needed, so the only limits are the amount of text and compute.
+    explanation: Self-supervision turns raw data into supervised examples at no labeling cost.
