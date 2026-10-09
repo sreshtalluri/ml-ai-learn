@@ -42,7 +42,7 @@ A single deep tree has low bias but high variance: retrain on slightly different
 
 1. At round 0 the prediction is a flat line. Predict where the first stump will split, then step to round 1.
 2. Set the learning rate to 1.0, then to 0.05. Which reaches its best test error in fewer rounds, and which has the lower best error?
-3. Press **Too many rounds**. Training error keeps falling; find the round where test error was lowest. That's what early stopping picks.
+3. At the default settings, push rounds to 200. Predict whether test error turns back up. (Barely: with clean data, stumps overfit slowly.) Now press **Too many rounds (noisy data)**, which raises label noise to σ = 0.6 and η to 1. Find the round where test error was lowest: that's what early stopping picks. What made the difference?
 
 ## 3. The math
 

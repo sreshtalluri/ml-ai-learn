@@ -8,9 +8,9 @@ const f = (x: number) => Math.sin(x) + 0.3 * x;
 const MAX_ROUNDS = 200;
 
 // SYNTHETIC 1D regression: y = sin(x) + 0.3x + noise.
-function makeData(n: number, seed: number) {
+export function makeData(n: number, seed: number, noise = 0.35) {
   const r = rng(seed);
-  return Array.from({ length: n }, () => { const x = r() * 10; return { x, y: f(x) + gaussian(r) * 0.35 }; }).sort((a, b) => a.x - b.x);
+  return Array.from({ length: n }, () => { const x = r() * 10; return { x, y: f(x) + gaussian(r) * noise }; }).sort((a, b) => a.x - b.x);
 }
 
 /** Best regression stump on (x, residual) by squared error. */
@@ -26,29 +26,33 @@ export function fitStump(xs: number[], rs: number[]): Stump {
 }
 const stumpAt = (s: Stump, x: number) => (x < s.thr ? s.left : s.right);
 
+/** Gradient boosting with stumps for MAX_ROUNDS rounds; train and test MSE after every round. */
+export function boost(train: { x: number; y: number }[], test: { x: number; y: number }[], lr: number) {
+  const xs = train.map((p) => p.x), ys = train.map((p) => p.y);
+  const f0 = mean(ys);
+  let F = xs.map(() => f0);
+  const stumps: Stump[] = [], trainMse = [mean(ys.map((y) => (y - f0) ** 2))];
+  const testF = test.map(() => f0), testMse = [mean(test.map((p) => (p.y - f0) ** 2))];
+  for (let k = 0; k < MAX_ROUNDS; k++) {
+    const res = ys.map((y, i) => y - F[i]);
+    const s = fitStump(xs, res);
+    stumps.push(s);
+    F = F.map((v, i) => v + lr * stumpAt(s, xs[i]));
+    test.forEach((p, i) => (testF[i] += lr * stumpAt(s, p.x)));
+    trainMse.push(mean(ys.map((y, i) => (y - F[i]) ** 2)));
+    testMse.push(mean(test.map((p, i) => (p.y - testF[i]) ** 2)));
+  }
+  return { f0, stumps, trainMse, testMse };
+}
+
 export default function BoostingLab() {
-  const train = useMemo(() => makeData(40, 3), []);
-  const test = useMemo(() => makeData(200, 77), []);
+  const [noise, setNoise] = useState(0.35);
+  const train = useMemo(() => makeData(40, 3, noise), [noise]);
+  const test = useMemo(() => makeData(200, 77, noise), [noise]);
   const [lr, setLr] = useState(0.3);
   const [m, setM] = useState(5);
 
-  const run = useMemo(() => {
-    const xs = train.map((p) => p.x), ys = train.map((p) => p.y);
-    const f0 = mean(ys);
-    let F = xs.map(() => f0);
-    const stumps: Stump[] = [], trainMse = [mean(ys.map((y) => (y - f0) ** 2))];
-    const testF = test.map(() => f0), testMse = [mean(test.map((p) => (p.y - f0) ** 2))];
-    for (let k = 0; k < MAX_ROUNDS; k++) {
-      const res = ys.map((y, i) => y - F[i]);
-      const s = fitStump(xs, res);
-      stumps.push(s);
-      F = F.map((v, i) => v + lr * stumpAt(s, xs[i]));
-      test.forEach((p, i) => (testF[i] += lr * stumpAt(s, p.x)));
-      trainMse.push(mean(ys.map((y, i) => (y - F[i]) ** 2)));
-      testMse.push(mean(test.map((p, i) => (p.y - testF[i]) ** 2)));
-    }
-    return { f0, stumps, trainMse, testMse };
-  }, [train, test, lr]);
+  const run = useMemo(() => boost(train, test, lr), [train, test, lr]);
 
   const predict = (x: number, upto: number) => run.f0 + run.stumps.slice(0, upto).reduce((s, st) => s + lr * stumpAt(st, x), 0);
   const residuals = train.map((p) => p.y - predict(p.x, m));
@@ -58,7 +62,7 @@ export default function BoostingLab() {
   const msMax = Math.max(...run.testMse.slice(0, 1), ...run.trainMse.slice(0, 1));
 
   // Guided tour (Watch mode + explainers). Each step sets η and the round, then advances rounds.
-  const setup = (eta: number, rounds: number) => { setLr(eta); setM(rounds); };
+  const setup = (eta: number, rounds: number, sd = 0.35) => { setLr(eta); setM(rounds); setNoise(sd); };
   const roundsTo = (a: number, b: number) => (t: number) => setM(Math.round(a + t * (b - a)));
   const tour: TourStep[] = [
     { id: "start", caption: "Round 0: the teal model is just the mean of y, a flat line at 1.92. The gray bars are residuals, what the model still gets wrong.", apply: () => setup(0.3, 0) },
@@ -66,7 +70,7 @@ export default function BoostingLab() {
     { id: "rounds", caption: "Repeat: fit a stump to what is left, add a fraction. Over 30 rounds the teal curve bends into the wave and training error falls from 1.46 to 0.10.", apply: () => setup(0.3, 0), animate: roundsTo(0, 30), animMs: 3200 },
     { id: "small-steps", caption: "With η = 0.05 each tree corrects only a little. After 100 rounds the fit is still catching up, but it moves smoothly.", apply: () => setup(0.05, 0), animate: roundsTo(0, 100), animMs: 3200 },
     { id: "big-steps", caption: "With η = 1 each tree takes the full correction. Training error drops to 0.28 after a single round, and the fit turns jumpy.", apply: () => setup(1, 0), animate: roundsTo(0, 20), animMs: 2600 },
-    { id: "too-many", caption: "Keep adding trees at η = 1. Training error sinks toward zero, but test error stalls near 0.21: later trees fit noise. Early stopping keeps the ringed round.", apply: () => setup(1, 20), animate: roundsTo(20, MAX_ROUNDS), animMs: 3200 },
+    { id: "too-many", caption: "Now noisier data (σ = 0.6) and η = 1. Test error bottoms out by round 8, then climbs about 18% while training error keeps falling: later trees fit noise. Early stopping keeps the ringed round.", apply: () => setup(1, 0, 0.6), animate: roundsTo(0, MAX_ROUNDS), animMs: 3200 },
   ];
 
   return (
@@ -74,18 +78,19 @@ export default function BoostingLab() {
       id="boosting"
       tour={tour}
       title="Gradient boosting, round by round"
-      subtitle="Synthetic 1D regression. Each round fits a one-split tree (a stump) to the current residuals and adds a fraction of it."
-      onReset={() => { setLr(0.3); setM(5); }}
+      subtitle="Synthetic 1D regression (y = sin x + 0.3x + noise). Each round fits a one-split tree (a stump) to the current residuals and adds a fraction of it."
+      onReset={() => { setLr(0.3); setM(5); setNoise(0.35); }}
       presets={[
         { label: "Round 0", apply: () => setM(0) },
         { label: "Big steps (lr 1.0)", apply: () => setLr(1) },
         { label: "Small steps (lr 0.05)", apply: () => { setLr(0.05); setM(60); } },
-        { label: "Too many rounds", apply: () => setM(MAX_ROUNDS) },
+        { label: "Too many rounds (noisy data)", apply: () => { setNoise(0.6); setLr(1); setM(MAX_ROUNDS); } },
       ]}
       controls={
         <>
           <Slider label="rounds m (trees added)" value={m} min={0} max={MAX_ROUNDS} onChange={setM} />
           <Slider label="learning rate η" value={lr} min={0.02} max={1} step={0.01} onChange={setLr} format={(v) => fmt(v, 2)} />
+          <Slider label="label noise σ" value={noise} min={0.1} max={0.8} step={0.05} onChange={setNoise} format={(v) => fmt(v, 2)} />
         </>
       }
       readout={

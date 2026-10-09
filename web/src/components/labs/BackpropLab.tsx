@@ -36,7 +36,9 @@ export default function BackpropLab() {
     ["9. New prediction", `z' = ${paren(s.w1)}\\cdot${paren(v.x1)} + ${paren(s.w2)}\\cdot${paren(v.x2)} + ${paren(s.b)} = ${f(s.z2)}`, `\\hat{y}' = ${f(s.p2)}`],
   ];
 
-  const better = s.L2 < s.L;
+  // One example + sigmoid + cross-entropy: the loss keeps falling as z moves toward the label, so no η can
+  // overshoot here (see the lesson). A huge η shows up instead as a huge jump in the weights and in z.
+  const huge = Math.abs(s.z2 - s.z) > 5;
 
   // Guided tour: every step starts from the course example, then changes at most one value.
   type Key = keyof typeof DEFAULTS;
@@ -62,7 +64,7 @@ export default function BackpropLab() {
       presets={[
         { label: "Course example", apply: () => setV(DEFAULTS) },
         { label: "Label y = 0", apply: () => setV({ ...v, y: 0 }) },
-        { label: "Huge learning rate", apply: () => setV({ ...v, lr: 5 }) },
+        { label: "Huge learning rate (η = 5)", apply: () => setV({ ...v, lr: 5 }) },
       ]}
       controls={
         <>
@@ -86,9 +88,9 @@ export default function BackpropLab() {
         </>
       }
       interpretation={
-        better
-          ? `The update moved the prediction from ${f(s.p)} to ${f(s.p2)}, toward the label ${v.y}, and the loss fell from ${f(s.L)} to ${f(s.L2)}. Each weight moved in proportion to its input: x₁ = ${v.x1} is ${Math.abs(v.x1) > Math.abs(v.x2) ? "larger" : "not larger"} than x₂ = ${v.x2}, so w₁ ${Math.abs(v.x1) > Math.abs(v.x2) ? "changed more" : "did not change more"}.`
-          : `The loss went up (from ${f(s.L)} to ${f(s.L2)}): the learning rate is so large that the step jumped past the minimum. Gradients give the direction; the learning rate decides how far to trust it.`
+        huge
+          ? `Huge step: z jumped from ${f(s.z)} to ${f(s.z2)} and ŷ from ${f(s.p)} to ${f(s.p2)}, yet the loss still fell (${f(s.L)} → ${f(s.L2)}). With one example, cross-entropy has no minimum to overshoot: it keeps shrinking as ŷ approaches the label. The danger is the training set as a whole: steps this big overshoot the shared minimum and make training diverge (try the gradient descent lab).`
+          : `The update moved the prediction from ${f(s.p)} to ${f(s.p2)}, toward the label ${v.y}, and the loss fell from ${f(s.L)} to ${f(s.L2)}. Each weight moved in proportion to its input: x₁ = ${v.x1} is ${Math.abs(v.x1) > Math.abs(v.x2) ? "larger" : "not larger"} than x₂ = ${v.x2}, so w₁ ${Math.abs(v.x1) > Math.abs(v.x2) ? "changed more" : "did not change more"}.`
       }
     >
       <ol className="space-y-2">
