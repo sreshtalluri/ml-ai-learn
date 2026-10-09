@@ -14,7 +14,8 @@ guide/
   quizzes/<lesson-slug>.yml         quiz source (canonical)
   quizzes/<lesson-slug>.md          GENERATED from the .yml (npm run gen:quizzes in web/)
   models/<model-id>.md              model cards for the Model Explorer
-  cheatsheets/<id>.md               concise reference pages
+  cheatsheets/<id>.md               concise reference pages (never name one agents.md: tools read AGENTS.md as instructions)
+  sprints/<role>.md                 7-day interview sprints (frontmatter: title, role, order, summary; `## Day 1:` .. `## Day 7:`)
   code/NN-module-slug/<name>.py     runnable Python (from scratch + library)
   figures/<lesson-slug>*.png        figures produced by the Python scripts
 ```
@@ -66,6 +67,20 @@ Section rules:
 - **Engineering.** Cover use cases, preprocessing, compute cost, production concerns, and failure modes, plus a `### Common mistakes` subsection.
 - **Knowledge check.** Wrap a link to the quiz in quiz markers, then add one practice exercise and one small implementation challenge, with a solution in `<details>`.
 - **Summary.** 3 to 6 bullets, then `**Next:**` and `**Related:**` links.
+- **Interview angle** (last section, `## Interview angle`). 3 to 5 questions the way strong interviewers ask them: one on the mechanism, one trade-off, one failure to diagnose, and one quick calculation or design follow-up. Each answer is 100 to 170 words, something you could say out loud in a minute. The website's rapid-fire drill parses this exact shape:
+
+  ```markdown
+  <details>
+  <summary><strong>Why is attention scaled by the square root of d_k?</strong></summary>
+
+  The answer, in markdown. Math is fine here.
+
+  </details>
+  ```
+
+  The question sits inside raw HTML, so it can't contain `$math$` or backslash escapes (a test enforces this). Write symbols as plain text or Unicode: "d_k", "σ²", "USD 500".
+
+**Quick read.** The website's quick-read switch hides sections 3 to 6 and keeps the intro, Intuition, Visualization, Summary, and Interview angle. Write Intuition and Visualization so they stand on their own without the math.
 
 ## Math
 

@@ -28,4 +28,4 @@ summary: The mistakes that most often make ML and LLM systems fail, and how to c
 
 **Before trusting any result:** unseen and representative test set? leakage? metric matches error costs? slice performance? calibration? behavior under drift and outages? reproducible?
 
-Lessons: [The ML workflow](../lessons/02-ml-workflow/01-ml-workflow.md) · [Reliability](../lessons/18-production-ai/02-reliability-cost-and-observability.md) · [Security](../lessons/19-safety-security/01-ai-security.md)
+Lessons: [The ML workflow](../lessons/02-ml-workflow/01-ml-workflow.md) · [Reliability](../lessons/20-production-ai/02-reliability-cost-and-observability.md) · [Security](../lessons/21-safety-security/01-ai-security.md)

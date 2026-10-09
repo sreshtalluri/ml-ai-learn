@@ -11,12 +11,14 @@ const PHASES = [
   { title: "Foundations", range: [0, 2], blurb: "Math, vocabulary, and how to run a valid experiment." },
   { title: "Classical machine learning", range: [3, 8], blurb: "Regression, classification, neighbors, trees, clustering, and PCA." },
   { title: "NLP and deep learning", range: [9, 13], blurb: "Text as vectors, neural networks, gradients, and architectures." },
-  { title: "Transformers and LLMs", range: [14, 17], blurb: "Attention, pretraining, decoding, adaptation, RAG, and evaluation." },
-  { title: "AI engineering", range: [18, 20], blurb: "Production systems, security, and a portfolio of projects." },
+  { title: "Transformers and LLMs", range: [14, 17], blurb: "Attention, pretraining, decoding, fine-tuning, RAG, vector search, and evaluation." },
+  { title: "LLM inference and agents", range: [18, 19], blurb: "KV cache, batching, quantization, serving cost, tool calling, and reliable agents." },
+  { title: "AI engineering and system design", range: [20, 23], blurb: "Production systems, security, ML system design, A/B testing, and a portfolio of projects." },
 ];
 
 export default function PathPage() {
   const modules = getModules();
+  const hours = (k: "minutes" | "quickMinutes") => Math.round(modules.flatMap((m) => m.lessons).reduce((s, l) => s + l[k], 0) / 60);
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-12">
       <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Learning path</h1>
@@ -24,7 +26,7 @@ export default function PathPage() {
         Guided mode: work top to bottom. Each lesson moves from intuition to visualization, math, code, and engineering, then ends with a knowledge check.
         Reference mode: jump straight to any lesson, <Link href="/models/" className="text-accent hover:underline">model</Link>, or <Link href="/cheatsheets/" className="text-accent hover:underline">cheat sheet</Link>.
       </p>
-      <p className="mt-2 text-sm text-faint">Short on time? <Link href="/learning-paths/" className="underline">Learning paths</Link> include a 4-week AI-engineering fast track and an interview-prep pass. Suggested full pace: 12 weeks at 5 to 7 hours per week (<Link href="/learn/twelve-week-plan/" className="underline">12-week plan</Link>).</p>
+      <p className="mt-2 text-sm text-faint">About {hours("minutes")} hours of reading in full, or about {hours("quickMinutes")} hours if you switch lessons to <strong>Quick read</strong>. Short on time? Use quick read, follow a <Link href="/learning-paths/" className="underline">learning path</Link>, or pick a 7-day <Link href="/sprints/" className="underline">interview sprint</Link> for your role. Suggested full pace: 14 weeks at 5 to 7 hours per week, including labs and projects.</p>
 
       <div className="mt-12 space-y-14">
         {PHASES.map((ph) => (

@@ -172,3 +172,33 @@ TP = 32, FP = 68, FN = 8, TN = 892. Precision $= 32/100 = 0.32$. Recall $= 32/40
 **Next:** [K-nearest neighbors](../05-instance-and-probabilistic/01-k-nearest-neighbors.md)
 
 **Related:** [Logistic regression](01-logistic-regression.md) · [The ML workflow](../02-ml-workflow/01-ml-workflow.md) · [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Your model has 99% accuracy on a fraud dataset. What's wrong?</strong></summary>
+
+Possibly nothing has been learned at all. If 1% of transactions are fraud, predicting "not fraud" for everything scores 99% accuracy with zero recall; on imbalanced data, accuracy is dominated by the majority class. Ask for the confusion matrix, then precision and recall on the fraud class, and the precision-recall curve with its AUC, whose baseline equals the positive rate (0.01). ROC AUC can look high even when the model is mediocre on the rare class. Next ask what the operating point should be: choose the threshold that minimizes expected cost, $c_{FP}\cdot FP + c_{FN}\cdot FN$, or that maximizes recall within the review team's capacity. Also check that the split is time-based or at least stratified, and that the evaluation set reflects the production fraud rate, since precision changes with prevalence.
+
+</details>
+
+<details>
+<summary><strong>ROC AUC versus PR AUC: when does each mislead?</strong></summary>
+
+ROC plots recall against false-positive rate. FPR divides by the number of negatives, so with 1,000 negatives per positive, an FPR of 1% still means 10 false alarms for every positive, yet the ROC curve looks excellent. ROC AUC is insensitive to class balance and has a clean meaning (the probability a random positive outranks a random negative), which makes it good for comparing rankers across datasets with different prevalence. A PR curve plots precision against recall: precision directly says how many flags are wrong, and its baseline is the positive rate, so PR AUC exposes weak performance on rare classes. Its downsides: it depends on prevalence, so it isn't comparable across datasets with different rates, and it's noisy with few positives. For rare-positive problems where false alarms cost money, lead with PR, and report the metric at the actual operating threshold too.
+
+</details>
+
+<details>
+<summary><strong>A missed fraud costs USD 500 and reviewing a flagged transaction costs USD 5. Your model outputs calibrated probabilities. Where do you set the threshold?</strong></summary>
+
+For a transaction with calibrated probability $p$, flagging carries an expected false-alarm cost of $(1 - p)\,c_{FP}$, and not flagging carries an expected missed-fraud cost of $p\,c_{FN}$. Flag when $p\,c_{FN} > (1 - p)\,c_{FP}$, which gives $t^* = \frac{c_{FP}}{c_{FP} + c_{FN}} = \frac{5}{505} \approx 0.0099$. Flag anything above about 1%, nowhere near the default 0.5. Two caveats make this a strong answer. It assumes calibration: a boosted model, or one trained on rebalanced data, won't produce probabilities you can plug in, so calibrate first (Platt or isotonic on held-out data) or choose $t$ empirically by minimizing $c_{FP}\cdot FP(t) + c_{FN}\cdot FN(t)$ on validation data. And real systems have capacity limits: if reviewers handle only 2,000 cases a day, that budget sets the threshold, and the cost analysis tells you whether more reviewers would pay off.
+
+</details>
+
+<details>
+<summary><strong>Your alerting model's precision dropped from 60% to 30% in production with no model change. What happened?</strong></summary>
+
+First suspect a change in prevalence. Precision depends on the base rate: with recall and false-positive rate fixed, if positives become half as common, true positives roughly halve while false positives stay about the same, so precision falls sharply. Check the alert rate and the label rate over time. Second, covariate shift: the score distribution moved (a new customer segment, a new product, seasonality), so a fixed threshold now flags a different population; compare feature and score distributions with the training period. Third, an upstream data break: a feature defaulting to null or changing units can push many scores over the threshold. Fourth, labeling: delayed labels make recent precision look worse until they mature, and the definition of a positive may have changed. Responses: re-pick the threshold on recent labeled data, recalibrate, retrain on recent data, and monitor alert rate continuously.
+
+</details>

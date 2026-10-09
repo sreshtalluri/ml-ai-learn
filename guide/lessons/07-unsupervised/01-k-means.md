@@ -212,3 +212,33 @@ Iteration 3: no change. Final centroids 2 and 11. Inertia $= (1 + 0 + 1) + (1 + 
 **Next:** [DBSCAN, hierarchical clustering, and Gaussian mixtures](02-density-hierarchical-and-mixture-clustering.md)
 
 **Related:** [K-nearest neighbors](../05-instance-and-probabilistic/01-k-nearest-neighbors.md) · [PCA](../08-dimensionality-reduction/01-pca.md) · [Model card: K-means](../../models/k-means.md)
+
+## Interview angle
+
+<details>
+<summary><strong>How would you pick K in K-means?</strong></summary>
+
+No single number decides it, so combine signals. Elbow: plot inertia against $K$ and look for where the decrease flattens; inertia always falls as $K$ grows (to zero at $K = n$), so never pick its minimum. Silhouette: for each point, compare mean distance to its own cluster ($a$) with mean distance to the nearest other cluster ($b$), $s = (b - a)/\max(a, b)$, averaged; higher is better and it can peak at a specific $K$. Gap statistic: compare inertia with that of uniform reference data. Stability: rerun across seeds and bootstrap subsamples and prefer $K$ whose clusters reproduce. If a probabilistic model fits, a Gaussian mixture's BIC gives a likelihood-based choice. Most important is usefulness: if the team can act on four segments but not nine, and the four are stable and interpretable, that's the answer. Often there is no "true" $K$.
+
+</details>
+
+<details>
+<summary><strong>Why is K-means guaranteed to converge? Is the result globally optimal?</strong></summary>
+
+Lloyd's algorithm alternates two steps that can each only lower or keep the objective $J = \sum_i \lVert x_i - \mu_{c(i)} \rVert^2$. Assignment: each point moves to its nearest centroid, minimizing its own term with centroids fixed. Update: each centroid moves to its cluster's mean, the unique minimizer of the sum of squared distances for a fixed set of points (set the derivative $-2\sum_{i \in C_k}(x_i - \mu_k)$ to zero). Since $J$ never increases and there are finitely many possible assignments, the algorithm stops after finitely many iterations. But only at a local optimum: finding the global optimum is NP-hard, and a bad start, such as two initial centroids inside the same true cluster, can get stuck. Remedies: k-means++ initialization, which spreads the starting centroids by sampling proportional to squared distance, and multiple restarts (`n_init`), keeping the lowest inertia.
+
+</details>
+
+<details>
+<summary><strong>K-means splits an obviously elongated cluster in half and merges two small nearby clusters. Why, and what would you use instead?</strong></summary>
+
+K-means implicitly assumes spherical clusters of similar size and spread: points are assigned by plain Euclidean distance to a centroid, so the boundary between two clusters is always the perpendicular bisector of their centroids. A long, thin cluster has many points far from its center, so in squared distance it's cheaper to split it in two and let one centroid cover both small groups. Diagnose by plotting the clusters (or a PCA projection) and checking per-cluster silhouette scores. Alternatives: Gaussian mixtures with full covariance fit elliptical clusters of different sizes and give soft memberships; DBSCAN or HDBSCAN find arbitrary shapes, label noise, and don't need $K$; spectral clustering handles non-convex shapes such as rings. Check scaling first, though: an unscaled feature can stretch clusters artificially, and standardizing sometimes fixes the problem.
+
+</details>
+
+<details>
+<summary><strong>Estimate the cost of K-means on 10 million points with 50 features, K = 100, and 30 iterations. How would you make it faster?</strong></summary>
+
+Each iteration computes the distance from every point to every centroid: $O(nKp) = 10^7 \times 100 \times 50 = 5 \times 10^{10}$ multiply-adds, so 30 iterations is $1.5 \times 10^{12}$, multiplied again by the number of restarts in `n_init`. That's minutes on a multicore CPU, because distances are computed as matrix products via $\lVert x\rVert^2 - 2\,x\cdot\mu + \lVert\mu\rVert^2$, and seconds on a GPU. The data itself, $10^7 \times 50$ float32 values, is 2 GB, so it fits in memory. Speedups: `MiniBatchKMeans` updates centroids from small random batches, converging in a fraction of the passes at slightly higher inertia; reduce $p$ with PCA first; use float32; use a GPU library such as FAISS; and use Elkan's triangle-inequality pruning to skip distance computations that can't change an assignment. k-means++ initialization also costs $O(nKp)$, so run it on a sample.
+
+</details>

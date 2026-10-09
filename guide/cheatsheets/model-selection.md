@@ -22,7 +22,7 @@ Always fit a baseline first (predict the mean, the majority class, or a one-feat
 | Sequences / time series | Lagged features + gradient boosting | RNN/LSTM, temporal transformers | [RNNs](../lessons/13-deep-architectures/02-recurrent-networks.md) |
 | Text generation | Pretrained decoder LLM + prompting | RAG, LoRA / PEFT, fine-tuning | [Adapting LLMs](../lessons/15-llms/03-adapting-llms.md) |
 | Q&A over private or fresh knowledge | Retrieval + grounded generation | Hybrid search, reranking | [RAG](../lessons/16-rag/01-rag-pipeline.md) |
-| Strict low latency | Simple model or small encoder | Distillation, quantization, caching | [Reliability and cost](../lessons/18-production-ai/02-reliability-cost-and-observability.md) |
+| Strict low latency | Simple model or small encoder | Distillation, quantization, caching | [Reliability and cost](../lessons/20-production-ai/02-reliability-cost-and-observability.md) |
 
 > [!TIP]
 > For structured (tabular) data, gradient-boosted trees are usually the strongest baseline. For raw images, audio, and language, deep learning has the better inductive bias.

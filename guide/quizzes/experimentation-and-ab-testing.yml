@@ -1,0 +1,130 @@
+title: Experimentation and A/B testing
+lesson: experimentation-and-ab-testing
+questions:
+  - id: ab-pvalue-meaning
+    type: single
+    difficulty: medium
+    prompt: An A/B test reports $p = 0.02$ for the new ranker. Which statement is correct?
+    options:
+      - There is a 98% chance the new ranker is better
+      - There is a 2% chance the new ranker has no effect
+      - If the new ranker had no effect, a difference at least this large would appear about 2% of the time
+      - The new ranker improves the metric by 2%
+    answer: 2
+    explanation: A p-value is the probability of data this extreme assuming the null hypothesis is true. It is not the probability of either hypothesis.
+    why_not:
+      - That would be a posterior probability, which needs a prior on how often changes work.
+      - Same mistake in reverse. The p-value is computed assuming the null is true.
+      - ""
+      - The p-value says nothing about effect size. Use the estimate and its confidence interval.
+  - id: ab-sample-size
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Baseline conversion 20%, relative MDE 10% (20% to 22%), $\alpha = 0.05$ two-sided, power 0.8. Using $n = (z_{0.975} + z_{0.8})^2 [p_A(1-p_A) + p_B(1-p_B)]/\delta^2$ with $(1.96 + 0.8416)^2 = 7.8489$, how many users per arm (round up)?
+    answer: 6507
+    tolerance: 2
+    explanation: |
+      Variance term $0.20 \times 0.80 + 0.22 \times 0.78 = 0.16 + 0.1716 = 0.3316$. $\delta^2 = 0.02^2 = 0.0004$. $n = 7.8489 \times 0.3316 / 0.0004 = 6{,}506.8$, so 6,507.
+  - id: ab-ztest
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Control converts 1,500 of 15,000; treatment 1,650 of 15,000. The pooled standard error is 0.00354. What is the z-statistic? Give 2 decimals.
+    answer: 2.82
+    tolerance: 0.02
+    explanation: $z = (0.110 - 0.100)/0.00354 = 0.010/0.00354 = 2.82$ (2.825 unrounded), giving a two-sided p-value of about 0.0047.
+  - id: ab-mde-scaling
+    type: single
+    difficulty: easy
+    prompt: You halve the minimum detectable effect and keep everything else the same. Roughly what happens to the required sample size?
+    options:
+      - It halves
+      - It stays the same
+      - It doubles
+      - It roughly quadruples
+    answer: 3
+    explanation: $n \propto 1/\delta^2$, so halving $\delta$ multiplies $n$ by about 4. The variance term changes slightly too, so it is "roughly".
+    why_not:
+      - Sample size moves in the opposite direction to the MDE, and with the square.
+      - The MDE is in the denominator of the formula.
+      - Doubling would be true if $n \propto 1/\delta$. Noise shrinks with $\sqrt{n}$, so you need 4× the users.
+      - ""
+  - id: ab-srm
+    type: single
+    difficulty: hard
+    prompt: A 50/50 experiment on 200,000 users ends with 101,000 in control and 99,000 in treatment. Treatment looks like a big win. What should you do first?
+    options:
+      - Ship it, the imbalance is only 1 percentage point
+      - Reweight the arms to 50/50 and recompute the result
+      - Treat it as a sample ratio mismatch ($\chi^2 = 20$, p far below 0.001), distrust the result, and find where treatment users are being lost
+      - Extend the test for another week
+    answer: 2
+    explanation: "$\\chi^2 = 2 \\times 1000^2 / 100{,}000 = 20$. An imbalance that large is essentially impossible by chance, so the analyzed users are not the randomized ones."
+    why_not:
+      - At this sample size, one point is about 4.5 standard deviations from 50/50.
+      - Reweighting cannot recover which kinds of users went missing, so the bias stays.
+      - ""
+      - More data from a broken assignment or logging pipeline is still broken.
+  - id: ab-peeking
+    type: single
+    difficulty: medium
+    prompt: A PM checks the dashboard every day and plans to ship the moment $p < 0.05$. In the lesson's A/A simulation with 14 daily looks, roughly what false-positive rate does this produce?
+    options:
+      - About 5%
+      - About 22%
+      - About 51%
+      - About 0.4%
+    answer: 1
+    explanation: The simulation gave 0.216. Every look is another chance for noise to cross the threshold, but the looks are correlated, so the rate is well below the independent-tests bound of $1 - 0.95^{14} = 0.51$.
+    why_not:
+      - Five percent holds only with a single pre-planned look.
+      - "That bound assumes 14 independent tests. Cumulative data makes the looks correlated."
+      - ""
+      - Peeking raises the false-positive rate. It never lowers it.
+  - id: ab-interference
+    type: multi
+    difficulty: hard
+    prompt: In which experiments does user-level randomization give a biased estimate because of interference? Select all that apply.
+    options:
+      - A new surge-pricing model for riders in a ride-hailing marketplace
+      - A new font on the settings page
+      - A feature that makes users share more posts with friends
+      - Ads bidding changes where both arms spend from the same advertiser budget
+    answer: [0, 2, 3]
+    explanation: Shared driver supply, social spillover, and shared budgets all let treatment affect control outcomes. A font on a settings page affects only the user who sees it.
+    why_not:
+      - ""
+      - Each user's experience depends only on their own assignment.
+      - ""
+      - ""
+  - id: ab-cuped
+    type: numeric
+    difficulty: medium
+    prompt: A test needs 40,000 users per arm. You apply CUPED with a pre-period covariate whose correlation with the outcome is $\rho = 0.6$. About how many users per arm do you need now?
+    answer: 25600
+    tolerance: 10
+    explanation: Variance is multiplied by $1 - \rho^2 = 1 - 0.36 = 0.64$, so $n = 0.64 \times 40{,}000 = 25{,}600$.
+  - id: ab-novelty
+    type: single
+    difficulty: medium
+    prompt: A redesigned feed shows +6% engagement in week 1, +3% in week 2, and +1% in week 3. What is the most likely explanation?
+    options:
+      - Primacy effect
+      - Novelty effect, so the long-run lift is probably small
+      - Sample ratio mismatch
+      - The test was underpowered in week 3
+    answer: 1
+    explanation: An effect that decays over time as users get used to the change is a novelty effect. Estimate the long-run effect from later weeks or from new users only.
+    why_not:
+      - Primacy is the reverse pattern, where users resist change at first and the effect grows.
+      - SRM is about assignment counts, not a trend in the effect.
+      - Power does not create a steady downward trend.
+      - ""
+  - id: ab-llm
+    type: short
+    difficulty: hard
+    prompt: You changed the system prompt of an LLM support assistant. Offline, an LLM judge prefers the new version 62% of the time. Describe how you would decide whether to ship.
+    sample_answer: |
+      Treat the offline win as a gate, not a verdict. Check that the judge agrees with human labels on a sample, and that safety and regression suites still pass. Then run an A/B test randomized by user, with a primary metric such as resolution without human escalation. Add guardrails for cost per conversation, latency, thumbs-down rate, and safety flags, and make sure caches are keyed by arm. Fix the sample size and duration in advance, check SRM, and look at the effect over time for novelty.
+    explanation: Offline LLM evals measure a proxy on a fixed set. The online test measures real user outcomes and cost.

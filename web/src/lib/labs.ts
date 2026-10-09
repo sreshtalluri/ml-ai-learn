@@ -34,6 +34,13 @@ export const LABS: LabMeta[] = [
   { id: "rag", title: "RAG pipeline", area: "llm", lesson: "rag-pipeline", description: "Chunk documents, retrieve and rerank for a question, and see what happens when retrieval misses." },
   { id: "architecture", title: "Production LLM architecture", area: "engineering", lesson: "production-architecture", description: "Click components for failures, metrics, and security; trace requests through normal, cache, outage, and tool scenarios." },
   { id: "prompt-injection", title: "Prompt injection", area: "engineering", lesson: "ai-security", description: "Run mocked attacks hidden in retrieved documents and switch on defenses to see which layer stops each one." },
+  { id: "lora", title: "LoRA and fine-tuning memory", area: "llm", lesson: "fine-tuning-in-practice", description: "Pick a model size, rank, and precision; compare trainable parameters and GPU memory for full fine-tuning, LoRA, and QLoRA." },
+  { id: "vector-search", title: "Approximate nearest neighbors", area: "llm", lesson: "vector-search", description: "Partition vectors into clusters, probe a few, and trade recall against the number of distance computations." },
+  { id: "kv-cache", title: "KV cache and inference memory", area: "llm", lesson: "llm-inference", description: "Size the weights and KV cache for a model, context, and batch; see whether it fits and how fast decoding can go." },
+  { id: "batching", title: "Static vs continuous batching", area: "llm", lesson: "serving-llms", description: "Simulate requests of different lengths on a GPU and compare throughput and latency under each batching policy." },
+  { id: "agent-loop", title: "Agent loop", area: "engineering", lesson: "tool-use-and-agents", description: "Step through an agent's think, call tool, observe loop with mocked tools; inject failures and step limits." },
+  { id: "recsys-funnel", title: "Recommendation funnel", area: "engineering", lesson: "ml-system-design", description: "Size candidate generation, ranking, and re-ranking stages against a latency budget and watch recall and cost move." },
+  { id: "ab-test", title: "A/B test power and peeking", area: "engineering", lesson: "experimentation-and-ab-testing", description: "Compute sample size from baseline, effect, and power, then simulate how peeking inflates false positives." },
 ];
 
 export const getLab = (id: string) => LABS.find((l) => l.id === id);

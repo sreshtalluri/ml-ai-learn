@@ -224,3 +224,33 @@ Curvature is $f''(\theta) = 4$, so convergence requires $|1 - 4\eta| < 1$, that 
 **Next:** [Backpropagation](02-backpropagation.md)
 
 **Related:** [Linear regression](../03-regression/01-linear-regression.md) · [Training and regularization](../12-training-regularization/01-training-and-regularization.md) · [Forward pass](../10-neural-networks/01-neural-network-forward-pass.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why does a learning rate that is only slightly too large make the loss explode instead of just converging slowly?</strong></summary>
+
+Because the error along each direction is multiplied by the same factor every step, so the behavior is geometric. Near a minimum, along a direction with curvature $\lambda$, one update multiplies the distance to the minimum by $1 - \eta\lambda$. If $|1 - \eta\lambda| < 1$ the error shrinks; if it exceeds 1 it grows every step. That gives the stability limit $\eta < 2/\lambda_{\max}$, set by the steepest direction. In the course's bowl $\tfrac12(\theta_1^2 + 10\theta_2^2)$, $\lambda_{\max} = 10$, so the limit is 0.2. At $\eta = 0.19$ the factor on $\theta_2$ is $-0.9$: it flips sign and slowly shrinks, a zig-zag. At $\eta = 0.21$ the factor is $-1.1$, so the loss goes $17.3 \to 18.3 \to 20.5 \to 23.8$ and diverges. A 10% change in $\eta$ is the difference between converging and NaN, which is why you tune it on a log scale.
+
+</details>
+
+<details>
+<summary><strong>When would you choose SGD with momentum over Adam, or the other way around?</strong></summary>
+
+Use AdamW as the default for transformers and most new architectures; consider SGD with momentum for well-understood vision models where you can tune the schedule. Adam divides each parameter's step by a running RMS of its gradient, so every parameter moves at a similar scale regardless of gradient magnitude. That makes it robust to badly conditioned problems and to layers with very different gradient sizes, with little tuning. SGD with momentum uses one global step size; it needs more careful learning-rate and schedule tuning but sometimes generalizes slightly better on image classification. Memory is a real trade-off at scale: Adam keeps two extra numbers per parameter. For a 7B model with fp32 optimizer states, that is $7 \times 10^9 \times 2 \times 4$ bytes $= 56$ GB on top of weights and gradients. Always use AdamW rather than Adam plus an L2 term if you want true weight decay.
+
+</details>
+
+<details>
+<summary><strong>Training loss falls nicely for a few hundred steps, then suddenly becomes NaN. How do you debug it?</strong></summary>
+
+Treat it as either an exploding update or a bad number, and find which. First log the global gradient norm and the loss per step: a norm that climbs or spikes right before the NaN means the step was too large. Fix with a lower peak learning rate, a warmup period, and gradient clipping (for example, max norm 1.0). If the norm was fine, look for numerical problems: computing `log(sigmoid(z))` by hand instead of a fused loss, division by a tiny variance in a custom normalization, fp16 overflow without loss scaling (switch to bf16 or enable a gradient scaler), or a batch containing inf or NaN features. Rerun with a fixed seed, save the batch index where it fails, and check that batch's inputs and labels. `torch.autograd.set_detect_anomaly(True)` will point at the first operation producing NaN, at a speed cost.
+
+</details>
+
+<details>
+<summary><strong>You increase the batch size from 256 to 2,048. What should you do with the learning rate, and why?</strong></summary>
+
+Usually raise it, roughly in proportion for SGD, with warmup, and then verify. A mini-batch gradient is an average of $|B|$ per-example gradients, so its noise variance falls as $1/|B|$. With an 8x larger batch you get a cleaner gradient but 8x fewer steps per epoch. A common heuristic for SGD is linear scaling: multiply $\eta$ by 8 so each epoch makes about the same total progress, and add a warmup because the large step is unstable early. For Adam, gains are often closer to square-root scaling ($\eta \times \sqrt{8} \approx 2.8$). Both heuristics break down past a "critical batch size" where the gradient is already accurate and bigger batches stop reducing the number of steps needed. Keep the stability limit in mind too: a larger $\eta$ still has to satisfy $\eta < 2/\lambda_{\max}$, so run a short learning-rate sweep at the new batch size rather than trusting the rule blindly.
+
+</details>

@@ -172,3 +172,33 @@ IDF $= \ln(50/2) = \ln 25 = 3.219$. TF-IDF $= 4 \times 3.219 = 12.88$.
 **Next:** [Word embeddings](02-word-embeddings.md)
 
 **Related:** [Naive Bayes](../05-instance-and-probabilistic/02-naive-bayes.md) · [The RAG pipeline](../16-rag/01-rag-pipeline.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Explain TF-IDF. Why is the IDF term needed?</strong></summary>
+
+TF-IDF weights a term in a document by how often it appears there (TF) times how rare it is across the corpus, $\text{IDF}(t) = \ln\frac{N}{\text{DF}(t)}$. Raw counts are dominated by frequent words like "the" and "is" that appear everywhere and say nothing about topic; IDF scales them toward zero (a word in every document gets $\ln 1 = 0$) and boosts distinctive words. With $N = 100$ documents, a term found in 5 of them gets $\text{IDF} = \ln 20 = 3.0$, and three occurrences give TF-IDF $\approx 9.0$. Rows are usually L2-normalized so long documents don't dominate cosine similarity. Libraries differ: scikit-learn uses a smoothed $\ln\frac{1+N}{1+\text{DF}} + 1$, so hand calculations won't match exactly. Limits: no semantics and no word order beyond n-grams. BM25 refines TF-IDF with term-frequency saturation and length normalization and remains a strong retrieval baseline.
+
+</details>
+
+<details>
+<summary><strong>TF-IDF with logistic regression, or a fine-tuned transformer, for text classification? How do you decide?</strong></summary>
+
+Start with TF-IDF plus a linear model: it trains in seconds on a CPU, serves in microseconds, needs little labeled data, and its coefficients explain predictions. On keyword-driven tasks (spam, ticket routing, topic labeling) it's often within a few points of a transformer. Choose a transformer when meaning depends on context, word order, negation, or paraphrase ("not bad at all"), when vocabulary varies widely (synonyms, misspellings, many languages), or when labels are scarce and pretrained knowledge helps; sentiment and intent tasks usually gain the most. The costs: GPU training, tens of milliseconds or more of inference latency, more memory, and harder debugging. A middle option is frozen sentence embeddings plus logistic regression. Decide by measurement: build the TF-IDF baseline first and take on transformer complexity only if the gap matters for the business metric.
+
+</details>
+
+<details>
+<summary><strong>Your bag-of-words sentiment classifier, built with stop-word removal, labels "not good" reviews as positive. What went wrong?</strong></summary>
+
+Two compounding issues. Many standard stop-word lists include negations such as "not," "no," and "nor," so removal turns "not good" into "good." And even with negations kept, a unigram bag-of-words treats "not" and "good" as independent features, so it can't represent that "not" flips "good." Fixes: keep negation words (use a custom stop-word list, or skip stop-word removal, which rarely helps regularized linear models anyway); add bigrams with `ngram_range=(1, 2)` so "not good" becomes its own feature, which usually gives a clear gain on sentiment; or apply negation marking, prefixing tokens after "not" until the next punctuation. Long-range negation and sarcasm need contextual models. The broader lesson: validate preprocessing choices on held-out data instead of applying them by default, and read the misclassified examples.
+
+</details>
+
+<details>
+<summary><strong>In a 1,000-document corpus, "refund" appears in 10 documents and "the" in all 1,000. A ticket contains "refund" twice and "the" 20 times. Compute their TF-IDF weights. What would raw counts have said?</strong></summary>
+
+IDF of "refund" is $\ln(1000/10) = \ln 100 = 4.605$, so its TF-IDF is $2 \times 4.605 = 9.21$. IDF of "the" is $\ln(1000/1000) = \ln 1 = 0$, so its weight is $0$ despite 20 occurrences. With raw counts, "the" would be the ticket's largest coordinate, ten times "refund," and cosine similarity between tickets would mostly measure how many function words they share. TF-IDF flips this: the vector points toward "refund," which is what a router or search engine needs. Two follow-ups: scikit-learn's smoothed IDF gives "the" a weight of $\ln\frac{1001}{1001} + 1 = 1$ per occurrence rather than zero, which row normalization then dilutes; and TF is often made sublinear, $1 + \ln \text{TF}$, so that 20 repetitions don't count 20 times as much as one.
+
+</details>

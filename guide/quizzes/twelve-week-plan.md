@@ -1,7 +1,7 @@
 <!-- GENERATED from twelve-week-plan.yml by web/scripts/gen-quizzes.mjs. Edit the .yml, then run: npm run gen:quizzes -->
 # Quiz: The 12-week plan
 
-Covers the lesson [The 12-week plan](../lessons/20-projects/01-twelve-week-plan.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/twelve-week-plan/) grades these interactively and tracks a review queue.
+Covers the lesson [The 12-week plan](../lessons/23-projects/01-twelve-week-plan.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/twelve-week-plan/) grades these interactively and tracks a review queue.
 
 ## 1. Calculation (easy)
 

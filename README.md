@@ -6,19 +6,21 @@ The same content ships two ways:
 
 | | For | Where |
 |---|---|---|
-| **Website** | learning interactively: 20 labs, a Math Lab with 18 step-by-step calculators, quizzes with a review queue, and local progress tracking | [`web/`](web/) → **[sreshtalluri.github.io/ml-ai-learn](https://sreshtalluri.github.io/ml-ai-learn/)** |
+| **Website** | learning interactively: 27 labs, quick-read mode, 7-day interview sprints, a rapid-fire drill, a Math Lab with 18 step-by-step calculators, quizzes with a review queue, and local progress tracking | [`web/`](web/) → **[sreshtalluri.github.io/ml-ai-learn](https://sreshtalluri.github.io/ml-ai-learn/)** |
 | **GitHub edition** | reading on GitHub with no build step: markdown lessons, committed figures, runnable Python, quizzes with hidden answers | [`guide/`](guide/) → **[start here](guide/README.md)** |
 
 There is one source of truth. Lessons, quizzes, the glossary, model cards, and cheat sheets live in `guide/`, and the website renders those same files at build time. Fixing a typo in a lesson fixes it in both places.
 
 ## What's inside
 
-- **21 modules, 41 lessons**: math foundations, ML vocabulary and workflow, regression, classification, KNN, Naive Bayes, SVMs, trees and boosting, clustering, PCA, classical NLP and embeddings, neural networks, gradient descent, backpropagation, training and regularization, CNNs, RNNs, autoencoders and diffusion, self-attention, transformers, tokenization and pretraining, decoding, adapting LLMs (LoRA, RLHF/DPO), RAG, LLM evaluation, production architecture, reliability and cost, AI security, a 12-week plan, and a five-project portfolio ladder.
+- **24 modules, 49 lessons**: math foundations, ML vocabulary and workflow, regression, classification, KNN, Naive Bayes, SVMs, trees and boosting, clustering, PCA, classical NLP and embeddings, neural networks, gradient descent, backpropagation, training and regularization, CNNs, RNNs, autoencoders and diffusion, self-attention, transformers, tokenization and pretraining, decoding, adapting LLMs, fine-tuning in practice (SFT, LoRA/QLoRA, DPO, RL fine-tuning), RAG, vector search (IVF, HNSW, PQ, hybrid search), LLM evaluation, LLM inference (KV cache, quantization, speculative decoding, MoE), serving (continuous batching, paged attention, cost per token), tool use and agents (MCP, workflows vs agents), reliable agents, production architecture, reliability and cost, AI security, ML system design, A/B testing, a 12-week plan, and a five-project portfolio ladder.
+- **Three ways to read.** Full lessons; **quick read** (one switch hides the math, implementation, engineering, and exercises: about 8 hours for the whole course instead of 30); or a **7-day interview sprint** for ML engineer, AI engineer, applied scientist, or data scientist roles ([guide/sprints](guide/sprints/README.md)).
+- **195 interview questions** with model answers, at the end of every lesson, plus a rapid-fire drill on the website (timed flashcards and quiz blitzes, with shaky cards saved for later).
 - **Worked examples verified by code.** Every hand calculation in a lesson is reproduced by a script in [`guide/code/`](guide/code/) and by unit tests in `web/`.
-- **20 interactive labs**, each with predict-then-check "Try it" prompts: learning-paradigm guide, underfitting vs overfitting, linear regression (drag points, L1/L2), classification threshold (costs, ROC, calibration), KNN (scaling), decision-tree builder (Gini splits), gradient boosting round by round, K-means, PCA projection, TF-IDF, neural-network forward pass, gradient descent (SGD/momentum/Adam, divergence), backpropagation (nine steps), convolution and pooling, self-attention (Q, K, V to output with shapes), BPE tokenizer with a context-window meter, decoding (temperature, top-k, top-p), a RAG pipeline (chunking, retrieval, reranking, misses), a clickable production architecture with request tracing, and a prompt-injection lab with mocked tools.
-- **Learning paths**: the full 12-week course, a 4-week AI-engineering fast track, and an interview-prep pass ([guide/learning-paths.md](guide/learning-paths.md)).
-- **41 quizzes** with seven question types (multiple choice, multi-select, calculation, fill-in, ordering, matching, reflection), explanations for every option, and a review queue.
-- **28 model cards**, **18 cheat sheets**, and a **49-term glossary** (with hover definitions inside lessons on the website).
+- **27 interactive labs**, each with predict-then-check "Try it" prompts: learning-paradigm guide, underfitting vs overfitting, linear regression (drag points, L1/L2), classification threshold (costs, ROC, calibration), KNN (scaling), decision-tree builder (Gini splits), gradient boosting round by round, K-means, PCA projection, TF-IDF, neural-network forward pass, gradient descent (SGD/momentum/Adam, divergence), backpropagation (nine steps), convolution and pooling, self-attention (Q, K, V to output with shapes), BPE tokenizer with a context-window meter, decoding (temperature, top-k, top-p), a RAG pipeline (chunking, retrieval, reranking, misses), LoRA and fine-tuning memory, approximate nearest neighbors (IVF), KV cache and inference memory, static vs continuous batching, a step-through agent loop with mocked tools, a recommendation funnel against a latency budget, A/B test power and peeking, a clickable production architecture with request tracing, and a prompt-injection lab with mocked tools.
+- **Learning paths**: the full 14-week course, a 5-week AI-engineering fast track, and interview prep ([guide/learning-paths.md](guide/learning-paths.md)).
+- **49 quizzes** with seven question types (multiple choice, multi-select, calculation, fill-in, ordering, matching, reflection), explanations for every option, and a review queue.
+- **29 model cards**, **23 cheat sheets**, and a **78-term glossary** (with hover definitions inside lessons on the website).
 
 ## Quick start
 
@@ -43,6 +45,7 @@ guide/                         single source of truth (GitHub-readable markdown)
   quizzes/*.yml                canonical quizzes → generated *.md views for GitHub readers
   models/, cheatsheets/        model cards and reference pages
   glossary.md                  parsed into the searchable glossary and hover tooltips
+  sprints/                     7-day interview sprints per role (lesson links drive the website drill scope)
   code/, figures/              runnable Python scripts and the figures they produce
   AUTHORING.md                 the content format (read this before contributing)
 web/                           Next.js 16 (App Router, TypeScript strict, Tailwind v4), static export
@@ -75,7 +78,7 @@ GitHub shows the figure. The website replaces everything between the markers wit
 
 ```bash
 cd web
-npm test               # 54 tests: math, worked examples, progress persistence, labs, calculators, content integrity
+npm test               # 100 tests: math, worked examples, progress, labs, calculators, content integrity, interview sections, sprints
 npm run typecheck
 npm run lint
 npm run check:quizzes  # quiz YAML valid and generated markdown up to date

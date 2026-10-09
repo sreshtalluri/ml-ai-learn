@@ -148,3 +148,33 @@ Pre-activation $= 0.5(-1) + 0.8(0.8573) = -0.5 + 0.6858 = 0.1858$. $h_4 = \tanh(
 **Next:** [Autoencoders, diffusion, and transfer learning](03-autoencoders-diffusion-and-transfer.md)
 
 **Related:** [Backpropagation](../11-gradient-descent-backprop/02-backpropagation.md) · [Self-attention](../14-transformers/01-self-attention.md) · [Model card: LSTM](../../models/lstm.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why do vanilla RNNs struggle to learn long-range dependencies?</strong></summary>
+
+Because backpropagation through time multiplies the gradient by one Jacobian per step, and long products of the same factor vanish or explode. With $h_t = \tanh(W_x x_t + W_h h_{t-1} + b)$, the gradient from step $t$ back to $t - k$ contains $\prod W_h^\top \operatorname{diag}(\tanh')$ over $k$ steps. Its size behaves roughly like the $k$-th power of $W_h$'s largest singular value times the tanh derivatives, which are at most 1. In the scalar example with $w_h = 0.8$, $\partial h_3/\partial h_0$ is about $0.8^3 = 0.512$ ignoring tanh, but over 30 steps it is $0.8^{30} \approx 0.0012$: the early input barely affects learning. With $w_h = 1.1$, $1.1^{30} \approx 17.4$ and the gradients explode. Clipping handles explosion; vanishing needs an architectural fix, which is what LSTM gates and attention provide.
+
+</details>
+
+<details>
+<summary><strong>How does an LSTM's cell state fix the vanishing gradient problem?</strong></summary>
+
+It adds a path through time that is updated additively rather than by repeated matrix multiplication. The cell state updates as $c_t = f_t \odot c_{t-1} + i_t \odot \tilde{c}_t$, so the direct derivative $\partial c_t/\partial c_{t-1}$ is just the forget gate $f_t$, element-wise, with no weight matrix and no squashing derivative in the way. When the network learns $f_t \approx 1$ for a unit, information and gradient pass through many steps almost unchanged, like a residual connection through time. The input gate $i_t$ decides what new content to write, and the output gate $o_t$ decides what to expose as $h_t = o_t \odot \tanh(c_t)$. A GRU merges the gates into update and reset gates and drops the separate cell state, with fewer parameters and usually similar accuracy. Both extend usable memory to hundreds of steps, not arbitrarily far.
+
+</details>
+
+<details>
+<summary><strong>Transformers replaced RNNs for language. When would you still choose an RNN?</strong></summary>
+
+Transformers won on training: every position is computed in parallel, and any two tokens are one attention step apart instead of $n$ recurrent steps, so long-range dependencies are easier to learn. RNNs process steps sequentially, which underuses GPUs. But recurrence has an inference advantage: constant memory and constant compute per step, regardless of how long the stream has run. A transformer's KV cache and per-token attention cost grow with context length. So an RNN (LSTM or GRU) is still reasonable for streaming signals, on-device models with tight memory, low-latency time-series and sensor processing, and small datasets where a large transformer would overfit. State-space models and other linear-recurrent architectures revisit this trade-off: parallel training like a transformer, constant-size state at inference like an RNN. For text with any pretrained-model option available, I'd start with a transformer.
+
+</details>
+
+<details>
+<summary><strong>Your LSTM demand forecaster looks excellent in validation but performs poorly once deployed. What went wrong?</strong></summary>
+
+The most likely cause is temporal leakage in evaluation, not the model. Check the split first: a random or shuffled split lets the model train on days after the ones it is evaluated on, so it interpolates instead of forecasting. Use a time-based split or walk-forward validation that always trains on the past and tests on the future. Second, check feature construction: normalization statistics computed on the whole series, rolling features that include the current target, or inputs like actual weather that aren't known at prediction time all leak the future. Third, check for training-serving skew: production features computed by different code, arriving late, or missing. Finally, compare against a seasonal naive baseline (same period last week) on the honest split; if the LSTM barely beats it, a simpler model may be the better choice.
+
+</details>

@@ -9,7 +9,7 @@ export const NAV = [
   { href: "/labs/", label: "Labs" },
   { href: "/models/", label: "Models" },
   { href: "/math/", label: "Math Lab" },
-  { href: "/quizzes/", label: "Quizzes" },
+  { href: "/sprints/", label: "Interview prep" },
   { href: "/cheatsheets/", label: "Cheat sheets" },
   { href: "/glossary/", label: "Glossary" },
   { href: "/progress/", label: "Progress" },
@@ -31,7 +31,7 @@ function ThemeToggle() {
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const active = (href: string) => pathname.startsWith(href) || (href === "/path/" && (pathname.startsWith("/learn") || pathname.startsWith("/modules")));
+  const active = (href: string) => pathname.startsWith(href) || (href === "/path/" && (pathname.startsWith("/learn") || pathname.startsWith("/modules"))) || (href === "/sprints/" && (pathname.startsWith("/drill") || pathname.startsWith("/quizzes")));
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur">

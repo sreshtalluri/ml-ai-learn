@@ -175,3 +175,33 @@ $P(\text{spam}) = 2.604 / (2.604 + 2.836) = 0.479$. Classified as ham, narrowly.
 **Next:** [Support vector machines](03-support-vector-machines.md)
 
 **Related:** [Probability and statistics](../00-foundations/03-probability-and-statistics.md) · [From text to vectors](../09-classical-nlp/01-text-to-vectors.md) · [Model card: Naive Bayes](../../models/naive-bayes.md)
+
+## Interview angle
+
+<details>
+<summary><strong>What is "naive" about Naive Bayes, and why does it still classify well?</strong></summary>
+
+It assumes features are conditionally independent given the class, so $P(x \mid c) = \prod_j P(x_j \mid c)$. For text, that means "free" and "money" occur independently within spam, which is false. It still classifies well because classification only needs the right argmax, not accurate probabilities: as long as the evidence pushes the correct class's score highest, errors in the joint likelihood don't change the decision. The assumption also lets each $P(x_j \mid c)$ be estimated from simple counts, so NB needs little data, trains in one pass, and handles tens of thousands of features without much overfitting. The price shows up in the probabilities: correlated features are counted repeatedly, so posteriors get pushed toward 0 or 1 and are badly calibrated. Use NB as a fast text baseline, and calibrate it before using its probabilities for decisions.
+
+</details>
+
+<details>
+<summary><strong>Why do we need Laplace smoothing? What goes wrong without it?</strong></summary>
+
+The maximum-likelihood estimate $P(w \mid c) = \text{count}(w, c)/\text{total}(c)$ is zero for any word never seen with class $c$ during training. Because the posterior multiplies likelihoods, one unseen word zeroes the class's score no matter how much other evidence supports it: an obvious spam email containing a single word never seen in training spam would be scored 0% spam. Additive smoothing adds $\alpha$ to every count: $P(w \mid c) = \frac{\text{count}(w,c) + \alpha}{\text{total}(c) + \alpha V}$. In this lesson's example, "today" never appears in spam, yet it gets $1/24 = 0.0417$ instead of 0, and the email is still classified as spam at 0.725. $\alpha$ is a hyperparameter: $\alpha = 1$ is the classic default, but smaller values like 0.1 often do better with large vocabularies, so tune it by cross-validation. It's equivalent to a Dirichlet prior on word probabilities.
+
+</details>
+
+<details>
+<summary><strong>In this lesson's example, "free money today" is 72.5% spam with equal priors. In production only 20% of email is spam. What's the posterior now?</strong></summary>
+
+The likelihoods don't change; only the prior does. Spam likelihood: $0.125 \times 0.125 \times 0.0417 = 6.51 \times 10^{-4}$. Ham likelihood: $0.0435 \times 0.0435 \times 0.1304 = 2.47 \times 10^{-4}$. Likelihood ratio $= 2.64$. Posterior odds $=$ prior odds $\times$ likelihood ratio $= \frac{0.2}{0.8} \times 2.64 = 0.66$, so $P(\text{spam} \mid x) = 0.66/1.66 \approx 0.40$. The same email flips from spam to ham at a 0.5 threshold. Takeaways: priors matter, so estimate them from data that matches production rather than a rebalanced training set; in log-odds the prior change is a simple additive shift of $\ln 0.25 = -1.39$; and when class proportions drift, you can update the prior without re-estimating any likelihoods.
+
+</details>
+
+<details>
+<summary><strong>Naive Bayes or logistic regression for text classification: how do you choose?</strong></summary>
+
+Both are linear classifiers over word features, which is why they're compared so often. NB is generative: it models $P(x \mid c)$ and $P(c)$ and applies Bayes' rule. Logistic regression is discriminative: it fits $P(c \mid x)$ directly. The classic result (Ng and Jordan) is that NB approaches its best error with far fewer examples, but logistic regression reaches a lower error as data grows, because it doesn't assume independence and can down-weight redundant, correlated features instead of double-counting them. So: very few labels, a need for instant one-pass or incremental training, or a quick baseline points to NB (Multinomial, or Complement for imbalance). Thousands of labels, a need for calibrated probabilities, or many correlated features points to regularized logistic regression or a linear SVM on TF-IDF. Both train in seconds, so try both.
+
+</details>

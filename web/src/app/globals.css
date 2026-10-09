@@ -120,3 +120,7 @@ body { background: var(--bg); color: var(--text); }
 
 /* range inputs pick up the accent */
 input[type="range"] { accent-color: var(--accent); }
+
+/* Quick mode: <html class="quick"> hides deep lesson sections (see QuickToggle.tsx) */
+html.quick section[data-deep], html.quick [data-deep-toc], html.quick .full-only, html:not(.quick) .quick-only { display: none; }
+.prose :where(details + details):where(:not(.not-prose *), .not-prose .prose *) { margin-top: 0.75em; }

@@ -1,0 +1,134 @@
+title: Tool use and agents
+lesson: tool-use-and-agents
+questions:
+  - id: tua-who-executes
+    type: single
+    difficulty: easy
+    prompt: In tool calling, what does the model itself produce?
+    options:
+      - The result of running the function
+      - A structured request naming a tool and its arguments
+      - An HTTP request sent directly to the tool's API
+      - A Python function definition the runtime compiles
+    answer: 1
+    explanation: The model only emits a schema-shaped call. The application validates, authorizes, executes it, and appends the result.
+    why_not:
+      - The runtime runs the function; the model only sees the result when it is appended to the context.
+      - Correct.
+      - The model has no network access; it emits text, and your code decides whether to make any request.
+      - Tools are defined ahead of time as schemas; the model chooses among them and fills in arguments.
+  - id: tua-order
+    type: order
+    difficulty: easy
+    prompt: Order the steps of one agent iteration.
+    options:
+      - Model reads the context (system prompt, tool schemas, task, earlier steps)
+      - Model writes a thought and emits a tool call
+      - Runtime validates and authorizes the call
+      - Runtime executes the tool
+      - Result is appended to the context as an observation
+    explanation: Observe, reason, act, then the runtime executes and appends the observation, and the next model call reads it.
+  - id: tua-tokens
+    type: numeric
+    difficulty: medium
+    prompt: An agent's base context is 1,000 tokens and each step adds 500 tokens (model output plus tool result). How many input tokens are billed over 8 model calls?
+    answer: 22000
+    tolerance: 0
+    explanation: |
+      $C = TB + d\,T(T-1)/2 = 8 \times 1{,}000 + 500 \times \frac{8 \times 7}{2} = 8{,}000 + 500 \times 28 = 8{,}000 + 14{,}000 = 22{,}000$.
+  - id: tua-cache
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Same run as the worked example: 13,200 input tokens billed over 6 calls and a final context of 3,200 tokens. With prefix caching, every token is read fresh once and from cache afterward. How many input tokens are billed at the cached rate?
+    answer: 10000
+    tolerance: 0
+    explanation: Fresh tokens equal the final context (3,200), since each token enters once. Cached = $13{,}200 - 3{,}200 = 10{,}000$.
+  - id: tua-constrained
+    type: single
+    difficulty: medium
+    prompt: Constrained decoding against the tool's JSON schema guarantees which of these?
+    options:
+      - The model picks the correct tool
+      - The argument values are correct
+      - The output parses and matches the schema
+      - The tool call is safe to execute
+    answer: 2
+    explanation: Masking invalid tokens guarantees structure only. Choice of tool and values still come from the model's distribution, and safety is the runtime's job.
+    why_not:
+      - Any tool name in the schema is valid, so a wrong but valid choice passes.
+      - "`flight_id: \"UA412\"` is valid JSON even when the right flight was AS330."
+      - Correct.
+      - Schema-valid calls can still be harmful; validation of business rules, permissions, and approval are separate.
+  - id: tua-diagnose-wrong-tool
+    type: single
+    difficulty: hard
+    prompt: |
+      Traces show the agent often answers flight-price questions using `web_search` and quotes stale prices, even though a `search_flights` tool with live data exists. What is the most likely fix?
+    options:
+      - Raise the temperature so it explores other tools
+      - Rename and rewrite the tool descriptions so it is clear which tool has live fares and that web search is not a source of prices
+      - Add more tools so the model has more options
+      - Increase the context window
+    answer: 1
+    explanation: Tool selection is driven by names and descriptions. Overlapping, vague descriptions are the usual cause of wrong-tool choices; fix them and re-run the eval suite.
+    why_not:
+      - More randomness makes tool choice less consistent, not more correct.
+      - Correct.
+      - More similar tools make selection harder.
+      - The context is not the bottleneck here; the model has the tool list but can't tell the tools apart.
+  - id: tua-mcp
+    type: multi
+    difficulty: medium
+    prompt: Which statements about the Model Context Protocol (MCP) are true? Select all that apply.
+    options:
+      - An MCP server can expose tools, resources, and prompts
+      - MCP clients run inside a host application such as an IDE or agent
+      - Using MCP makes tool outputs trustworthy, so injection is no longer a concern
+      - Local servers commonly talk over standard input/output, remote ones over HTTP
+    answer: [0, 1, 3]
+    explanation: MCP standardizes the connection between hosts and integrations. It does not change the fact that tool descriptions and results are untrusted text.
+    why_not:
+      - Correct.
+      - Correct.
+      - A protocol standardizes transport and message shapes, not the trustworthiness of the content; a malicious or compromised server can still inject instructions.
+      - Correct.
+  - id: tua-workflow
+    type: single
+    difficulty: medium
+    prompt: Incoming support emails are either billing, technical, or sales, and each type has a fixed handling procedure. Which design fits best?
+    options:
+      - An autonomous agent with every tool available
+      - Routing to one of three fixed prompt chains
+      - Evaluator-optimizer loop
+      - Orchestrator-workers
+    answer: 1
+    explanation: The categories and procedures are known in advance, so a router plus fixed chains is cheaper, faster, and easier to test than an agent.
+    why_not:
+      - An agent adds cost, latency, and unpredictability for a task whose steps are already known.
+      - Correct.
+      - Iterative critique helps when quality criteria are the hard part, not when choosing a procedure.
+      - Orchestrator-workers fits when subtasks are discovered at run time; here they are fixed.
+  - id: tua-stop
+    type: multi
+    difficulty: easy
+    prompt: Which stopping conditions should a production agent runtime enforce? Select all that apply.
+    options:
+      - Maximum number of model calls
+      - Token or cost budget per task
+      - Detection of the same tool call repeated with identical arguments
+      - Trusting the model to stop when it is done, with no other limit
+    answer: [0, 1, 2]
+    explanation: The model's final answer is the normal stop, but the runtime needs hard limits because a confused or manipulated model can loop indefinitely.
+    why_not:
+      - Correct.
+      - Correct.
+      - Correct.
+      - Without hard limits, a looping agent runs until it hits the context limit or a large bill.
+  - id: tua-memory
+    type: short
+    difficulty: medium
+    prompt: Explain the difference between an agent's short-term and long-term memory, and one risk of long-term memory.
+    sample_answer: |
+      Short-term memory is the context window: everything in the current run, exact but bounded and re-read (and billed) on every call. Long-term memory is an external store (notes, key-value facts, a vector index) the agent writes to and later retrieves from, like RAG. Risks: stale or wrong memories are retrieved and trusted, and content written from untrusted sources can carry injected instructions into future sessions.
+    explanation: Long-term memory inherits RAG's failure modes plus persistence of bad or malicious content.

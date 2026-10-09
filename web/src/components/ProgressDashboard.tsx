@@ -109,7 +109,7 @@ export function ProgressDashboard({ lessons, modules, labCount, quizzes }: {
 
       <section aria-labelledby="projects">
         <h2 id="projects" className="text-xl font-semibold tracking-tight">Project milestones</h2>
-        <p className="text-sm text-muted mt-1">The portfolio ladder from <Link href="/learn/project-ladder/" className="text-accent hover:underline">Module 20</Link>. Tick milestones as you ship them.</p>
+        <p className="text-sm text-muted mt-1">The portfolio ladder from <Link href="/learn/project-ladder/" className="text-accent hover:underline">Module 23</Link>. Tick milestones as you ship them.</p>
         <div className="mt-4 grid md:grid-cols-2 gap-3">
           {PROJECTS.map((pr, i) => (
             <fieldset key={pr.id} className="rounded-xl border border-line bg-surface p-4">

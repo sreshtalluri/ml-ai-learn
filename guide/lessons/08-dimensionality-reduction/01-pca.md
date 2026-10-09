@@ -162,3 +162,33 @@ The matrix is already diagonal, so the components are the original axes: PC1 = $
 **Next:** [From text to vectors](../09-classical-nlp/01-text-to-vectors.md)
 
 **Related:** [K-means](../07-unsupervised/01-k-means.md) · [Word embeddings](../09-classical-nlp/02-word-embeddings.md) · [Model card: PCA](../../models/pca.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Explain PCA. What are the principal components mathematically?</strong></summary>
+
+PCA finds orthogonal directions of maximal variance. Center the data, form the covariance matrix $C = \frac{1}{n-1}\tilde{X}^\top\tilde{X}$, and take its eigenvectors: $Cv_k = \lambda_k v_k$. The first eigenvector is the unit direction maximizing the projected variance $v^\top C v$; a Lagrange multiplier on $\lVert v \rVert = 1$ yields exactly the eigen-equation, and $\lambda_k$ is the variance along $v_k$. Each later component maximizes variance while staying orthogonal to the earlier ones, and projecting onto the top $k$ gives the best rank-$k$ reconstruction in squared error. In practice, compute it with an SVD of the centered data, $\tilde{X} = USV^\top$: the rows of $V^\top$ are the components and $\lambda_k = s_k^2/(n-1)$. SVD avoids forming $C$ and is more numerically stable. The explained variance ratio $\lambda_k/\sum_j \lambda_j$ says how much each component keeps.
+
+</details>
+
+<details>
+<summary><strong>Should you standardize features before PCA?</strong></summary>
+
+Standardize when features are in different units or scales; otherwise PCA mostly rediscovers whichever feature has the largest numeric variance. With income in dollars (variance around $10^8$) and age in years (variance around $10^2$), PC1 is essentially income, not because income is informative but because of its units. Standardizing is equivalent to running PCA on the correlation matrix, giving every feature equal initial weight. Don't standardize when features share meaningful units and their scale differences are signal: pixel intensities, or measurements on one common scale, where low-variance features are often noise and should count less. Standardizing those would amplify noise. Always center, because the components are defined relative to the mean. And fit both the scaler and PCA on training data only, inside a pipeline, then apply them unchanged to validation, test, and production data.
+
+</details>
+
+<details>
+<summary><strong>You applied PCA keeping 95% of the variance before a classifier, and accuracy dropped significantly. Why?</strong></summary>
+
+PCA is unsupervised: it keeps directions of high variance, not directions that predict the label. A low-variance direction can carry most of the class signal; picture two classes separated along a narrow axis while both spread widely along another. Dropping the bottom 5% of variance can discard exactly that axis. Other causes: features weren't standardized, so the kept variance is dominated by large-unit features; or PCA and scaling were fit differently between training and serving. What to do: treat the number of components as a hyperparameter chosen by validation performance, not by a variance threshold; try supervised alternatives such as LDA, or a regularized model on all features (L2 handles collinearity without discarding directions); and skip PCA for tree models. Checking each component's correlation with the target shows where the signal actually lives.
+
+</details>
+
+<details>
+<summary><strong>Two features have covariance matrix [[3, 1], [1, 3]]. Find the principal components and the fraction of variance PC1 explains.</strong></summary>
+
+Trace $= 6$ and determinant $= 9 - 1 = 8$. The eigenvalues solve $\lambda^2 - 6\lambda + 8 = 0$, so $\lambda = \frac{6 \pm \sqrt{36 - 32}}{2} = \frac{6 \pm 2}{2}$, giving $\lambda_1 = 4$ and $\lambda_2 = 2$. For $\lambda_1 = 4$: $(3 - 4)v_1 + v_2 = 0$, so $v_2 = v_1$, and normalized PC1 $= (1, 1)/\sqrt{2} \approx (0.707, 0.707)$. PC2 is orthogonal: $(1, -1)/\sqrt{2}$. PC1 explains $4/6 = 66.7\%$ of the variance. Interpretation: when two features have equal variance and positive covariance, PC1 is their scaled sum and PC2 their difference, whatever the correlation strength; the correlation only changes how the variance splits between them. Quick sanity check: the eigenvalues always sum to the trace, the total variance, here $4 + 2 = 6$.
+
+</details>

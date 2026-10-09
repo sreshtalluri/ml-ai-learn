@@ -136,7 +136,7 @@ Runnable script (chunking, TF-IDF retrieval, the miss, recall versus chunk size,
 **RAG versus fine-tuning.** RAG changes the runtime context, so updating knowledge means re-indexing, and answers can cite sources. Fine-tuning changes weights and is the right tool for behavior and format, not for facts that change.
 
 > [!WARNING]
-> **Failure modes.** Parsing failures (tables and PDFs turned into garbage); chunks that split the answer; vocabulary mismatch for sparse retrieval and exact-term misses for dense retrieval; stale indexes; too much context, which dilutes attention and costs money; the model ignoring context and answering from memory; **retrieved documents containing prompt injections** (see [security](../19-safety-security/01-ai-security.md)).
+> **Failure modes.** Parsing failures (tables and PDFs turned into garbage); chunks that split the answer; vocabulary mismatch for sparse retrieval and exact-term misses for dense retrieval; stale indexes; too much context, which dilutes attention and costs money; the model ignoring context and answering from memory; **retrieved documents containing prompt injections** (see [security](../21-safety-security/01-ai-security.md)).
 
 ### Common mistakes
 
@@ -169,6 +169,36 @@ Chunks start every $200 - 50 = 150$ words: at 0, 150, 300, 450, 600, 750 (the la
 - Most failures are retrieval failures: measure recall@k first.
 - RAG changes context, not weights, which makes it the right tool for private and changing knowledge.
 
-**Next:** [Evaluating LLM systems](../17-llm-evaluation/01-llm-evaluation.md)
+**Next:** [Vector search](02-vector-search.md)
 
 **Related:** [From text to vectors](../09-classical-nlp/01-text-to-vectors.md) · [Adapting LLMs](../15-llms/03-adapting-llms.md) · [Model card: embedding model](../../models/embedding-model.md) · [Model card: reranker](../../models/reranker.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Your RAG system gives a wrong answer even though the right document is in the corpus. How do you debug it?</strong></summary>
+
+Split the failure into retrieval versus generation by checking whether the evidence chunk reached the prompt. Log the retrieved chunk IDs for the query and look for the gold chunk. If it is missing, it's a retrieval failure: check that the document parsed cleanly (tables and PDFs often turn to garbage), that chunking didn't split the answer across boundaries, that a metadata or permission filter didn't exclude it, that the index isn't stale, and that queries and documents use the same embedding model version. Vocabulary mismatch, like "reimbursed" versus "refundable", calls for dense or hybrid retrieval; exact IDs call for sparse. If it ranked just below $k$, raise $k$ or add a reranker. If the chunk was in the prompt, it's a generation failure: the model answered from memory, was distracted by too much context, or lost a mid-context chunk. Tighten grounding instructions and require citations. Then add the case to the evaluation set.
+
+</details>
+
+<details>
+<summary><strong>How do you choose chunk size and overlap?</strong></summary>
+
+Chunk size trades completeness against precision and cost, so tune it on retrieval metrics rather than picking a number. Chunks that are too small lose the context needed to answer and split evidence sentences: in the course's synthetic test, evidence recall@3 was 0.4 with 8-word chunks and 1.0 with 50-word chunks. Chunks that are too large dilute the relevant sentence's embedding with unrelated text, lower ranking precision, and send more tokens per retrieved chunk, which costs money, adds latency, and distracts the model. Overlap reduces the chance that an answer straddles a boundary, at the cost of more chunks and storage. A 1,000-word document with 200-word chunks and 50-word overlap gives 7 chunks and stores 1,300 words, 30% more. In practice, split on structure (headings, paragraphs) first, keep the section title with each chunk, start around a few hundred tokens, and compare candidates on recall@k with a labeled question set.
+
+</details>
+
+<details>
+<summary><strong>Sparse, dense, or hybrid retrieval, and where does a reranker fit?</strong></summary>
+
+Hybrid retrieval plus a reranker is the strong default, because sparse and dense retrieval fail differently. Sparse retrieval (BM25, TF-IDF) matches exact terms, so it is excellent for product codes, error messages, names, and rare words, but scores zero on paraphrases: "reimbursed for a game I never opened" shares no words with "digital downloads are refundable if not accessed." Dense retrieval embeds meaning, so it catches paraphrases but can miss exact identifiers and rare jargon. Hybrid combines them with a weighted sum of normalized scores or with reciprocal rank fusion, which adds $1/(60 + \text{rank})$ from each list and needs no score calibration. Both retrievers are bi-encoders: query and document are encoded separately, so documents are precomputed and search is fast. A cross-encoder reranker reads query and chunk together, which is far more accurate but needs one model call per pair, so apply it to only the top 20 to 100 candidates.
+
+</details>
+
+<details>
+<summary><strong>Design retrieval for 10 million chunks across many customer tenants. How big is the index, and how do you enforce permissions?</strong></summary>
+
+Raw vectors for 10M chunks at 768 dimensions in float32 take $10^7 \times 768 \times 4 = 30.7$ GB; fp16 halves that to 15.4 GB and int8 to 7.7 GB. ANN structures such as HNSW add graph overhead, and product quantization can compress further at some recall cost. That fits on one large node or a few shards; plan for replicas to meet throughput. Store text, source, tenant ID, access groups, document version, and embedding model version alongside each vector. Enforce permissions as a filter inside the retrieval query, either by partitioning by tenant (a separate index or namespace each, the simplest strong isolation) or by filtered ANN search on tenant and access-group metadata. Never retrieve globally and filter afterwards, and never ask the model to withhold documents. Add a sparse index for exact-term queries, re-index incrementally on document changes, and version the index together with the embedding model.
+
+</details>

@@ -162,3 +162,33 @@ Attention: $4 \times 512^2 + 4 \times 512 = 1{,}048{,}576 + 2{,}048 = 1{,}050{,}
 **Next:** [Tokenization and pretraining](../15-llms/01-tokenization-and-pretraining.md)
 
 **Related:** [Self-attention](01-self-attention.md) · [Model card: transformer encoder](../../models/transformer-encoder.md) · [Model card: transformer decoder](../../models/transformer-decoder.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why do residual connections help deep networks train?</strong></summary>
+
+They give both the signal and the gradient an identity path around every block. A residual block computes $y = x + F(x)$, so $\partial y/\partial x = I + \partial F/\partial x$. When gradients flow back through $L$ blocks, the product of these Jacobians always contains the identity term, so the gradient can't shrink to zero just because some $\partial F/\partial x$ are small. Without residuals, the gradient is a product of $L$ factors that tends to vanish or explode. Residuals also change what each block learns: only a change to the representation, and at initialization, when $F$ is near zero, the whole network is close to the identity, an easy starting point. In transformers the residual stream carries information through all layers while attention and the FFN read from and write to it. Pre-norm, $x + F(\text{LayerNorm}(x))$, keeps that identity path clean, which is why it trains stably in deep stacks.
+
+</details>
+
+<details>
+<summary><strong>For ticket classification and semantic search, would you use an encoder-only or a decoder-only model?</strong></summary>
+
+Usually an encoder-only model, at least as the first baseline. Encoders attend bidirectionally, so every token's representation uses context on both sides, which is what you want for classification, token tagging, and embeddings. They are small (100M to 400M parameters is common), so they are cheap to fine-tune and serve, and a forward pass gives you the answer with no generation loop. For semantic search, a bi-encoder produces one vector per document for a vector index. A decoder-only LLM can classify zero-shot or few-shot with no labeled data and handles open-ended outputs, but it costs far more per request and adds latency from autoregressive decoding. My order: with labeled data, fine-tune a small encoder; without it, prompt a decoder model to bootstrap labels, then distill into an encoder if volume makes the cost matter. Encoder-decoders fit sequence-to-sequence tasks such as translation.
+
+</details>
+
+<details>
+<summary><strong>Estimate the parameter count and per-token compute of a decoder with d = 4096, 32 layers, d_ff = 4d, and a 32,000-token vocabulary.</strong></summary>
+
+About 6.6 billion parameters and about 13 GFLOPs per token. Per block, attention has $4d^2$ weights ($W_Q, W_K, W_V, W_O$) and the FFN has $2 \times d \times 4d = 8d^2$, so a block is about $12d^2 = 12 \times 4096^2 = 201{,}326{,}592$; biases and layer norms are negligible. Thirty-two blocks give about $6.44 \times 10^9$. The token embedding adds $32{,}000 \times 4096 = 131{,}072{,}000$, and an untied output head adds the same again. Total is about 6.6 to 6.7 billion, a "7B-class" model. LLaMA-style models use a SwiGLU FFN with three matrices and $d_{\text{ff}} \approx \tfrac{8}{3}d$, which keeps the FFN near $8d^2$. A forward pass costs about $2 \times$ parameters FLOPs per token, about 13 GFLOPs, plus an attention term that grows with context. Two-thirds of the block parameters live in the FFN.
+
+</details>
+
+<details>
+<summary><strong>Your model works well up to 4,000 tokens, but quality collapses on longer inputs. What is going on?</strong></summary>
+
+Most likely the model was trained at a 4,096-token context and position handling doesn't extrapolate. Learned absolute position embeddings simply don't exist past the trained length. Rotary embeddings (RoPE) produce rotation angles at long positions the model never saw, and attention patterns break down. Check the training context length in the model config first. Then rule out pipeline bugs: silent truncation by the tokenizer or server, a wrong `max_position_embeddings`, or a chat template that pushes the instructions out of the window. If it really is extrapolation, the fixes are RoPE scaling methods such as position interpolation, which compress positions into the trained range and usually need a short fine-tune on long sequences, or switching to a model trained for long context. Even within the trained window, measure retrieval of facts placed in the middle of long inputs; models often attend to them less reliably.
+
+</details>

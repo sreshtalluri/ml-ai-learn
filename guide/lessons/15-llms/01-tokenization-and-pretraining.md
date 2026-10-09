@@ -176,3 +176,33 @@ Losses: $\ln 2 = 0.693$, $0.693$, and $\ln 8 = 2.079$. Mean $= 3.466/3 = 1.155$.
 **Next:** [Decoding](02-decoding.md)
 
 **Related:** [The transformer architecture](../14-transformers/02-transformer-architecture.md) · [Learning paradigms](../01-ml-vocabulary/02-learning-paradigms.md) · [Model card: large language model](../../models/large-language-model.md)
+
+## Interview angle
+
+<details>
+<summary><strong>How does byte-pair encoding work, and why do LLMs use subword tokens?</strong></summary>
+
+BPE builds a vocabulary by repeatedly merging the most frequent adjacent pair. Start from characters, or raw bytes in byte-level BPE, count every adjacent pair across the corpus, merge the most common pair into a new token, and repeat until the vocabulary hits its target size. Encoding replays the merges in order. In the course corpus, `e s` (count 9) merges first, then `es t`, then `est </w>`, so "newest" becomes `n e w est</w>`. Subwords are the compromise between two bad options. Word-level vocabularies can't represent new words, typos, or code; character-level sequences are several times longer, which makes attention more expensive and the context fill faster. Subwords keep common words as single tokens and split rare ones into reusable pieces. Byte-level BPE guarantees any string in any language can be encoded, with no unknown token.
+
+</details>
+
+<details>
+<summary><strong>Model A has validation loss 2.0 nats per token, model B has perplexity 6.5. Which is better?</strong></summary>
+
+You can't tell unless they share a tokenizer. Model A's perplexity is $e^{2.0} = 7.39$, so on paper B looks better. But perplexity is per token, and tokens differ between tokenizers: a tokenizer with longer tokens has fewer, harder predictions per document and naturally gets higher per-token loss. The fair comparison normalizes by a tokenizer-independent unit, usually bytes or characters of the same text. Total loss in nats divided by total bytes, then divided by $\ln 2$, gives bits per byte. Example: if A averages 4 bytes per token, it costs $2.0/4 = 0.5$ nats per byte, $0.5/0.693 \approx 0.72$ bits per byte. If B's tokens average 3 bytes, $\ln 6.5 = 1.87$ nats per token becomes $0.62$ nats per byte, $0.90$ bits per byte, so A is actually better. Also make sure both are evaluated on the same held-out text.
+
+</details>
+
+<details>
+<summary><strong>Your LLM can't count the letters in a word and makes arithmetic mistakes on long numbers. Why, and what do you do?</strong></summary>
+
+It doesn't see letters or digits; it sees token IDs. "strawberry" may be two or three tokens, and the model has no direct access to the characters inside each one, so counting letters needs knowledge it must have memorized about each token's spelling. Numbers are often split into irregular chunks, such as "12345" becoming "123" and "45", so digit positions don't line up across numbers and column-wise carrying is hard to learn. Some tokenizers split numbers into single digits for exactly this reason. In production, don't ask the model to be a calculator: give it a tool (code execution or a calculator function) for arithmetic and string operations and have it call the tool. If you must handle it in-model, spelling the input character by character or digit by digit in the prompt helps. Check how your tokenizer splits such inputs before debugging the model.
+
+</details>
+
+<details>
+<summary><strong>What is the trade-off in choosing a 32,000-token versus a 256,000-token vocabulary?</strong></summary>
+
+A larger vocabulary makes sequences shorter but costs parameters and softmax compute, and spreads training signal across more tokens. Benefits of 256k: common words, code fragments, and non-English text become fewer tokens, so the same content fits in less context, attention is cheaper, generation needs fewer steps, and multilingual users aren't penalized with 2x to 3x more tokens for the same text. Costs: the embedding table is $V \times d$. At $d = 4096$, 32k needs $131$M parameters and 256k needs about $1.05$B, and an untied output head doubles that. The final softmax over $V$ logits runs at every position, which matters for smaller models. Rare tokens see few training examples, so their embeddings are undertrained, and glitchy tokens that almost never appeared in training can cause strange behavior. Large multilingual models trend toward bigger vocabularies; small models favor smaller ones.
+
+</details>

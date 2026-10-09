@@ -1,0 +1,138 @@
+title: Serving LLMs
+lesson: serving-llms
+questions:
+  - id: srv-static-throughput
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Two batch slots. Four requests arrive at step 0 with output lengths $[6, 2, 2, 2]$. Each busy slot emits one token per step. Under **static** batching (a new batch starts only when every slot is free, taking requests in order), what is the throughput in tokens per step?
+    answer: 1.5
+    tolerance: 0.01
+    explanation: |
+      Batch 1 = requests 0 and 1: finish at 6 and 2; slot 1 idles from 2 to 6. Batch 2 starts at 6: requests 2 and 3 finish at 8. Makespan 8, total tokens $6 + 2 + 2 + 2 = 12$, throughput $12 / 8 = 1.5$.
+  - id: srv-continuous-latency
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Same four requests ($[6, 2, 2, 2]$, two slots, all arriving at step 0) under **continuous** batching. What is the mean latency in steps?
+    answer: 4.5
+    tolerance: 0.01
+    explanation: |
+      Request 0 runs 0 to 6. Request 1 runs 0 to 2, then request 2 takes that slot from 2 to 4, then request 3 from 4 to 6. Latencies $[6, 2, 4, 6]$, mean $18 / 4 = 4.5$ (static: $[6, 2, 8, 8]$, mean 6). Makespan drops from 8 to 6, so throughput rises from 1.5 to 2.0.
+  - id: srv-paged
+    type: numeric
+    difficulty: hard
+    prompt: |
+      A KV budget of 20 GB ($20 \times 10^9$ bytes), 131,072 bytes per token, 16-token blocks. Every request holds 1,000 tokens of context. How many sequences fit with paged allocation?
+    answer: 151
+    tolerance: 0
+    explanation: |
+      $\lceil 1000 / 16 \rceil = 63$ blocks $= 1008$ tokens. $1008 \cdot 131{,}072 = 132{,}120{,}576$ bytes per sequence. $20 \times 10^9 / 132{,}120{,}576 = 151.4$, so 151. Reserving a 4,096-token maximum instead would fit only $\lfloor 20 \times 10^9 / 536{,}870{,}912 \rfloor = 37$.
+  - id: srv-cost
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A synthetic GPU costs USD 2.50 per hour and sustains 1,000 output tokens per second when busy. Average utilization is 50%. What is the cost in USD per million output tokens? (2 decimals)
+    answer: 1.39
+    tolerance: 0.01
+    explanation: |
+      $1000 \times 3600 = 3.6$ million tokens per busy hour. $2.50 / 3.6 = 0.694$ per million at 100%. At 50% utilization: $0.694 / 0.5 = 1.39$.
+  - id: srv-little
+    type: numeric
+    difficulty: easy
+    prompt: |
+      A service receives 5 requests per second and each request spends 4 seconds in the system on average (queue plus generation). On average, how many requests are in flight?
+    answer: 20
+    tolerance: 0
+    explanation: |
+      Little's law: $5 \times 4 = 20$. Size the batch slots and KV memory for at least this many concurrent sequences, plus headroom for peaks.
+  - id: srv-diagnose-tpot
+    type: single
+    difficulty: hard
+    prompt: |
+      Users of a chat service report that streaming output "freezes" for a second or two at random moments. Traces show TPOT spikes that line up with the arrival of requests carrying 40k-token documents. TTFT for normal requests is fine. What is the most likely cause and fix?
+    options:
+      - The KV cache is too small; buy GPUs with more memory.
+      - Long prompts are prefilled in one go, stalling every running sequence's next decode step; enable chunked prefill (or separate prefill and decode pools).
+      - Temperature is too high for long documents.
+      - Continuous batching is admitting too few requests; switch to static batching.
+    answer: 1
+    explanation: |
+      A single 40k-token prefill takes far longer than a decode step. If the scheduler runs it whole, everyone else's next token waits. Chunked prefill splits it into pieces interleaved with decode steps; disaggregation moves it to separate GPUs.
+    why_not:
+      - A full cache would show up as queueing, preemptions, and rising TTFT, not as decode stalls timed with long arrivals.
+      - ""
+      - Temperature affects which token is chosen, not how long a step takes.
+      - Static batching would make waiting worse, not better.
+  - id: srv-parallel
+    type: single
+    difficulty: medium
+    prompt: |
+      A model's BF16 weights need 140 GB. You have one node with four 80 GB GPUs on fast interconnect, and you want the lowest per-token latency. Which strategy fits best?
+    options:
+      - Data parallelism with four full replicas.
+      - Tensor parallelism across the four GPUs in the node.
+      - Pipeline parallelism across four separate nodes.
+      - CPU offloading of half the layers.
+    answer: 1
+    explanation: |
+      Tensor parallelism splits every weight matrix, so each GPU stores and reads a quarter of the weights per step. That makes the model fit and adds aggregate bandwidth. The per-layer all-reduces are cheap on fast intra-node links.
+    why_not:
+      - Each replica needs the full 140 GB, which doesn't fit on one 80 GB GPU.
+      - ""
+      - Pipeline stages across nodes add latency and bubbles; it is for models too big for one node.
+      - Streaming weights over PCIe every step would make decode far slower.
+  - id: srv-prefix
+    type: multi
+    difficulty: medium
+    prompt: Which practices increase prefix-cache hit rates?
+    options:
+      - Put the fixed system prompt and tool definitions at the start of the prompt.
+      - Put a per-request timestamp on the first line of the system prompt.
+      - Route requests that share a long document or prefix to the same replica.
+      - Keep few-shot examples in a fixed order.
+    answer: [0, 2, 3]
+    explanation: |
+      Prefix caches match exact token prefixes. Stable content first, consistent ordering, and prefix-aware routing all raise hits. Any change near the start invalidates everything after it.
+    why_not:
+      - ""
+      - A changing token at the start makes every prompt's prefix unique, so nothing after it can be reused.
+      - ""
+      - ""
+  - id: srv-lifecycle
+    type: order
+    difficulty: easy
+    prompt: Put a request's life on a continuous-batching server in order.
+    options:
+      - Wait in the queue
+      - Admitted when a slot and enough KV blocks are free
+      - Prefill the prompt (possibly in chunks) and emit the first token
+      - Decode one token per scheduler step alongside other sequences
+      - Finish on an end token or length limit; free its KV blocks for the next request
+    explanation: |
+      TTFT covers the first three steps; TPOT is set during the fourth. Freed blocks are reused immediately, which is what keeps memory full of useful work.
+  - id: srv-autoscale
+    type: single
+    difficulty: medium
+    prompt: Which signal is the best primary trigger for autoscaling LLM decode replicas?
+    options:
+      - Host CPU utilization
+      - GPU utilization percentage
+      - Queue depth and KV-cache utilization, checked against measured TTFT and TPOT
+      - Number of HTTP connections
+    answer: 2
+    explanation: |
+      Queueing and KV pressure show up before users feel the latency SLO breaking. GPU utilization looks high for a decode-bound server at almost any load.
+    why_not:
+      - The CPU mostly schedules and tokenizes; it says little about GPU capacity.
+      - Decode-bound kernels keep the GPU "busy" whether the batch is 2 or 64.
+      - ""
+      - Streaming connections can stay open while idle, and connection count ignores prompt and output length.
+  - id: srv-self-host
+    type: short
+    difficulty: hard
+    prompt: |
+      Your company spends a growing amount on a hosted LLM API. A colleague proposes self-hosting an open-weight model on rented GPUs. What numbers and factors would you gather before deciding?
+    sample_answer: |
+      Monthly input and output token volume and its peak-to-average ratio; the quality gap between the open model and the API on our own evals; a load-tested throughput per GPU at our TTFT and TPOT SLOs with our real prompt and output lengths; GPU price and the utilization we would realistically hit (cost per million tokens = hourly price divided by millions of tokens per hour at that utilization); engineering and on-call cost; data-residency and privacy requirements; and whether we need fine-tuning. Self-hosting pays when volume is high and steady enough to keep GPUs busy (in the lesson's synthetic example, above about 74% utilization against a USD 1 per million API) or when control or privacy requires it. A hybrid with a router is common.
+    explanation: Utilization and measured throughput at SLO decide the cost comparison; quality and control decide the rest.

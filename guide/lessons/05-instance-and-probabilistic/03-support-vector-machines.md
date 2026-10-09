@@ -148,3 +148,33 @@ $\lVert w \rVert = \sqrt{2} = 1.414$, so the margin is $2/1.414 = 1.414$. $f(x) 
 **Next:** [Decision trees](../06-trees-and-ensembles/01-decision-trees.md)
 
 **Related:** [Logistic regression](../04-classification/01-logistic-regression.md) · [K-nearest neighbors](01-k-nearest-neighbors.md) · [Model card: SVM](../../models/support-vector-machine.md)
+
+## Interview angle
+
+<details>
+<summary><strong>What are support vectors, and why do only they determine the SVM?</strong></summary>
+
+Support vectors are the training points on or inside the margin, or misclassified: those with $y_i(w \cdot x_i + b) \le 1$. The hinge loss $\max(0, 1 - y_i f(x_i))$ is exactly zero for every point correctly classified beyond the margin, so those points contribute nothing to the objective or its gradient. You could move or delete them, as long as they don't cross the margin, and the solution wouldn't change. The dual form makes this explicit: $f(x) = \sum_{i \in \text{SV}} \alpha_i y_i K(x_i, x) + b$, with $\alpha_i = 0$ for every non-support vector. Consequences: the model is defined by a subset of the data; prediction cost scales with the number of support vectors; and a large fraction of support vectors, from small $C$ or heavily overlapping classes, means slow prediction and hints that the classes are hard to separate.
+
+</details>
+
+<details>
+<summary><strong>Explain the kernel trick. Why not just compute the expanded features explicitly?</strong></summary>
+
+The SVM solution depends on the data only through dot products $x_i \cdot x_j$. A kernel $K(x, x')$ computes a dot product $\phi(x) \cdot \phi(x')$ in some feature space without ever constructing $\phi$. A degree-3 polynomial kernel on $p = 1000$ features corresponds to roughly $1.7 \times 10^8$ monomial features, yet $(x \cdot x' + 1)^3$ costs only $O(p)$. The RBF kernel $\exp(-\gamma\lVert x - x'\rVert^2)$ corresponds to an infinite-dimensional feature space, which can't be built explicitly at all. The cost moves elsewhere: the kernel matrix is $n \times n$, so training scales roughly between $O(n^2)$ and $O(n^3)$, and each prediction needs a kernel evaluation against every support vector. For large $n$, approximate the feature map instead (random Fourier features, Nyström) and train a fast linear model on it.
+
+</details>
+
+<details>
+<summary><strong>Your RBF SVM gets 100% training accuracy and 60% test accuracy. What do you tune?</strong></summary>
+
+That's overfitting, and in an RBF SVM it usually comes from $\gamma$ too large, $C$ too large, or both. A large $\gamma$ makes each support vector's influence very local, so the boundary wraps around individual training points; a quick check is whether nearly every training point is a support vector. A large $C$ penalizes every margin violation heavily, so the model contorts itself to classify noisy points. Fix: search $C$ and $\gamma$ jointly on a log grid (say $10^{-3}$ to $10^{3}$) with cross-validation, because they interact: a smaller $\gamma$ often wants a larger $C$. Also confirm features were scaled: RBF distances on unscaled data are dominated by one feature, and the default `gamma="scale"` assumes comparable feature scales. For high-dimensional sparse text, try a linear kernel first; it's often both more accurate and much faster.
+
+</details>
+
+<details>
+<summary><strong>A linear SVM has w = (3, 4) and b = -2. What's the margin width, how far is x = (1, 0.5) from the boundary, and what changes if you double w and b?</strong></summary>
+
+Margin width $= 2/\lVert w \rVert = 2/5 = 0.4$. At $x = (1, 0.5)$, the functional value is $f(x) = 3 + 2 - 2 = 3$, and the geometric distance to the boundary is $|f(x)|/\lVert w \rVert = 3/5 = 0.6$, so the point sits 0.4 beyond the margin edge, which is 0.2 from the boundary. Doubling to $w = (6, 8)$, $b = -4$ leaves the boundary $w \cdot x + b = 0$ unchanged, but $f(x)$ becomes 6 and the margin edges $f = \pm 1$ move closer: the width drops to $2/10 = 0.2$. That's why the SVM fixes the scale with the constraint $y_i f(x_i) \ge 1$ and minimizes $\lVert w \rVert$: otherwise functional margins could be inflated for free. It's also why raw decision-function values aren't probabilities and aren't comparable across models.
+
+</details>

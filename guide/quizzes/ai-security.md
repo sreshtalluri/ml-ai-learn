@@ -1,7 +1,7 @@
 <!-- GENERATED from ai-security.yml by web/scripts/gen-quizzes.mjs. Edit the .yml, then run: npm run gen:quizzes -->
 # Quiz: Securing AI systems
 
-Covers the lesson [Securing AI systems](../lessons/19-safety-security/01-ai-security.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/ai-security/) grades these interactively and tracks a review queue.
+Covers the lesson [Securing AI systems](../lessons/21-safety-security/01-ai-security.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/ai-security/) grades these interactively and tracks a review queue.
 
 ## 1. Calculation (medium)
 

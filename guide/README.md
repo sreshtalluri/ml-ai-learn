@@ -13,7 +13,9 @@ Prefer interactive labs and progress tracking? The same content runs as a websit
 
 Every lesson has the same six layers: **intuition, visualization, math, implementation, engineering, knowledge check.**
 
-Suggested pace: 12 weeks at 5 to 7 hours per week ([12-week plan](lessons/20-projects/01-twelve-week-plan.md)). Short on time? See the [learning paths](learning-paths.md): a 4-week AI-engineering fast track and an interview-prep pass.
+Suggested pace: 14 weeks at 5 to 7 hours per week (see the [learning paths](learning-paths.md), which also have a 5-week AI-engineering fast track).
+
+**Preparing for interviews?** Every lesson ends with an *Interview angle* section: real interview questions with model answers. The [7-day interview sprints](sprints/README.md) pick the lessons each role is tested on: [ML Engineer](sprints/ml-engineer.md) · [AI Engineer](sprints/ai-engineer.md) · [Applied Scientist](sprints/applied-scientist.md) · [Data Scientist](sprints/data-scientist.md).
 
 ### Run the code
 
@@ -60,22 +62,31 @@ No uv? `pip install numpy matplotlib scikit-learn` and use `python` instead.
 | Module | Lessons |
 |---|---|
 | [14. Transformers](lessons/14-transformers/README.md) | [Self-attention](lessons/14-transformers/01-self-attention.md) · [The transformer architecture](lessons/14-transformers/02-transformer-architecture.md) |
-| [15. Large language models](lessons/15-llms/README.md) | [Tokenization and pretraining](lessons/15-llms/01-tokenization-and-pretraining.md) · [Decoding](lessons/15-llms/02-decoding.md) · [Adapting LLMs](lessons/15-llms/03-adapting-llms.md) |
-| [16. Retrieval-augmented generation](lessons/16-rag/README.md) | [The RAG pipeline](lessons/16-rag/01-rag-pipeline.md) |
+| [15. Large language models](lessons/15-llms/README.md) | [Tokenization and pretraining](lessons/15-llms/01-tokenization-and-pretraining.md) · [Decoding](lessons/15-llms/02-decoding.md) · [Adapting LLMs](lessons/15-llms/03-adapting-llms.md) · [Fine-tuning in practice](lessons/15-llms/04-fine-tuning-in-practice.md) |
+| [16. Retrieval-augmented generation](lessons/16-rag/README.md) | [The RAG pipeline](lessons/16-rag/01-rag-pipeline.md) · [Vector search](lessons/16-rag/02-vector-search.md) |
 | [17. LLM evaluation](lessons/17-llm-evaluation/README.md) | [Evaluating LLM systems](lessons/17-llm-evaluation/01-llm-evaluation.md) |
 
-### AI engineering
+### LLM inference and agents
 
 | Module | Lessons |
 |---|---|
-| [18. Production AI engineering](lessons/18-production-ai/README.md) | [Production architecture](lessons/18-production-ai/01-production-architecture.md) · [Reliability, cost, and observability](lessons/18-production-ai/02-reliability-cost-and-observability.md) |
-| [19. Safety and security](lessons/19-safety-security/README.md) | [Securing AI systems](lessons/19-safety-security/01-ai-security.md) |
-| [20. Projects and career roadmap](lessons/20-projects/README.md) | [12-week plan](lessons/20-projects/01-twelve-week-plan.md) · [Portfolio project ladder](lessons/20-projects/02-project-ladder.md) |
+| [18. LLM inference and serving](lessons/18-llm-inference/README.md) | [LLM inference](lessons/18-llm-inference/01-llm-inference.md) · [Serving LLMs](lessons/18-llm-inference/02-serving-llms.md) |
+| [19. Agents and tool use](lessons/19-agents/README.md) | [Tool use and agents](lessons/19-agents/01-tool-use-and-agents.md) · [Reliable agents](lessons/19-agents/02-reliable-agents.md) |
+
+### AI engineering and system design
+
+| Module | Lessons |
+|---|---|
+| [20. Production AI engineering](lessons/20-production-ai/README.md) | [Production architecture](lessons/20-production-ai/01-production-architecture.md) · [Reliability, cost, and observability](lessons/20-production-ai/02-reliability-cost-and-observability.md) |
+| [21. Safety and security](lessons/21-safety-security/README.md) | [Securing AI systems](lessons/21-safety-security/01-ai-security.md) |
+| [22. ML system design and experimentation](lessons/22-ml-system-design/README.md) | [ML system design](lessons/22-ml-system-design/01-ml-system-design.md) · [Experimentation and A/B testing](lessons/22-ml-system-design/02-experimentation-and-ab-testing.md) |
+| [23. Projects and career roadmap](lessons/23-projects/README.md) | [12-week plan](lessons/23-projects/01-twelve-week-plan.md) · [Portfolio project ladder](lessons/23-projects/02-project-ladder.md) |
 
 ## Reference
 
-- [Model cards](models/README.md): 28 models, each with objective, assumptions, hyperparameters, failure modes, and neighbors.
-- [Cheat sheets](cheatsheets/README.md): metrics, losses, optimizers, transformers, RAG, security, formulas, tensor shapes.
+- [Interview sprints](sprints/README.md): 7-day plans for ML engineer, AI engineer, applied scientist, and data scientist loops.
+- [Model cards](models/README.md): 29 models, each with objective, assumptions, hyperparameters, failure modes, and neighbors.
+- [Cheat sheets](cheatsheets/README.md): metrics, losses, optimizers, transformers, fine-tuning, RAG, vector search, inference, agents, system design, security, formulas, tensor shapes.
 - [Glossary](glossary.md): plain-English and formal definitions.
 - [Quizzes](quizzes/): one per lesson, answers hidden in collapsible sections.
 

@@ -170,3 +170,33 @@ OLS $3/2 = 1.5$. Ridge $3/(2+1) = 1.0$. Lasso $\lambda=2$: $(3 - 1)/2 = 1.0$. La
 **Next:** [Logistic regression](../04-classification/01-logistic-regression.md)
 
 **Related:** [Linear regression](01-linear-regression.md) · [Training and regularization in neural networks](../12-training-regularization/01-training-and-regularization.md) · [Model card: ridge](../../models/ridge-regression.md) · [Model card: lasso](../../models/lasso-regression.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why does L1 regularization produce sparse solutions while L2 doesn't?</strong></summary>
+
+Look at the one-feature solutions. Ridge gives $w = s_{xy}/(s_{xx} + \lambda)$, which shrinks toward zero but only reaches it as $\lambda \to \infty$. Lasso gives soft-thresholding, $w = \operatorname{sign}(s_{xy})\max(|s_{xy}| - \lambda/2, 0)/s_{xx}$, which is exactly zero once $\lambda \ge 2|s_{xy}|$. The reason is the penalty's slope near zero. L2's derivative $2\lambda w$ vanishes as $w \to 0$, so its push weakens and never finishes the job. L1's derivative is $\lambda\,\operatorname{sign}(w)$, a constant force regardless of how small $w$ is; if the data's pull on a weight is weaker than that force, zero is optimal, sitting at the corner of $|w|$ where the subgradient covers the data gradient. Geometrically, the L1 constraint region is a diamond with corners on the axes, and loss contours usually first touch it at a corner.
+
+</details>
+
+<details>
+<summary><strong>Ridge, lasso, or elastic net: how do you choose?</strong></summary>
+
+Ridge when you believe many features each contribute a little, or features are correlated: it keeps all of them, shares weight within correlated groups, and gives stable coefficients. Lasso when you expect only a few features to matter and want automatic feature selection for a smaller, more interpretable model; but it picks one feature from a correlated group somewhat arbitrarily, and with $p > n$ it selects at most $n$ features. Elastic net mixes the two through `l1_ratio`: it still produces zeros but tends to keep or drop correlated features together, which makes it the usual default for sparse models over correlated inputs such as n-grams or genomics. In every case: standardize first, don't penalize the bias, and choose $\lambda$ (and the mix) by cross-validation, for example with `ElasticNetCV`. When only predictive accuracy matters, the differences are often small, so try more than one.
+
+</details>
+
+<details>
+<summary><strong>You fit lasso on unscaled features: income in dollars and age in years. Income keeps a nonzero weight and age is set to zero. Is age irrelevant?</strong></summary>
+
+Not established. The penalty $\lambda\sum_j|w_j|$ compares raw coefficient sizes, and coefficient size depends on units. Income in dollars spans tens of thousands, so even a strong effect needs only a tiny weight per dollar, which costs almost nothing in penalty. Age spans about 60 units, so the same predictive effect needs a much larger weight and pays a much larger penalty. Lasso zeroed age partly because of its units; rescale income to thousands of dollars and the outcome could change. Fix: standardize all features (fit the scaler on training data inside a pipeline) so each penalty is per standard deviation, then refit with $\lambda$ chosen by cross-validation. Even then, a zero isn't proof of irrelevance: lasso drops features that are redundant given others, and its selection is unstable across resamples. Check with stability selection or permutation importance.
+
+</details>
+
+<details>
+<summary><strong>Your model misses by 10 on four houses and by 100 on a fifth. Compute MAE and RMSE. Which would you report?</strong></summary>
+
+MAE $= (10 + 10 + 10 + 10 + 100)/5 = 28$. RMSE $= \sqrt{(4 \times 100 + 10{,}000)/5} = \sqrt{2080} = 45.6$. Without the big miss, both would be 10. RMSE squares errors before averaging, so one large error dominates; MAE grows linearly. Which to report depends on what errors cost. If a single large miss is disproportionately bad (stock-outs, safety margins), RMSE reflects that, and training with MSE is aligned with it. If every unit of error costs the same, or large label errors are partly noise, MAE is more honest and more robust. The ratio is itself a diagnostic: RMSE/MAE of 1.6 here signals heavy-tailed errors, so inspect the worst cases. Also note what each loss estimates: MSE is minimized by the conditional mean, MAE by the conditional median.
+
+</details>

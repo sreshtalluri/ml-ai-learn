@@ -16,5 +16,6 @@ An LLM is a decoder-only transformer trained to predict the next token. Everythi
 | 1 | [Tokenization and pretraining](01-tokenization-and-pretraining.md) | explain subword tokenization, the next-token objective, cross-entropy, and perplexity |
 | 2 | [Decoding](02-decoding.md) | turn logits into text with greedy, temperature, top-k, top-p, and beam search |
 | 3 | [Adapting LLMs](03-adapting-llms.md) | choose between prompting, RAG, fine-tuning, LoRA, and preference optimization, and explain hallucinations |
+| 4 | [Fine-tuning in practice](04-fine-tuning-in-practice.md) | build SFT data with loss masking, size GPU memory for full fine-tuning, LoRA, and QLoRA, and explain DPO and GRPO |
 
-**Interactive lab:** [Temperature, top-k, top-p](https://sreshtalluri.github.io/ml-ai-learn/labs/decoding/)
+**Interactive labs:** [Temperature, top-k, top-p](https://sreshtalluri.github.io/ml-ai-learn/labs/decoding/) · [LoRA fine-tuning memory](https://sreshtalluri.github.io/ml-ai-learn/labs/lora/)

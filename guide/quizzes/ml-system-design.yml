@@ -1,0 +1,121 @@
+title: ML system design
+lesson: ml-system-design
+questions:
+  - id: sd-framework-order
+    type: order
+    difficulty: easy
+    prompt: Put these ML system design steps in the order you should cover them in an interview.
+    options:
+      - Clarify the goal and constraints
+      - Frame the ML task and choose metrics
+      - Data, labels, and features
+      - Baseline, then model choice
+      - Training pipeline and serving
+      - Evaluation, launch, and monitoring
+    explanation: Goal and metrics come before any model, because they decide what "better" means. Serving and launch come after the model exists, and monitoring closes the loop.
+  - id: sd-latency
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Using the lesson's synthetic funnel (overhead 20 ms; candidate generation $12 + 0.005$ ms per candidate; ranking $15 + 0.06$ ms per candidate; re-ranking $3 + 0.1$ ms per item, 100 items), what is the total latency in ms if you pass $k_1 = 2{,}000$ candidates to the ranker?
+    answer: 190
+    tolerance: 0.5
+    explanation: |
+      Candidate generation $12 + 2000 \times 0.005 = 22$ ms; ranking $15 + 2000 \times 0.06 = 135$ ms; re-ranking $3 + 100 \times 0.1 = 13$ ms. Total $20 + 22 + 135 + 13 = 190$ ms, 40 ms over a 150 ms budget.
+  - id: sd-calibration
+    type: numeric
+    difficulty: hard
+    prompt: |
+      A click model was trained on all positives and 20% of negatives ($w = 0.2$). It outputs $q = 0.5$ for an impression. What is the calibrated click probability? Give 4 decimals.
+    answer: 0.1667
+    tolerance: 0.001
+    explanation: |
+      $p = q / (q + (1-q)/w) = 0.5 / (0.5 + 0.5/0.2) = 0.5 / (0.5 + 2.5) = 0.5 / 3 = 0.1667$. In odds: $1 \times 0.2 = 0.2$, so $p = 0.2/1.2 = 0.1667$.
+  - id: sd-capacity
+    type: numeric
+    difficulty: medium
+    prompt: Each request costs 75 worker-ms of compute across the funnel. Peak traffic is 20,000 requests per second. How many workers are fully busy at peak (before any headroom)?
+    answer: 1500
+    tolerance: 0
+    explanation: $75 \times 20{,}000 = 1{,}500{,}000$ worker-ms per second, divided by 1,000 ms per worker-second, is 1,500 workers.
+  - id: sd-skew-diagnosis
+    type: single
+    difficulty: hard
+    prompt: A new ranker improves offline AUC from 0.78 to 0.81 but loses the A/B test. Logging shows that the feature "user clicks in the last hour" averages 4.1 in training data and 0.0 for 30% of online requests. What is the most likely cause?
+    options:
+      - The model is overfitting and needs more regularization
+      - Training-serving skew, because the real-time feature is missing or defaulting online
+      - The A/B test needs more users
+      - AUC is the wrong offline metric for ranking
+    answer: 1
+    explanation: A feature that is populated offline but zero for a large share of online requests is classic training-serving skew. The model leans on a signal it never actually receives in production.
+    why_not:
+      - Overfitting would show up as a gap between training and validation metrics offline. It does not explain a feature that is zero only online.
+      - ""
+      - More users would sharpen the estimate of a real loss. It would not fix a broken feature.
+      - AUC has limits, but the logs point at a concrete data bug that explains the loss directly.
+  - id: sd-leakage
+    type: multi
+    difficulty: medium
+    prompt: You are predicting whether a user will like a video at impression time. Which features leak the label? Select all that apply.
+    options:
+      - The user's total number of likes, computed from today's snapshot and joined to last month's impressions
+      - Watch time of this video in this session
+      - The video's like rate over the 7 days before the impression
+      - The user's account age at impression time
+    answer: [0, 1]
+    explanation: Today's total likes include likes that happened after the impression, possibly this one, so that is time travel. Session watch time is only known after the impression and strongly correlates with liking. Both features that are computed as of impression time are legitimate.
+    why_not:
+      - ""
+      - ""
+      - Computed from data before the impression, so it is point-in-time correct.
+      - Known at impression time and unrelated to the outcome.
+  - id: sd-two-tower-limit
+    type: single
+    difficulty: medium
+    prompt: Why is a two-tower model used for candidate generation but rarely as the final ranker?
+    options:
+      - It cannot be trained on implicit feedback
+      - User and item only interact through one dot product, so it cannot use cross features; that same restriction is what lets item vectors be precomputed and searched with ANN
+      - Its embeddings are too large to store
+      - It only works for text
+    answer: 1
+    explanation: The late interaction is the trade-off. Precomputed item vectors plus ANN give sublinear retrieval, but the model cannot express "this user × this creator" signals that a ranker uses.
+    why_not:
+      - Two-tower models are usually trained on implicit feedback such as clicks and watches.
+      - ""
+      - "10M items × 64 floats is a few GB, which is routinely served, and quantization shrinks it further."
+      - Towers can encode any features, including IDs, categorical data, and images.
+  - id: sd-position-bias
+    type: single
+    difficulty: medium
+    prompt: A ranker trained naively on click logs keeps promoting whatever the previous model put in slot 1, and new items rarely surface. Which change addresses the root cause?
+    options:
+      - Train longer
+      - Model position explicitly (position as a feature fixed at serving time, or inverse propensity weighting) and reserve a small exploration slice
+      - Increase the number of items shown per page
+      - Switch from GBDT to a deep network
+    answer: 1
+    explanation: Clicks partly reflect position, not relevance. Modeling position and adding exploration breaks the feedback loop and gives new items a chance to collect labels.
+    why_not:
+      - More training learns the biased signal better.
+      - ""
+      - More slots dilute the bias but do not remove it.
+      - Any model class trained on the same biased labels learns the same bias.
+  - id: sd-compare-cases
+    type: match
+    difficulty: medium
+    prompt: Match each system to its most distinctive design constraint.
+    pairs:
+      - [Fraud detection, labels arrive weeks later and adversaries adapt]
+      - [Feed recommendation, position bias and popularity feedback loops]
+      - [Search ranking, relevance is defined per query and needs graded human judgments]
+      - [Weekly email recommendations, batch prediction is fine because freshness is measured in days]
+    explanation: Each case changes which part of the framework dominates. In fraud it is labels and drift, in feeds it is feedback loops, in search it is query-level relevance, and in a weekly email it is serving mode.
+  - id: sd-design
+    type: short
+    difficulty: hard
+    prompt: In two or three sentences, explain how you would choose $k_1$, the number of candidates passed from retrieval to the ranker, for a feed with a 150 ms p99 budget.
+    sample_answer: |
+      Measure candidate recall@k1 (the fraction of items users later engaged with that retrieval returned) on a time-based holdout, and measure ranker latency per candidate under production load. Pick the largest k1 whose p99 latency, including headroom for peaks, fits the ranker's share of the budget, then check that recall has saturated around it. If it has not, make the ranker cheaper (distillation, fewer features) or add a light pre-ranker rather than blowing the budget.
+    explanation: k1 trades recall against latency and compute. Both sides need to be measured, not guessed.

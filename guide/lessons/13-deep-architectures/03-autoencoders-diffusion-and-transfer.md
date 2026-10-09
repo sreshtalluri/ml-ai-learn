@@ -155,3 +155,33 @@ $\sqrt{0.36} = 0.6$ and $\sqrt{0.64} = 0.8$: $x_t = 0.6(1.0) + 0.8(2.0) = 2.2$. 
 **Next:** [Self-attention](../14-transformers/01-self-attention.md)
 
 **Related:** [PCA](../08-dimensionality-reduction/01-pca.md) · [Adapting LLMs](../15-llms/03-adapting-llms.md) · [Model card: autoencoder](../../models/autoencoder.md) · [Model card: diffusion model](../../models/diffusion-model.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Explain how a diffusion model is trained and how it generates a sample.</strong></summary>
+
+Training teaches a network to predict the noise that was added to data; generation runs that denoiser repeatedly starting from pure noise. The forward process has a closed form, so you can jump straight to any step: $x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1 - \bar\alpha_t}\,\epsilon$ with $\epsilon \sim \mathcal{N}(0, I)$. Each training step samples a data point, a random step $t$, and fresh noise, builds $x_t$, and minimizes $\lVert \epsilon - \epsilon_\theta(x_t, t)\rVert^2$. In the course example, $x_0 = 2.0$, $\bar\alpha_t = 0.64$, $\epsilon = -0.5$ gives $x_t = 0.8 \times 2.0 + 0.6 \times (-0.5) = 1.3$, and a perfect noise prediction recovers $x_0 = (1.3 + 0.3)/0.8 = 2.0$. To generate, start from Gaussian noise and take many small denoising steps from $t = T$ down to 0. Conditioning on text or class steers the result. Faster samplers cut the number of steps.
+
+</details>
+
+<details>
+<summary><strong>Feature extraction or full fine-tuning: how do you decide for a new task?</strong></summary>
+
+Decide by how much labeled data you have and how close your domain is to the pretraining data. With little data and a similar domain, freeze the backbone and train only a new head: for a 25M-parameter backbone with 2,048-dimensional features and 5 classes, that is $2048 \times 5 + 5 = 10{,}245$ parameters, about 0.04% of the model, and it works with a few hundred labeled images. With moderate data, also unfreeze the top layers. With lots of data or a distant domain, such as medical scans versus web photos, fine-tune everything, possibly after continued pretraining on in-domain data. Use a smaller learning rate for pretrained layers than for the new head, or you destroy the features. Match the pretrained model's preprocessing exactly, and keep frozen batch-norm layers in eval mode. Always compare against the frozen-backbone baseline, which is cheap and often close.
+
+</details>
+
+<details>
+<summary><strong>Your autoencoder-based anomaly detector misses obvious anomalies. What would you investigate?</strong></summary>
+
+The detector assumes anomalies reconstruct badly, and that assumption fails in a few predictable ways. First, the autoencoder may generalize too well: with a wide bottleneck or high capacity, it learns something close to the identity and reconstructs anomalies as well as normal data. Shrink the latent size and check the reconstruction-error gap between normal and known-anomalous examples. Second, the training data may contain anomalies, teaching the model to reconstruct them; clean or filter the training set. Third, the error measure may hide the signal: a per-pixel average can be dominated by background, so try per-region or feature-space error. Fourth, the threshold may be badly chosen, because reconstruction error is not a calibrated probability. Pick it on a labeled validation set at the false-alarm rate you can afford. Compare against simple baselines like PCA reconstruction or isolation forest before tuning further.
+
+</details>
+
+<details>
+<summary><strong>A diffusion noise schedule ends with ᾱ_T = 0.006. What does that number mean, and what is the signal-to-noise ratio at ᾱ_t = 0.64?</strong></summary>
+
+$\bar\alpha_t = \prod_{s \le t}(1 - \beta_s)$ is the fraction of signal variance left after $t$ steps; the rest, $1 - \bar\alpha_t$, is noise. The signal-to-noise ratio is $\text{SNR} = \bar\alpha_t/(1 - \bar\alpha_t)$. At $\bar\alpha_t = 0.64$: $0.64/0.36 \approx 1.78$, so signal still dominates and the data shape is recognizable. At $\bar\alpha_T = 0.006$: $0.006/0.994 \approx 0.006$, so essentially no signal remains, which is what you want. Generation starts from pure Gaussian noise, so the final training step must look like pure noise too. If $\bar\alpha_T$ stayed noticeably above zero, the model would be trained on inputs that still contain data but sampled from inputs that don't, a train/inference mismatch that shows up as washed-out or biased samples. Schedule design is largely about how SNR is spread across steps.
+
+</details>

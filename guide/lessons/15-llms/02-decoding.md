@@ -178,3 +178,33 @@ Exponentials $[6, 3, 1]$, sum 10: probabilities $[0.6, 0.3, 0.1]$. Top-p 0.6: th
 **Next:** [Adapting LLMs](03-adapting-llms.md)
 
 **Related:** [Tokenization and pretraining](01-tokenization-and-pretraining.md) · [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md)
+
+## Interview angle
+
+<details>
+<summary><strong>What does temperature do to the next-token distribution, mathematically?</strong></summary>
+
+It divides the logits by $T$ before the softmax: $p_i = \exp(z_i/T)/\sum_j \exp(z_j/T)$. Dividing by $T < 1$ stretches the gaps between logits, so the distribution sharpens toward the top token; $T > 1$ shrinks the gaps and flattens it; $T \to 0$ approaches greedy decoding. The ranking of tokens never changes, only how peaked the distribution is. With logits $[2, 1, 0]$: at $T = 1$ the probabilities are $[0.665, 0.245, 0.090]$; at $T = 0.5$ the logits become $[4, 2, 0]$ and the probabilities $[0.867, 0.117, 0.016]$; at $T = 2$ they are $[0.506, 0.307, 0.186]$. Two consequences follow. Lowering temperature makes outputs more consistent, not more correct: if the top answer is wrong, $T = 0$ returns it every time. And high temperature lifts the long tail of junk tokens, which is why it is combined with top-p or top-k.
+
+</details>
+
+<details>
+<summary><strong>Top-k or top-p sampling: what is the difference, and when would you prefer each?</strong></summary>
+
+Top-k keeps a fixed number of candidates; top-p keeps the smallest set whose cumulative probability reaches $p$. Both renormalize the survivors and sample. With probabilities $[0.5, 0.3, 0.15, 0.05]$, top-k with $k = 2$ gives $[0.625, 0.375]$. Top-p with $p = 0.9$ needs three tokens, since the cumulative sum goes 0.5, 0.8, 0.95, giving $[0.526, 0.316, 0.158]$. Top-p adapts to the model's confidence: when one token has 0.97 of the mass it keeps only that token, and when the distribution is flat it keeps many. A fixed $k$ is too permissive in the first case and too restrictive in the second. That is why top-p around 0.9 with moderate temperature is the common default for chat. Top-k is still useful as a hard cap on candidates, often combined with top-p, and when you need predictable compute. For extraction or JSON, use neither: decode greedily.
+
+</details>
+
+<details>
+<summary><strong>Your model's long answers fall into repetition loops. How do you diagnose and fix it?</strong></summary>
+
+Repetition is a known failure of greedy or very low-temperature decoding: once a phrase repeats, the context makes repeating it again more likely, and the argmax locks into a cycle. First confirm the settings: is it running greedy or $T$ near 0 on a long-form task? Moving to $T \approx 0.7$ with top-p 0.9 often fixes it. Next, add frequency or presence penalties, which subtract from the logits of tokens already generated, and set `max_new_tokens` and proper stop sequences so a loop can't run forever. Then check the prompt format: a wrong chat template or a missing end-of-turn token is a common cause, because the model never sees its usual cue to stop. If loops persist with sane settings, it may be a model-quality issue, such as a small or over-fine-tuned model. Track a repetition metric like distinct n-gram ratio in your evaluation so the regression is visible.
+
+</details>
+
+<details>
+<summary><strong>You need the model to return JSON that matches a schema on every request. How do you set up decoding?</strong></summary>
+
+Use greedy or very low-temperature decoding, constrain the output to the schema, and still validate. Sampling adds variance you don't want for extraction, so set $T$ to 0 or close to it. The strongest tool is constrained decoding, offered as structured outputs or JSON mode in many APIs and as grammar-constrained generation in open-source servers. At each step it masks out any token that would make the output violate the JSON grammar or schema, setting those logits to $-\infty$ before the softmax, so syntactically invalid output becomes impossible. It guarantees format, not correctness: field values can still be wrong. So validate the parsed object with a schema library, retry once on failure with the error message, then fall back to a safe default or human review. Set `max_new_tokens` high enough that long objects aren't truncated mid-JSON, a common cause of "invalid JSON" errors. Beam search adds nothing here.
+
+</details>

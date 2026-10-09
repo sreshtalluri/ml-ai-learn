@@ -230,3 +230,33 @@ This matches the second row of the batched output in the script.
 **Next:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md)
 
 **Related:** [Logistic regression](../04-classification/01-logistic-regression.md) · [Backpropagation](../11-gradient-descent-backprop/02-backpropagation.md) · [Model card: MLP](../../models/multilayer-perceptron.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why does a neural network need nonlinear activations? What happens if you remove them?</strong></summary>
+
+Without them, depth buys you nothing. A layer computes $Wx + b$, and a linear function of a linear function is still linear: $W^{(2)}(W^{(1)}x + b^{(1)}) + b^{(2)} = W_c x + b_c$ with $W_c = W^{(2)}W^{(1)}$. A hundred linear layers have exactly the expressive power of one, so the model can only draw a single hyperplane. That is why logistic regression is stuck near 50% on XOR while one hidden ReLU layer separates it. The activation $f$ bends each layer's output, and stacking bends lets the network build piecewise or curved decision boundaries. In the course example, ReLU zeroes neuron 1's $-1.5$; without it the output pre-activation changes from $0.25$ to $-1.25$, which is exactly what the collapsed single layer gives. A related bug: forgetting the activation between two `nn.Linear` layers trains fine and silently gives you a linear model.
+
+</details>
+
+<details>
+<summary><strong>ReLU, GELU, sigmoid, tanh: which would you use in hidden layers, and why?</strong></summary>
+
+Default to ReLU in MLPs and CNNs and GELU (or SwiGLU-style gated units) in transformers. ReLU is cheap and has slope exactly 1 for positive inputs, so gradients don't shrink as they pass through active units. Its weakness is dead units: a neuron whose pre-activation is negative for every input outputs 0 and gets 0 gradient forever. GELU, $z\,\Phi(z)$, is a smooth ReLU that lets small negative values through, which empirically trains a little better in large transformers. Sigmoid and tanh saturate: for large $|z|$ their derivatives approach 0 (sigmoid's is at most 0.25), so deep stacks of them suffer vanishing gradients. They still belong in specific places: sigmoid for a binary output or a gate (LSTM gates), tanh where you need a bounded, zero-centered state. Pair the activation with its initialization: He for ReLU-family, Xavier for tanh.
+
+</details>
+
+<details>
+<summary><strong>A few hundred steps into training, 40% of your hidden units output zero for every input. What happened and what do you do?</strong></summary>
+
+Those are dead ReLUs. Each one's pre-activation $z = w \cdot x + b$ became negative for every example, so its output is 0 and its gradient is exactly 0; nothing will ever move it back. The usual causes are a learning rate that is too high (one large update pushes the bias far negative), poor initialization, or unscaled inputs that make early updates huge. To confirm, log the fraction of units with zero activation per layer over a batch, and check whether the deaths coincide with a loss spike. Fixes, in order: lower the learning rate or add warmup, standardize inputs, use He initialization, add normalization before the activation, and clip gradients. If it persists, swap to Leaky ReLU or GELU, which have nonzero gradient for negative inputs. Restart from a checkpoint before the collapse; dead units won't recover on their own.
+
+</details>
+
+<details>
+<summary><strong>An MLP maps 784 inputs to 256 hidden units to 10 classes. How many parameters does it have, and what are the shapes for a batch of 64?</strong></summary>
+
+About 203.5 thousand parameters. Layer 1 has $784 \times 256 = 200{,}704$ weights plus 256 biases, so 200,960. Layer 2 has $256 \times 10 = 2{,}560$ weights plus 10 biases, so 2,570. Total: $203{,}530$. Shapes: $X$ is $[64, 784]$, the hidden activations $H = \text{ReLU}(XW_1^\top + b_1)$ are $[64, 256]$, and the logits are $[64, 10]$, with each bias broadcast across the 64 rows. In PyTorch, `nn.Linear(784, 256).weight` is stored as $[256, 784]$, which is why the forward pass uses the transpose. Compute is about one multiply-add per weight per example: $64 \times 203{,}264 \approx 13$ million multiply-adds, or about 26 million FLOPs. The first layer holds 99% of the parameters and compute, which is the general pattern: the widest matrix dominates cost. Return the raw logits and let `CrossEntropyLoss` apply softmax.
+
+</details>

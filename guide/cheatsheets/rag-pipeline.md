@@ -24,4 +24,4 @@ summary: Every stage of retrieval-augmented generation, its knobs, and its failu
 
 **Debug order:** is the evidence retrieved? → is it in the final context? → is the answer grounded in it?
 
-Lessons: [The RAG pipeline](../lessons/16-rag/01-rag-pipeline.md) · [Evaluating LLM systems](../lessons/17-llm-evaluation/01-llm-evaluation.md) · [Securing AI systems](../lessons/19-safety-security/01-ai-security.md)
+Lessons: [The RAG pipeline](../lessons/16-rag/01-rag-pipeline.md) · [Evaluating LLM systems](../lessons/17-llm-evaluation/01-llm-evaluation.md) · [Securing AI systems](../lessons/21-safety-security/01-ai-security.md)

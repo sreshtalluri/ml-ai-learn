@@ -21,3 +21,6 @@ RAG gives a model the right context at query time instead of hoping the answer i
 | # | Lesson | You will be able to |
 |---|---|---|
 | 1 | [The RAG pipeline](01-rag-pipeline.md) | build each stage, compute retrieval metrics, and decide between RAG and fine-tuning |
+| 2 | [Vector search](02-vector-search.md) | choose a similarity metric and an ANN index (IVF, HNSW, PQ), trade recall against latency and memory, and fuse BM25 with dense results |
+
+**Interactive labs:** [RAG pipeline](https://sreshtalluri.github.io/ml-ai-learn/labs/rag/) · [Approximate nearest neighbors](https://sreshtalluri.github.io/ml-ai-learn/labs/vector-search/)

@@ -1,7 +1,7 @@
 <!-- GENERATED from project-ladder.yml by web/scripts/gen-quizzes.mjs. Edit the .yml, then run: npm run gen:quizzes -->
 # Quiz: The portfolio project ladder
 
-Covers the lesson [The portfolio project ladder](../lessons/20-projects/02-project-ladder.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/project-ladder/) grades these interactively and tracks a review queue.
+Covers the lesson [The portfolio project ladder](../lessons/23-projects/02-project-ladder.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/project-ladder/) grades these interactively and tracks a review queue.
 
 ## 1. Match (easy)
 

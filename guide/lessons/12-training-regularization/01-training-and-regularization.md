@@ -187,3 +187,33 @@ Layer norm: mean 2.5, variance $\frac{0.25 + 2.25 + 2.25 + 0.25}{4} = 1.25$, std
 **Next:** [Convolutional networks](../13-deep-architectures/01-convolutional-networks.md)
 
 **Related:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Regularization for linear models](../03-regression/02-regularization-and-regression-metrics.md)
+
+## Interview angle
+
+<details>
+<summary><strong>How does dropout work, and why do you scale the kept activations by 1/(1−p)?</strong></summary>
+
+During training, dropout zeroes each activation independently with probability $p$ and multiplies the survivors by $1/(1-p)$; at inference it does nothing. The scaling keeps the expected activation unchanged, so the next layer sees the same scale in training and inference: $E[\tilde{a}] = (1-p) \cdot a/(1-p) = a$. In the course example, $[2, 4, 6, 8]$ with $p = 0.5$ and mask $[1, 0, 1, 0]$ becomes $[4, 0, 12, 0]$. Because any unit can disappear, the network can't rely on a single co-adapted feature and learns redundant ones. One view is that it trains an ensemble of thinned subnetworks that share weights and averages them at test time. Practical points: forgetting `model.eval()` leaves dropout on at inference and gives noisy predictions, and large pretrained transformers often use little or no dropout because their data is large relative to their capacity.
+
+</details>
+
+<details>
+<summary><strong>Batch norm versus layer norm: why do transformers use layer norm?</strong></summary>
+
+Batch norm normalizes each feature using the mean and variance across the batch; layer norm normalizes each example across its own features. Batch norm's dependence on the batch causes problems for transformers: statistics are noisy with small per-device batches, sequences have variable lengths and padding, and inference must use running averages, which creates a train/inference mismatch and makes autoregressive decoding one token at a time awkward. Layer norm computes everything per example, so it behaves the same at any batch size and in training and inference. For $[1, 2, 3, 6]$: mean 3, variance 3.5, output $[-1.069, -0.535, 0, 1.604]$. Batch norm is still a strong choice for CNNs with large batches, where its batch noise also acts as a mild regularizer. Many modern LLMs use RMSNorm, which drops the mean subtraction and is slightly cheaper.
+
+</details>
+
+<details>
+<summary><strong>Training loss keeps falling, but validation loss bottoms out at epoch 6 and climbs after that. What do you do?</strong></summary>
+
+That is classic overfitting, but confirm it before treating it. Check that validation data comes from the same distribution as training and that no leakage or preprocessing difference explains the gap. Also check accuracy alongside loss: if validation loss rises while accuracy stays flat, the model is becoming overconfident on its mistakes, which matters if you use its probabilities. Then act: keep the epoch-6 checkpoint with early stopping and a patience of several epochs so noise doesn't stop you too soon; add weight decay (with AdamW), dropout, or data augmentation that preserves labels; reduce model size or get more data. In the course's synthetic run, validation loss hit its minimum of 0.364 at epoch 6 and climbed to about 1.05 by epoch 200, while L2 regularization flattened that rise. Report the selected checkpoint's score on a held-out test set, not its validation score.
+
+</details>
+
+<details>
+<summary><strong>You have budget for 20 training runs to tune learning rate, weight decay, and dropout. How do you spend it?</strong></summary>
+
+Random search on log scales, with learning rate prioritized, not a grid. A $3 \times 3 \times 2$ grid of 18 runs tries only three learning rates; 20 random samples try 20 distinct values of each hyperparameter. Since one or two hyperparameters usually dominate (often learning rate), random search explores the important axis far better. Sample learning rate log-uniformly over, say, $10^{-4}$ to $10^{-2}$, weight decay log-uniformly over $10^{-5}$ to $10^{-1}$, and dropout uniformly over 0 to 0.5. Use early stopping or successive halving to kill bad runs early, which stretches the budget further. With leftover runs, narrow the range around the best region or switch to Bayesian optimization. Select on validation or cross-validation, re-run the winner with two or three seeds to check it wasn't luck, and touch the test set once at the end.
+
+</details>

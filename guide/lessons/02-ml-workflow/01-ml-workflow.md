@@ -165,4 +165,34 @@ Pick a cutoff month: train on snapshots before it, validate on the month after, 
 
 **Next:** [Overfitting and the bias-variance trade-off](02-overfitting-and-bias-variance.md)
 
-**Related:** [Classification metrics](../04-classification/02-classification-metrics.md) · [Reliability, cost, and observability](../18-production-ai/02-reliability-cost-and-observability.md)
+**Related:** [Classification metrics](../04-classification/02-classification-metrics.md) · [Reliability, cost, and observability](../20-production-ai/02-reliability-cost-and-observability.md)
+
+## Interview angle
+
+<details>
+<summary><strong>When does a random train/test split give a misleading score? Give concrete examples and the right split for each.</strong></summary>
+
+Whenever examples aren't independent or production data differs from training in time. Forecasting: a random split lets the model train on Wednesday and test on Tuesday, using the future; use a time split with training before a cutoff and testing after it, plus a gap if labels take time to mature. Grouped data: many scans per patient or many sessions per user; a random split puts the same patient on both sides, and the model learns to recognize the patient rather than the disease. Use a group split such as `GroupKFold` by patient or user. Rare classes: a random split can leave the test set with almost no positives, so stratify. Near-duplicates (reposted text, the same product photo) need deduplication before splitting. Cross-validation folds must follow the same rules as the final split.
+
+</details>
+
+<details>
+<summary><strong>Your first churn model scores 0.99 AUC. What do you do?</strong></summary>
+
+Assume leakage until proven otherwise; 0.99 on a hard behavioral problem is a smell, not a result. Check feature importance first: a single dominant feature, especially one named like "status," "cancellation_date," or "account_closed," often encodes the outcome. For each top feature, ask whether it exists at prediction time; aggregates over the full history include the post-churn period. Check the split: are the same customers in train and test, and is it time-based? Check preprocessing: were scaling, imputation, target encoding, or feature selection fit on all data? Check for duplicates across splits. Then rerun with suspicious features removed and a strict time split; realistic churn AUCs are often 0.7 to 0.85. Compare against a simple baseline such as "days since last login" to calibrate expectations.
+
+</details>
+
+<details>
+<summary><strong>K-fold cross-validation or a single holdout set: when do you use each?</strong></summary>
+
+Cross-validation trains $K$ models, each validated on a different fold, and averages the scores. Every example is used for both training and validation, so the estimate has lower variance. That matters on small datasets (a few thousand rows or fewer), where a single 20% holdout gives a noisy number and a lucky split can decide your model choice. The cost is $K$ times the training compute. A single holdout is fine when data is large (the estimate is already precise), when training is expensive (deep learning, large boosted models), or when time order matters, in which case you use forward-chaining time folds rather than shuffled ones anyway. Either way, CV is for model selection: keep a separate untouched test set for the final estimate. Reporting the same CV score you tuned on is optimistic; nested CV corrects that.
+
+</details>
+
+<details>
+<summary><strong>You've deployed a model whose labels arrive weeks late. What do you monitor, and what triggers action?</strong></summary>
+
+Monitor in layers, because ground truth is slow. Available immediately: data quality (null rates, schema changes, out-of-range values); input feature distributions compared with training, using population stability index or KS statistics per feature; and the prediction distribution, such as the mean score and the fraction above the decision threshold. A sudden jump in alert rate is often the first sign of a broken upstream pipeline. Operational metrics: latency, error rate, throughput. When labels mature (chargebacks weeks later, churn after a month), compute the real metric on each matured cohort, compare it with the offline estimate, and slice by region, device, or customer type. Log features at serving time so you can rebuild training data without skew. Trigger investigation or retraining on sustained drift or a confirmed metric drop, not on every single alert.
+
+</details>

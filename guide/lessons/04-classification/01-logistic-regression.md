@@ -174,3 +174,33 @@ $z = 2 - 3 + 0.5 = -0.5$. $\hat{p} = 1/(1 + e^{0.5}) = 1/2.6487 = 0.3775$. Loss 
 **Next:** [Classification metrics and thresholds](02-classification-metrics.md)
 
 **Related:** [Linear regression](../03-regression/01-linear-regression.md) · [Forward pass](../10-neural-networks/01-neural-network-forward-pass.md) · [Model card: logistic regression](../../models/logistic-regression.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why use cross-entropy rather than MSE to train logistic regression?</strong></summary>
+
+Two reasons. With a sigmoid output, MSE is non-convex in the weights, so optimization can stall on flat regions. More importantly, its gradient vanishes exactly when the model is confidently wrong: the MSE gradient with respect to the logit is $2(\hat{p} - y)\,\hat{p}(1 - \hat{p})$, so if $y = 1$ but $\hat{p} = 0.001$, the factor $\hat{p}(1 - \hat{p}) \approx 0.001$ kills the signal. Cross-entropy's gradient with respect to the logit is simply $\hat{p} - y$ because the $\sigma'$ term cancels, so a confident mistake gets a gradient near $-1$, the strongest possible push. Cross-entropy is also the negative log-likelihood of a Bernoulli model, so minimizing it is maximum likelihood, it's convex for logistic regression, and it tends to produce calibrated probabilities. Squared error on probabilities (the Brier score) remains a fine evaluation metric.
+
+</details>
+
+<details>
+<summary><strong>Interpret a logistic regression coefficient of 0.7 on a standardized feature.</strong></summary>
+
+A one-standard-deviation increase in that feature, holding the others fixed, adds 0.7 to the log-odds, which multiplies the odds by $e^{0.7} \approx 2.01$: roughly doubles them. It does not mean the probability rises by 0.7 or by any fixed amount; the effect on probability depends on the starting point. From $\hat{p} = 0.5$ (odds 1), the odds become 2.01, so $\hat{p} \approx 0.67$. From $\hat{p} = 0.05$ (odds 0.053), the odds become 0.106, so $\hat{p} \approx 0.096$. Caveats an interviewer expects: "holding others fixed" is unrealistic when features are correlated, and correlation makes individual coefficients unstable; regularization shrinks coefficients toward zero, so they are biased estimates; and none of this is causal. Coefficients on unstandardized features aren't comparable in magnitude.
+
+</details>
+
+<details>
+<summary><strong>While training an unregularized logistic regression, the weights keep growing and the training loss approaches zero. What's happening?</strong></summary>
+
+The training data is linearly separable (or nearly so). If some $w$ classifies every example correctly, scaling it up by any factor still classifies them correctly and pushes every $\hat{p}$ closer to 0 or 1, which always lowers cross-entropy. So the unregularized optimum is at infinity: weights grow without bound, predicted probabilities become 0 and 1, and coefficients and their standard errors are meaningless. It's common with many features relative to examples (sparse text), or with a leaky feature that perfectly predicts the label, which is worth checking first. Fix: add regularization (scikit-learn's default is L2 with `C = 1`, where smaller `C` means stronger), which gives a finite, unique solution, and tune `C` by cross-validation. Then check calibration, since overconfident probabilities are the symptom downstream users will notice.
+
+</details>
+
+<details>
+<summary><strong>Logits are [2, 1, 0.1] and the true class is 1. Compute the cross-entropy loss and its gradient with respect to the logits.</strong></summary>
+
+Softmax: $e^2 = 7.389$, $e^1 = 2.718$, $e^{0.1} = 1.105$, sum $11.212$, so $p = [0.659, 0.242, 0.099]$. Loss $= -\ln p_1 = -\ln 0.242 = 1.417$. The gradient of softmax cross-entropy with respect to the logits is $p - \text{onehot}(y) = [0.659, -0.758, 0.099]$: push the confidently wrong class 0 down hardest, push the true class up, and nudge class 2 down slightly. It's the same form as the binary case, $\hat{p} - y$. Implementation follow-up: compute the loss directly from logits with log-sum-exp, $L = \log\sum_j e^{z_j} - z_y$, subtracting $\max_j z_j$ first so large logits don't overflow. PyTorch's `cross_entropy` does exactly this when given raw logits, which is why you should not apply softmax yourself before calling it.
+
+</details>

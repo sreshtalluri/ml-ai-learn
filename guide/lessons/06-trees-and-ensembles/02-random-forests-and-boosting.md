@@ -168,3 +168,33 @@ $F_0 = 15$. Residuals $[-5, 5]$. A stump separates the two points: $h = [-5, 5]$
 **Next:** [K-means clustering](../07-unsupervised/01-k-means.md)
 
 **Related:** [Decision trees](01-decision-trees.md) · [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Model card: gradient boosting](../../models/gradient-boosting.md) · [Model card: XGBoost](../../models/xgboost.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Bagging versus boosting: what does each reduce, and why?</strong></summary>
+
+Bagging trains models independently on bootstrap samples and averages them. Averaging reduces variance: with $B$ trees of variance $\sigma^2$ and pairwise correlation $\rho$, the average has variance $\rho\sigma^2 + \frac{1-\rho}{B}\sigma^2$, so it works best on low-bias, high-variance models like deep trees; random forests also sample features at each split to lower $\rho$. Boosting trains models sequentially, each fitting the residuals (the negative gradient of the loss) of the current ensemble, so it mainly reduces bias, building a strong model from shallow, high-bias trees. Consequences: forests are hard to overfit by adding trees and need little tuning; boosting usually reaches higher accuracy on tabular data but overfits with too many rounds, so it needs a learning rate, early stopping, and more tuning. Forests parallelize trivially; boosting rounds are sequential.
+
+</details>
+
+<details>
+<summary><strong>Each tree in a forest has variance σ² = 1 and pairwise correlation ρ = 0.3. What's the variance of a 100-tree average? What about infinitely many trees, and how would you do better?</strong></summary>
+
+Variance of the average is $\rho\sigma^2 + \frac{1-\rho}{B}\sigma^2 = 0.3 + 0.7/100 = 0.307$. With infinitely many trees it only falls to $0.3$: past a few hundred trees, adding more barely helps, because the correlated part doesn't average away. Lowering the correlation to $\rho = 0.1$ gives $0.1 + 0.009 = 0.109$, nearly three times lower. That's the core logic of random forests: `max_features` (for example $\sqrt{p}$ for classification) forces trees to choose among different features, which lowers $\rho$ at the cost of slightly weaker individual trees. Set it too small and each tree becomes too weak, so tune it. The practical rule that follows: set `n_estimators` high enough that out-of-bag error has flattened (more trees never hurt accuracy, only time), and spend tuning effort on decorrelation and tree depth.
+
+</details>
+
+<details>
+<summary><strong>Your gradient boosting model looks great in cross-validation but is much worse in production. Its top feature is a target-encoded categorical. What's going on?</strong></summary>
+
+Likely target-encoding leakage. If each category is replaced by its mean target computed on the full training set, every row's encoding includes its own label. Rare categories with one or two rows get an encoding that almost equals the label, and boosting exploits it. Cross-validation is fooled too if the encoding was computed before splitting. In production, new rows don't contribute to their own encoding, so the signal disappears. Fixes: compute encodings out-of-fold (each row encoded using only other folds), smooth rare categories toward the global mean, or use CatBoost, whose ordered target statistics are designed to prevent this. Also check for time leakage if encodings use future data, and confirm early stopping used a proper validation set. Verify with permutation importance on a clean, time-based holdout.
+
+</details>
+
+<details>
+<summary><strong>Walk through one round of gradient boosting for squared error. Why is it called "gradient" boosting?</strong></summary>
+
+Start with $F_0(x) = \bar{y}$. Each round, compute residuals $r_i = y_i - F_{m-1}(x_i)$, fit a small tree $h_m$ to predict them, and update $F_m = F_{m-1} + \eta\,h_m$. In this lesson's example, $y = [2, 4, 7, 9]$ starts at 5.5 with MSE 7.25; a stump at $x \le 2.5$ predicts residuals of $\pm 2.5$, and with $\eta = 0.5$ the predictions become $[4.25, 4.25, 6.75, 6.75]$, MSE 2.56. It's "gradient" because for squared loss $\frac{1}{2}(y - F)^2$, the negative gradient with respect to the prediction $F(x_i)$ is exactly the residual. Each round is a gradient-descent step in function space, with the tree approximating the negative gradient and $\eta$ as the step size. For other losses, such as log loss, you fit the tree to that loss's negative gradient instead; XGBoost and LightGBM also use second derivatives.
+
+</details>
