@@ -46,6 +46,7 @@ related: [llm-evaluation, ai-security, production-architecture]
 1. Pick the **Retrieval miss** question. Predict whether a better prompt could fix the answer, then turn on semantic matching instead.
 2. Shrink chunks to 8 words. Predict what happens to evidence recall, then raise the chunk size and compare.
 3. Set k = 1 and try each question in turn. Which still get their evidence into the context, and does the reranker change any of them?
+4. Keep the default question and move the chunk size from 20 to 30 words. Predict where the evidence ranks, then check the worked example below to see why it moves.
 
 ## 3. The math
 
@@ -79,15 +80,26 @@ With chunk size $S$ words and overlap $O$, consecutive chunks start every $S - O
 
 ### Worked example: one query, step by step
 
-Collection: four short synthetic policy documents, split into 20-word chunks with 5-word overlap (10 chunks). Query: *"Are shipping costs refunded if my item was broken on arrival?"*
+Collection: four short synthetic policy documents. Query: *"Are shipping costs refunded if my item was broken on arrival?"* Scores use the course's TF-IDF from [text to vectors](../09-classical-nlp/01-text-to-vectors.md): raw counts times $\ln(N/\text{DF})$, common words removed, cosine similarity. These are the numbers the lab shows.
+
+With 20-word chunks and 5-word overlap (10 chunks):
 
 | Rank | Source | TF-IDF cosine | Contains the evidence? |
 |---|---|---|---|
-| 1 | shipping | 0.437 | no |
-| 2 | refunds | 0.425 | **yes**: "Shipping fees are not refundable unless the item arrived damaged." |
-| 3 | shipping | 0.143 | no |
+| 1 | refunds | 0.408 | **yes**: "Shipping fees are not refundable unless the item arrived damaged." |
+| 2 | shipping | 0.347 | no |
+| 3 | shipping | 0.112 | no |
 
-The lexical retriever ranks a shipping chunk first because "shipping" matches strongly. The evidence is at rank 2, so with $k = 3$ the model still sees it. With $k = 1$ it would not, and the model would likely answer from shipping times. A reranker that reads query and chunk together would probably move the refunds chunk up.
+Now change only the chunk size, to 30 words (7 chunks):
+
+| Rank | Source | TF-IDF cosine | Contains the evidence? |
+|---|---|---|---|
+| 1 | shipping | 0.303 | no |
+| 2 | refunds | 0.283 | **yes** |
+
+Same documents, same question, and the evidence drops from rank 1 to rank 2. The bigger refunds chunk also carries sentences about digital downloads and payment methods, which dilute its match, while the shipping chunk says "shipping" three times. With $k = 3$ the model still sees the evidence; with $k = 1$ it would not, and it would likely answer from shipping times. A reranker that reads the query and chunk together moves the refunds chunk back to the top. Chunk size is a retrieval hyperparameter: tune it against a labeled set, not by eye.
+
+If you reproduce this with scikit-learn's `TfidfVectorizer`, the numbers differ, because its default smooths IDF to $\ln\frac{1+N}{1+\text{DF}} + 1$; with 20-word chunks it happens to rank the shipping chunk first (0.437 vs 0.425). Either way the point stands: lexical scores are fragile, so measure retrieval.
 
 ### Worked example: a retrieval miss
 

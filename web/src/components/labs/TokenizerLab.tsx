@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { encode, trainBpe } from "@/lib/bpe";
 import { fmt } from "@/lib/ml";
-import { LabFrame, Slider, Stat } from "./ui";
+import { LabFrame, Slider, Stat, type TourStep } from "./ui";
 
 // Training corpus: a short paragraph about ML, repeated with variations. SYNTHETIC, for illustration only.
 const CORPUS = `the model learns to predict the next token from the previous tokens
@@ -27,10 +27,24 @@ export default function TokenizerLab() {
   const over = used > ctx;
   const lastMerge = merges[k - 1];
 
+  // Guided tour (Watch mode + explainers). Each step sets every control, then slides one.
+  const DEFAULT = "The transformer model predicts tokens. Unbelievable hyperparameters!";
+  const setup = (t: string, m: number, window = 64, sys = 20) => { setText(t); setK(m); setCtx(window); setSystem(sys); };
+  const slide = (set: (v: number) => void, a: number, b: number, step = 1) => (t: number) => set(a + Math.round((t * (b - a)) / step) * step);
+  const tour: TourStep[] = [
+    { id: "characters", caption: "With zero merges every character is its own token, and ▁ marks the start of a word. This one sentence costs 71 tokens.", apply: () => setup(DEFAULT, 0) },
+    { id: "merge", caption: "Each merge fuses the most frequent neighbouring pair in the training text: ▁ with t, then h with e, then ▁t with he. Watch the token count fall from 71 to 44.", apply: () => setup(DEFAULT, 0), animate: slide(setK, 0, 40), animMs: 3000 },
+    { id: "whole-words", caption: "Keep merging and words common in the corpus, like transformer and predicts, become single tokens. All 129 merges bring the sentence down to 35.", apply: () => setup(DEFAULT, 40), animate: slide(setK, 40, merges.length), animMs: 2600 },
+    { id: "unseen", caption: "Words the tokenizer never saw split into many small pieces. Nothing is ever unknown, but rare words cost far more tokens than common ones.", apply: () => setup("Photosynthesis quantization xylophone", merges.length) },
+    { id: "window", caption: "The bar is the context window. The purple system prompt and your teal text share it, and as the window shrinks the text turns red once it no longer fits.", apply: () => setup(Array(6).fill("the model learns to predict the next token").join(" "), merges.length, 128), animate: slide(setCtx, 128, 48, 16), animMs: 2600 },
+    { id: "budget", caption: "A longer system prompt eats the same budget, leaving less room for the answer. Cost and latency follow tokens, not characters.", apply: () => setup(DEFAULT, merges.length, 64, 0), animate: slide(setSystem, 0, 44, 4), animMs: 2600 },
+  ];
+
   return (
     <LabFrame
       id="tokenizer"
       title="Tokenization explorer"
+      tour={tour}
       subtitle={`A byte-pair encoder trained in your browser on a tiny ML corpus (${merges.length} merges learned). Real tokenizers learn ~50k–200k merges from huge corpora.`}
       onReset={() => { setText("The transformer model predicts tokens. Unbelievable hyperparameters!"); setK(40); setCtx(64); setSystem(20); }}
       presets={[

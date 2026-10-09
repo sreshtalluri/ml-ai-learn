@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Button, LabFrame, Plot, Slider, Stat, Toggle } from "./ui";
+import { Button, LabFrame, Plot, Slider, Stat, Toggle, type TourStep } from "./ui";
 
 // A fully MOCKED agent: the "model" is a script and the flight data is SYNTHETIC. Token counts are illustrative.
 export const BASE_TOKENS = { system: 500, toolSchemas: 600, user: 100 }; // 1,200 tokens before step 1
@@ -138,9 +138,23 @@ export default function AgentLoopLab() {
     }
   })();
 
+  // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then reveals turns one by one.
+  const setup = (patch: Partial<Opts>, n = 0) => { setOpts({ ...DEFAULT, ...patch }); setDecision(undefined); setShown(n); setPlaying(false); };
+  const revealAll = (t: number) => { const v = Math.round(t * trace.length); if (v > shown) setShown(v); };
+  const tour: TourStep[] = [
+    { id: "context", caption: "Before the model does anything, the purple bar already holds 1,200 tokens: the system prompt, every tool schema, and the task.", apply: () => setup({}) },
+    { id: "loop", caption: "Each step the model thinks, calls one tool, and the observation is appended to the context. Watch the bar grow as it searches, checks two fares, and holds AS330 at $214.", apply: () => setup({}), animate: revealAll, animMs: 3500 },
+    { id: "cost", caption: "Every model call rereads the whole context, so the blue bars climb. Five calls bill 8,360 input tokens for a context that ended at 2,060.", apply: () => setup({}, 5) },
+    { id: "flaky", caption: "Switch on the tool error. The search returns a retryable 503, the error goes back to the model as an observation, and it retries once instead of crashing.", apply: () => setup({ toolError: true }), animate: revealAll, animMs: 3500 },
+    { id: "ambiguous", caption: "Give the tools vague names and the model picks a generic web search, trusts a stale blog, and reports DL1180 at $199, though its own hold result says $262.", apply: () => setup({ ambiguous: true }), animate: revealAll, animMs: 2600 },
+    { id: "step-limit", caption: "Cap the loop at 3 model calls and the runtime stops it mid-task, returning partial progress. A step budget bounds cost and runaway loops.", apply: () => setup({ maxSteps: 3 }), animate: revealAll, animMs: 2600 },
+    { id: "approval", caption: "With approval required, the run pauses at hold_booking. The model proposed the call, but nothing with a side effect runs until a human approves.", apply: () => setup({ approval: true }), animate: revealAll, animMs: 3000 },
+  ];
+
   return (
     <LabFrame
       id="agent-loop"
+      tour={tour}
       title="Agent loop lab"
       subtitle={<>Task: “{TASK}” A scripted model with four mocked tools; step through each thought, tool call, and observation.</>}
       onReset={() => { setOpts(DEFAULT); setDecision(undefined); setShown(0); setPlaying(false); }}

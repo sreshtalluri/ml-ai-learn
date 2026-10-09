@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, rng, softmax, topK, topP } from "@/lib/ml";
-import { Button, LabFrame, Slider, Stat, Tex } from "./ui";
+import { Button, LabFrame, Slider, Stat, Tex, type TourStep } from "./ui";
 
 // SYNTHETIC next-token logits after the prompt "The capital of France is". Illustrative values, not from a real model.
 const PROMPT = "The capital of France is";
@@ -36,10 +36,26 @@ export default function DecodingLab() {
 
   const counts = TOKENS.map((t) => samples.filter((s) => s === t).length);
 
+  // Guided tour (Watch mode + explainers). Each step sets every knob, then moves one.
+  const setup = (temp: number, kk = 10, pp = 1) => { setT(temp); setK(kk); setP(pp); setSamples([]); setSeed(1); };
+  const slide = (set: (v: number) => void, a: number, b: number, digits = 2) => (t: number) => set(+(a + t * (b - a)).toFixed(digits));
+  // one draw per frame keeps the sample sequence the same on every run
+  const drawTo = (n: number) => (t: number) => { const miss = Math.round(t * n) - samples.length; if (miss > 0) sample(t === 1 ? miss : 1); };
+  const tour: TourStep[] = [
+    { id: "start", caption: "Ten candidate next tokens after “The capital of France is”, each with a logit z. Softmax turns them into probabilities: Paris gets 0.854.", apply: () => setup(1) },
+    { id: "cool", caption: "Lower the temperature and the logits are divided by a small number, so the gaps between them grow. Paris climbs to 1.000 and decoding becomes greedy.", apply: () => setup(1), animate: slide(setT, 1, 0.1), animMs: 2600 },
+    { id: "heat", caption: "Raise the temperature and the distribution flattens. Paris falls to 0.374, and Lyon, Marseille and beautiful get real probability.", apply: () => setup(1), animate: slide(setT, 1, 2.5), animMs: 2600 },
+    { id: "top-k", caption: "Top-k keeps only the k most likely tokens and renormalizes. Watch the crossed-out tail grow as k drops from 10 to 3.", apply: () => setup(1.8), animate: slide((v) => setK(Math.round(v)), 10, 3, 0), animMs: 2400 },
+    { id: "top-p", caption: "Top-p keeps the smallest set whose probabilities add up to p. At T = 1, Paris and a already pass 0.9, so only two tokens survive.", apply: () => setup(1, 10, 1), animate: slide(setP, 1, 0.9), animMs: 2200 },
+    { id: "nucleus-adapts", caption: "Same p = 0.9, but heat the distribution up and the nucleus widens from 2 tokens to 7. Unlike top-k, it adapts to how sure the model is.", apply: () => setup(1, 10, 0.9), animate: slide(setT, 1, 1.8), animMs: 2600 },
+    { id: "sample", caption: "Now draw 20 tokens at T = 1.8 with no filtering. Wrong cities show up: probability measures what text tends to come next, not what is true.", apply: () => setup(1.8), animate: drawTo(20), animMs: 3000 },
+  ];
+
   return (
     <LabFrame
       id="decoding"
       title="Decoding lab"
+      tour={tour}
       subtitle={`Prompt: “${PROMPT} …”. Synthetic logits for 10 candidate tokens (illustrative, not from a real model).`}
       onReset={() => { setT(1); setK(10); setP(1); setSamples([]); }}
       presets={[

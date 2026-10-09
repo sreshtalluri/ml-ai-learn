@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, gaussian, mean, polyEval, polyFit, rng } from "@/lib/ml";
-import { LabFrame, Legend, Plot, Slider, Stat } from "./ui";
+import { LabFrame, Legend, Plot, Slider, Stat, type TourStep } from "./ui";
 
 const truth = (x: number) => Math.sin(Math.PI * x);
 const MAX_DEG = 15;
@@ -45,9 +45,23 @@ export default function FitExplorerLab() {
       ? `Underfitting: both errors are high (train ${fmt(cur.train, 3)}, validation ${fmt(cur.val, 3)}). A degree-${degree} polynomial can't bend enough to follow the sine.`
       : `Near the sweet spot: validation error ${fmt(cur.val, 3)} is close to the best (${fmt(best.val, 3)} at degree ${best.d}).`;
 
+  // Guided tour (Watch mode + explainers). Each step sets all three knobs, then sweeps one.
+  const setup = (d: number, pts = 20, sigma = 0.3) => { setDegree(d); setN(pts); setNoise(sigma); };
+  const sweep = (set: (v: number) => void, a: number, b: number) => (t: number) => set(Math.round(a + t * (b - a)));
+  const tour: TourStep[] = [
+    { id: "data", caption: "The blue dots are 20 noisy samples of the dashed sine curve. The teal curve is a polynomial fitted to the dots; the right panel scores it.", apply: () => setup(3) },
+    { id: "underfit", caption: "A straight line can't bend. It misses the sine everywhere: train error 0.21, validation 0.30. Both high, small gap: that is underfitting, or high bias.", apply: () => setup(1) },
+    { id: "complexity", caption: "Raise the degree and the teal curve bends to follow the dots. The blue training error falls with every step.", apply: () => setup(1), animate: sweep(setDegree, 1, 9), animMs: 3000 },
+    { id: "overfit", caption: "Keep going and the orange validation error turns back up. At degree 12, train error is 0.025 but validation is 0.57: the curve is chasing noise. That is high variance.", apply: () => setup(9), animate: sweep(setDegree, 9, 14), animMs: 2800 },
+    { id: "sweet-spot", caption: "The orange ring marks the bottom of the U: degree 3, validation error 0.10. Pick complexity by validation error, never by training error.", apply: () => setup(3) },
+    { id: "more-data", caption: "Same degree 12, but grow the training set from 20 to 60 points. With more points to pin it down, validation error drops from 0.57 to about 0.13.", apply: () => setup(12), animate: sweep(setN, 20, 60), animMs: 3000 },
+    { id: "noise", caption: "Back to 20 points at degree 12, and turn the noise up from zero. With no noise there is nothing to overfit; the more noise, the wilder the fit.", apply: () => setup(12, 20, 0), animate: (t) => setNoise(Math.round(t * 16) / 20), animMs: 3000 },
+  ];
+
   return (
     <LabFrame
       id="fit-explorer"
+      tour={tour}
       title="Underfitting vs overfitting"
       subtitle="Synthetic data from y = sin(πx) + noise. Blue dots train the model; 200 hidden validation points score it."
       onReset={() => { setDegree(3); setN(20); setNoise(0.3); }}

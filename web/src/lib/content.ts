@@ -258,6 +258,34 @@ export function getSprints(): Sprint[] {
 
 export const getSprint = (id: string) => getSprints().find((s) => s.id === id);
 
+// ---------- scrolling explainers ----------
+
+/** A section of an explainer: the prose, plus the lab tour step it puts on screen (null = keep the current one). */
+export interface ExplainerSection { step: string | null; body: string }
+export interface Explainer { id: string; title: string; summary: string; lab: string; lesson: string; minutes: number; file: string; sections: ExplainerSection[] }
+
+const STEP = /<!--\s*step:([\w-]+)\s*-->/g;
+
+export function getExplainers(): Explainer[] {
+  return list("explainers")
+    .filter((f) => f.endsWith(".md") && f !== "README.md")
+    .map((f) => {
+      const file = `explainers/${f}`;
+      const { data, content } = matter(read(file));
+      // The lab is pinned beside the text on the site, so the GitHub-only figure inside lab markers is dropped.
+      const body = content.replace(/^\s*# .+\n/, "").replace(/<!--\s*lab:[\w-]+\s*-->[\s\S]*?<!--\s*\/lab\s*-->/g, "");
+      const parts = body.split(STEP); // [intro, step1, text1, step2, text2, ...]
+      const sections: ExplainerSection[] = [{ step: null, body: parts[0] }];
+      for (let i = 1; i < parts.length; i += 2) sections.push({ step: parts[i], body: parts[i + 1] });
+      return {
+        id: f.replace(/\.md$/, ""), title: data.title ?? f, summary: data.summary ?? "", lab: data.lab ?? "", lesson: data.lesson ?? "",
+        minutes: Number(data.minutes ?? 10), file, sections: sections.filter((s) => s.body.trim() || s.step),
+      };
+    });
+}
+
+export const getExplainer = (id: string) => getExplainers().find((e) => e.id === id);
+
 // ---------- generic documents ----------
 
 export function getDoc(rel: string) {
@@ -287,5 +315,7 @@ export function routeForFile(rel: string): string | null {
   if ((m = norm.match(/^quizzes\/(.+)\.md$/))) return `/quizzes/${m[1]}/`;
   if (norm === "sprints/README.md") return "/sprints/";
   if ((m = norm.match(/^sprints\/(.+)\.md$/))) return `/sprints/${m[1]}/`;
+  if (norm === "explainers/README.md") return "/explainers/";
+  if ((m = norm.match(/^explainers\/(.+)\.md$/))) return `/explainers/${m[1]}/`;
   return null;
 }

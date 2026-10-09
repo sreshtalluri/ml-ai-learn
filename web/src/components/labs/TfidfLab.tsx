@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import { cosineSimilarity, fmt, tfidf } from "@/lib/ml";
-import { LabFrame, Segmented, Stat, Tex } from "./ui";
+import { LabFrame, Segmented, Stat, Tex, type TourStep } from "./ui";
 
+const DUPLICATE = "the model learns from the data";
 const DEFAULT = ["the model learns from data", "gradient descent trains the model", "the cat sat on the mat", "data quality matters more than the model"].join("\n");
 
 export default function TfidfLab() {
@@ -12,6 +13,19 @@ export default function TfidfLab() {
   const r = useMemo(() => (docs.length ? tfidf(docs) : null), [docs]);
   const [term, setTerm] = useState("model");
   const [docIdx, setDocIdx] = useState(1);
+
+  // Guided tour: each step sets corpus, matrix view and the selected cell.
+  const setup = (v: "tf" | "tfidf", t: string, di: number, corpus = DEFAULT) => { setText(corpus); setView(v); setTerm(t); setDocIdx(di); };
+  const tour: TourStep[] = [
+    { id: "counts", caption: "Four short documents, one per row, and one column per word. In counts view each cell is how often the word appears: “the” shows up twice in document 3.", apply: () => setup("tf", "the", 2) },
+    { id: "idf-zero", caption: "Switch to TF-IDF. “the” is in all four documents, so its IDF is ln(4/4) = 0 and its whole column goes blank. A word everyone uses tells documents apart not at all.", apply: () => setup("tfidf", "the", 2) },
+    { id: "rare", caption: "“gradient” appears only in document 2, so it gets the largest IDF, ln 4 = 1.39. Rare words carry the most weight.", apply: () => setup("tfidf", "gradient", 1) },
+    { id: "sweep", caption: "Walk the orange outline along document 4. “model” is in three documents and scores only 0.29; “data” is in two and scores 0.69; words unique to this document score 1.39.", apply: () => setup("tfidf", "data", 3),
+      animate: (t) => { if (!r) return; const own = r.vocab.filter((_, jj) => (r.tf[3]?.[jj] ?? 0) > 0); setTerm(own[Math.min(own.length - 1, Math.floor(t * own.length))]); }, animMs: 3400 },
+    { id: "similarity", caption: "Each row is now a vector, and the purple table compares them by cosine. Documents 1 and 4 share “data” and “model” and score 0.09; document 3 shares only “the” and scores 0.", apply: () => setup("tfidf", "model", 0) },
+    { id: "duplicate", caption: "Type a near-copy of document 1 as document 5. Once every word is in, its cosine with document 1 hits 1.00: the extra “the” weighs nothing.", apply: () => setup("tfidf", "model", 4, DEFAULT),
+      animate: (t) => { const words = DUPLICATE.split(" "); const typed = words.slice(0, Math.round(t * words.length)).join(" "); setText(typed ? `${DEFAULT}\n${typed}` : DEFAULT); }, animMs: 3200 },
+  ];
 
   if (!r) {
     return (
@@ -35,7 +49,8 @@ export default function TfidfLab() {
       title="TF-IDF lab"
       subtitle="Edit the corpus (one document per line). Click any cell to see its calculation. Formula: TF × ln(N / DF), with raw counts for TF."
       onReset={() => { setText(DEFAULT); setTerm("model"); setDocIdx(1); setView("tfidf"); }}
-      presets={[{ label: "Add a near-duplicate", apply: () => setText(DEFAULT + "\nthe model learns from the data") }]}
+      presets={[{ label: "Add a near-duplicate", apply: () => setText(DEFAULT + "\n" + DUPLICATE) }]}
+      tour={tour}
       controls={
         <>
           <label className="block">

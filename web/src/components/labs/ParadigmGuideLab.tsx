@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { LabFrame } from "./ui";
+import { LabFrame, type TourStep } from "./ui";
 
 type Answer = string | null;
 interface Q { id: string; text: string; options: { value: string; label: string }[] }
@@ -58,12 +58,27 @@ export default function ParadigmGuideLab() {
   const [scenario, setScenario] = useState<number | null>(null);
   const rec = recommend(answers);
 
+  // Guided tour: the first question alone decides most of it, then scenarios show the other two questions at work.
+  const blank = { signal: null, output: null, time: null };
+  const pick = (i: number) => { setAnswers(SCENARIOS[i].answers); setScenario(i); };
+  const signals = QUESTIONS[0].options.map((o) => o.value);
+  const tour: TourStep[] = [
+    { id: "questions", caption: "Three questions about your data and your goal. The recommendation appears below once you answer the first.", apply: () => { setAnswers(blank); setScenario(null); } },
+    { id: "signal", caption: "Watch the recommendation change as only the first answer changes: labels, a few labels, none, labels hidden in the data, a delayed reward. The kind of feedback picks the paradigm.", apply: () => { setAnswers(blank); setScenario(null); }, animate: (t) => { setAnswers({ ...blank, signal: signals[Math.round(t * (signals.length - 1))] }); setScenario(null); }, animMs: 3500 },
+    { id: "regression", caption: "House prices: every past sale is a labeled example and the target is a number, so this is supervised regression.", apply: () => pick(0) },
+    { id: "time-split", caption: "Fraud detection has labels and a yes/no target, but the third answer is yes: time matters, so validation must use a time split, never a random one.", apply: () => pick(1) },
+    { id: "unsupervised", caption: "Customer segmentation has no labels at all. Clustering finds groups, but a cluster is a hypothesis for the business to check, not a verified category.", apply: () => pick(2) },
+    { id: "self-supervised", caption: "LLM pretraining: every next token is a free label hidden in the text itself. That is why it scales to trillions of tokens with no human labeling.", apply: () => pick(4) },
+    { id: "scenarios", caption: "Step through all seven scenarios and watch the highlighted answers move. Same three questions every time, and the answer to the first one does most of the work.", apply: () => pick(0), animate: (t) => pick(Math.round(t * (SCENARIOS.length - 1))), animMs: 3500 },
+  ];
+
   return (
     <LabFrame
       id="paradigm-guide"
       title="Which learning paradigm fits?"
       subtitle="Answer three questions, or load one of the seven scenarios."
       onReset={() => { setAnswers({ signal: null, output: null, time: null }); setScenario(null); }}
+      tour={tour}
       interpretation={rec ? <><p className="text-ink font-medium">{rec.name}</p><p className="mt-1">{rec.why}</p>{scenario !== null && <p className="mt-2 text-ink">{SCENARIOS[scenario].teaching}</p>}</> : "Start with the first question: the kind of feedback in your data decides the paradigm more than anything else."}
     >
       <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_14rem]">

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { fmt, gaussian, gelu, relu, rng, sigmoid, softmax, tanh } from "@/lib/ml";
-import { Button, LabFrame, Segmented, Slider, Stat, Tex } from "./ui";
+import { Button, LabFrame, Segmented, Slider, Stat, Tex, type TourStep } from "./ui";
 
 type Act = "relu" | "sigmoid" | "tanh" | "gelu";
 const ACTS: Record<Act, (z: number) => number> = { relu, sigmoid, tanh, gelu };
@@ -66,10 +66,25 @@ export default function NeuralNetLab() {
   const h = Math.min(focus, nH - 1);
   const zTerms = params.W1[h].map((w, j) => `${fmt(w, 2)} \\cdot ${fmt(xin[j], 2)}`).join(" + ");
 
+  // Guided tour (Watch mode + explainers). setup() resets the 2-3-1 net (or 2-3-3), then sets every control.
+  const setup = (o: { act?: Act; x1?: number; out?: number; stage?: number; focus?: number } = {}) => {
+    resize(2, 3, o.out ?? 1); setAct(o.act ?? "relu"); setX([o.x1 ?? 1, -0.5, 0.5, 2]);
+    setPlaying(false); setStage(o.stage ?? 3); setFocus(o.focus ?? 0);
+  };
+  const tour: TourStep[] = [
+    { id: "layout", caption: "Two inputs on the left, three hidden neurons, one output. Blue lines are positive weights, orange are negative, and thicker means bigger.", apply: () => setup() },
+    { id: "flow", caption: "Numbers flow left to right. Each hidden neuron computes z, a weighted sum plus bias, then a = ReLU(z); the output squashes its own sum through a sigmoid to 0.254.", apply: () => setup({ stage: 0 }), animate: (t) => setStage(Math.round(t * 3)), animMs: 2400 },
+    { id: "one-neuron", caption: "Zoom in on h3, outlined in orange: z = 0.53 × 1 + 0.32 × (−0.5) + 0.22 = 0.59. It is positive, so ReLU passes it through unchanged.", apply: () => setup({ focus: 2 }) },
+    { id: "relu-off", caption: "Slide x1 from 1 down to −2. Once z for h3 turns negative, ReLU outputs exactly 0, its circle goes pale, and its outgoing weight stops affecting the output.", apply: () => setup({ focus: 2 }), animate: (t) => setX((c) => [+(1 - 3 * t).toFixed(1), ...c.slice(1)]), animMs: 3000 },
+    { id: "sigmoid", caption: "Switch the hidden activation to sigmoid. Hidden values now stay between 0 and 1 and are never exactly zero, so every neuron always contributes something.", apply: () => setup({ act: "sigmoid", x1: -2, focus: 2 }) },
+    { id: "softmax", caption: "With three outputs the last layer uses softmax instead: three teal circles whose values always add up to 1, one probability per class.", apply: () => setup({ out: 3 }) },
+  ];
+
   return (
     <LabFrame
       id="nn-forward"
       title="Forward pass lab"
+      tour={tour}
       subtitle="A fully connected network. Click any weight (line) to edit it, or any hidden neuron to see its arithmetic."
       onReset={() => { resize(2, 3, 1); setAct("relu"); setX([1, -0.5, 0.5, 2]); setStage(3); }}
       presets={[

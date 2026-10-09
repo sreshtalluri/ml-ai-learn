@@ -1,9 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import { accuracy, confusionAt, f1, fmt, gaussian, precision, recall, rng, sigmoid, specificity } from "@/lib/ml";
-import { LabFrame, Legend, Plot, Slider, Stat, Toggle } from "./ui";
+import { LabFrame, Legend, Plot, Slider, Stat, Toggle, type TourStep } from "./ui";
 
-// SYNTHETIC fraud-style data: 20% positives. Scores are calibrated by construction:
+// SYNTHETIC fraud-style data: about 30% positives (124 of 400 with this seed). Scores are calibrated by construction:
 // each label is drawn with probability equal to its score.
 function makeData(prevalence: number) {
   const r = rng(23);
@@ -58,11 +58,24 @@ export default function ThresholdLab() {
     </div>
   );
 
+  // Guided tour (Watch mode + explainers). Each step sets threshold, costs, and model, then moves one.
+  const setup = (th: number, fp = 1, fn = 10, over = false) => { setT(th); setCostFP(fp); setCostFN(fn); setOverconfident(over); };
+  const toBest = (t0: number) => (u: number) => setT(+(t0 + u * (best.th - t0)).toFixed(2)); // best is re-read each frame
+  const tour: TourStep[] = [
+    { id: "scores", caption: "Each bar counts transactions by model score: blue are legitimate, orange are fraud. The vertical line is the threshold; everything to its right gets flagged.", apply: () => setup(0.5) },
+    { id: "sweep", caption: "Slide the threshold from high to low. More fraud moves into TP, but false alarms pile up in FP, and the orange dot climbs the ROC curve.", apply: () => setup(0.9), animate: (u) => setT(+(0.9 - u * 0.85).toFixed(2)), animMs: 3200 },
+    { id: "accuracy", caption: "At 0.5, accuracy is 77.5% yet the model misses 66 of 124 frauds. Always saying legitimate would already score 69%, so accuracy hides the misses.", apply: () => setup(0.5) },
+    { id: "cost", caption: "Now price the mistakes: a missed fraud costs 10, a false alarm 1. The cheapest threshold drops to 0.09, catching 118 of 124 frauds.", apply: () => setup(0.5), animate: toBest(0.5), animMs: 2600 },
+    { id: "flip-costs", caption: "Flip the prices, false alarms now cost 10. The cheapest threshold jumps to 0.9 and the model flags only cases it is sure of.", apply: () => setup(0.5, 10, 1), animate: toBest(0.5), animMs: 2600 },
+    { id: "calibration", caption: "An overconfident model pushes scores toward 0 and 1 without changing their order. The ROC curve stays put, but the teal calibration curve leaves the diagonal.", apply: () => setup(0.5, 1, 10, true) },
+  ];
+
   return (
     <LabFrame
       id="threshold"
+      tour={tour}
       title="Classification threshold lab"
-      subtitle="400 synthetic transactions, about 20% fraud. The model outputs a score; the threshold turns it into an action."
+      subtitle="400 synthetic transactions, about 30% fraud. The model outputs a score; the threshold turns it into an action."
       onReset={() => { setT(0.5); setCostFP(1); setCostFN(10); setOverconfident(false); }}
       presets={[
         { label: "Min-cost threshold", apply: () => setT(best.th) },
@@ -88,7 +101,7 @@ export default function ThresholdLab() {
           <Stat label="min-cost t" value={fmt(best.th, 2)} />
         </>
       }
-      interpretation={`At threshold ${fmt(t, 2)} the model flags ${c.tp + c.fp} transactions: ${c.tp} real fraud and ${c.fp} false alarms, and misses ${c.fn} fraud cases. With a false negative costing ${costFN} and a false positive ${costFP}, the cheapest threshold is ${fmt(best.th, 2)}. ${costFN > costFP ? "Missed fraud is expensive, so the best threshold sits below 0.5." : "False alarms are expensive here, so the best threshold moves up."} Note that accuracy (${fmt(accuracy(c) * 100, 1)}%) barely reflects any of this: always predicting "not fraud" would score about 80%.`}
+      interpretation={`At threshold ${fmt(t, 2)} the model flags ${c.tp + c.fp} transactions: ${c.tp} real fraud and ${c.fp} false alarms, and misses ${c.fn} fraud cases. With a false negative costing ${costFN} and a false positive ${costFP}, the cheapest threshold is ${fmt(best.th, 2)}. ${costFN > costFP ? "Missed fraud is expensive, so the best threshold sits below 0.5." : "False alarms are expensive here, so the best threshold moves up."} Note that accuracy (${fmt(accuracy(c) * 100, 1)}%) barely reflects any of this: always predicting "not fraud" would score ${Math.round((100 * (c.tn + c.fp)) / (c.tp + c.fp + c.tn + c.fn))}%.`}
     >
       <div className="grid gap-5 @2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div>

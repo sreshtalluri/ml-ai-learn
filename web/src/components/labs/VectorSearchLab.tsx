@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { fmt, gaussian, kmeansAssign, kmeansUpdate, rng, type Point2 } from "@/lib/ml";
-import { LabFrame, Legend, Plot, Segmented, Slider, Stat, svgPoint } from "./ui";
+import { LabFrame, Legend, Plot, Segmented, Slider, Stat, svgPoint, type TourStep } from "./ui";
 
 // SYNTHETIC 2D "embeddings": Gaussian blobs, fixed seed. Mirrors guide/code/16-rag/vector_search.py.
 export function makePoints(n = 500, seed = 11): Point2[] {
@@ -84,9 +84,23 @@ export default function VectorSearchLab() {
 
   const reset = () => { setNlist(16); setNprobe(2); setK(10); setQ({ x: 5, y: 5 }); setView("scan"); };
 
+  // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then animates.
+  const setup = (nl: number, np: number, query: Point2, v: "scan" | "cells" = "scan") => { setNlist(nl); setNprobe(np); setK(10); setQ(query); setView(v); };
+  const EDGE = { x: 8.5, y: 2.5 }; // = boundaryQuery(buildIvf(POINTS, 16), POINTS): recall 0.1 at nprobe 1
+  const tour: TourStep[] = [
+    { id: "start", caption: "Each dot is a stored embedding and the purple star is the query. The rings mark its 10 true nearest neighbours; brute force finds them by measuring all 500 distances.", apply: () => setup(16, 16, { x: 5, y: 5 }) },
+    { id: "cells", caption: "IVF first clusters the vectors with k-means. Each colour is a cell and each × its centroid; watch the space split into more, smaller cells.", apply: () => setup(2, 1, { x: 5, y: 5 }, "cells"), animate: (t) => { const v = Math.round(2 + 14 * t); if (v !== nlist) setNlist(v); }, animMs: 2800 },
+    { id: "probe", caption: "At query time, compare the star with the 16 centroids and scan only the nearest cell. Blue dots were scanned, grey skipped: 63 distances instead of 500, and 6 of the 10 neighbours found.", apply: () => setup(16, 1, { x: 5, y: 5 }) },
+    { id: "sweep", caption: "Slide the query across the map with one cell probed. Rings turn orange whenever the star nears a cell border: true neighbours sit just across it, in a cell nobody scanned.", apply: () => setup(16, 1, { x: 1, y: 2.5 }), animate: (t) => setQ({ x: 1 + 7.5 * t, y: 2.5 }), animMs: 3400 },
+    { id: "boundary", caption: "Here, right on a border, IVF finds only 1 of the 10 true neighbours. The other 9 are close to the star but live in the next cell over.", apply: () => setup(16, 1, EDGE) },
+    { id: "nprobe", caption: "Raise nprobe and the neighbouring cell gets scanned: recall jumps to 1.0 at nprobe 2, for 85 distances. Averaged over 100 queries, recall climbs from 0.82 to 0.98 to 1.0.", apply: () => setup(16, 1, EDGE), animate: (t) => { const v = Math.round(1 + 3 * t); if (v !== nprobe) setNprobe(v); }, animMs: 2600 },
+    { id: "exact", caption: "Probe all 16 cells and the search is exact again, but it now costs slightly more than brute force. The useful settings live in between: high recall for a fraction of the work.", apply: () => setup(16, 16, EDGE) },
+  ];
+
   return (
     <LabFrame
       id="vector-search"
+      tour={tour}
       title="Approximate nearest neighbors (IVF)"
       subtitle={`${N} synthetic 2D vectors. Click or drag to move the query. IVF clusters them into cells and scans only the nprobe cells nearest the query.`}
       onReset={reset}

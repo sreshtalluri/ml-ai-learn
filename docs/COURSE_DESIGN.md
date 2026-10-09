@@ -93,3 +93,15 @@ Production, security, and projects moved to modules 20, 21, and 23 to make room.
 ## Remaining backlog
 
 The B-priority rows above. Each follows the same recipe: a component in `web/src/components/labs/`, an entry in `registry.tsx` and `src/lib/labs.ts`, and a marker around the lesson figure.
+
+## v4: guided motion (Watch mode and visual explainers)
+
+The labs were strong for exploring and weak at *showing*: nothing walked a learner through an idea the way a 3Blue1Brown video does. v4 adds guided motion without making videos.
+
+- **One tour per lab.** Each of the 27 labs defines 4 to 8 steps (`tour` on `LabFrame`). A step sets the lab's state and can animate one value continuously (an optimizer walking downhill, a kernel sliding, a context length sweeping), with a one-sentence caption.
+- **Watch mode** plays a tour inside the lab: captions, progress, pause, back, next, and optional narration through the browser's speech synthesis. When it ends, the learner has the same controls.
+- **Visual explainers** (`guide/explainers/`) are the long form: prose sections tagged with tour steps. On the site the lab is pinned and changes as each section scrolls into view (Distill-style scrollytelling); on GitHub they read as illustrated articles. Six flagship topics: bias-variance, gradient descent, backpropagation, self-attention, RAG, KV cache.
+
+Both reuse the same step definitions, so a lab, its tour, and its explainer can't drift apart; a test checks every explainer step exists in its lab's tour.
+
+**Next, if this lands well:** narrated videos for the same six topics, recorded from Watch mode (deferred because videos go stale when lessons change).

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ShieldCheck, Warning } from "@phosphor-icons/react";
-import { LabFrame, Stat, Toggle } from "./ui";
+import { LabFrame, Stat, Toggle, type TourStep } from "./ui";
 
 // Everything here is MOCKED: no tool is ever executed, no request is ever sent.
 interface Attack {
@@ -42,11 +42,26 @@ export default function PromptInjectionLab() {
   const r = evaluate(a, c);
   const modelComplies = a.proposal && !(c.delimit && !a.followsWithDelimiters);
 
+  // Guided tour: attacks with no defenses, then defenses added one layer at a time.
+  const NONE: Controls = { delimit: false, allowlist: false, validate: false, approval: false, linkFilter: false };
+  const LAYERS: (keyof Controls)[] = ["delimit", "allowlist", "validate", "approval", "linkFilter"];
+  const attacks = ATTACKS.filter((x) => x.proposal).map((x) => x.id);
+  const at = (id: string, on: (keyof Controls)[] = []) => { setSel(id); setC({ ...NONE, ...Object.fromEntries(on.map((k) => [k, true])) }); };
+  const tour: TourStep[] = [
+    { id: "attacks", caption: "The task is harmless: summarize the refund policy. But the retrieved document can contain instructions. With no defenses, every one of the four attacks succeeds.", apply: () => at("direct"), animate: (t) => setSel(attacks[Math.round(t * (attacks.length - 1))]), animMs: 3200 },
+    { id: "label", caption: "First defense: tell the model which text is untrusted. It now ignores the crude hidden override, and the counter drops from 4 to 3.", apply: () => at("direct", ["delimit"]) },
+    { id: "polite", caption: "But a polite, plausible instruction still works. The model can't reliably tell data from instructions, so a prompt is not a security boundary.", apply: () => at("polite", ["delimit"]) },
+    { id: "allowlist", caption: "Enforce it in code instead. A summary task needs no tools, so the allowlist removes them: send_email and delete_account can't run however convincing the text is.", apply: () => at("delete", ["delimit", "allowlist"]) },
+    { id: "exfil", caption: "One attack needs no tool at all: an image link that carries user data in its URL. Validation and approval don't see it. Only stripping external links from the output stops it.", apply: () => at("exfil", ["delimit", "allowlist", "validate", "approval"]) },
+    { id: "layers", caption: "Switch the defenses on one at a time and watch the harm counter fall to zero. Each layer catches what the others miss, and the strongest ones never trust the model.", apply: () => at("exfil"), animate: (t) => { const k = Math.round(t * LAYERS.length); setC({ ...NONE, ...Object.fromEntries(LAYERS.slice(0, k).map((l) => [l, true])) }); }, animMs: 3500 },
+  ];
+
   return (
     <LabFrame
       id="prompt-injection"
       title="Prompt injection lab"
       subtitle="Task: “Summarize our refund policy.” The assistant retrieves a document an attacker may control. All tools are mocked; nothing ever runs."
+      tour={tour}
       onReset={() => { setSel("direct"); setC({ delimit: false, allowlist: false, validate: false, approval: false, linkFilter: false }); }}
       presets={[
         { label: "Prompt-only defense", apply: () => setC({ delimit: true, allowlist: false, validate: false, approval: false, linkFilter: false }) },

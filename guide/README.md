@@ -84,6 +84,7 @@ No uv? `pip install numpy matplotlib scikit-learn` and use `python` instead.
 
 ## Reference
 
+- [Visual explainers](explainers/README.md): picture-first walkthroughs of the hardest ideas; on the website the lab moves as you scroll.
 - [Interview sprints](sprints/README.md): 7-day plans for ML engineer, AI engineer, applied scientist, and data scientist loops.
 - [Model cards](models/README.md): 29 models, each with objective, assumptions, hyperparameters, failure modes, and neighbors.
 - [Cheat sheets](cheatsheets/README.md): metrics, losses, optimizers, transformers, fine-tuning, RAG, vector search, inference, agents, system design, security, formulas, tensor shapes.

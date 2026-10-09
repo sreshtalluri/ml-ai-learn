@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { fmt } from "@/lib/ml";
-import { LabFrame, Slider, Stat } from "./ui";
+import { LabFrame, Slider, Stat, type TourStep } from "./ui";
 
 // Synthetic cost model, identical to guide/code/22-ml-system-design/recsys_funnel.py:
 //   latency = fixed + itemsScored * perItemMs   (one worker, no sharding)
@@ -48,6 +48,19 @@ export default function RecsysFunnelLab() {
   const slowest = [...r.stages].sort((a, b) => b.latency - a.latency)[0];
   const weakest = [...r.stages].sort((a, b) => a.recall - b.recall)[0];
 
+  // Guided tour: lesson defaults, then one knob moves per step.
+  const setup = (p: Partial<typeof DEFAULTS> = {}) => setSt({ ...DEFAULTS, ...p });
+  const sweep = (key: "k1" | "p2" | "budget", a: number, b: number, round: (v: number) => number) => (t: number) => set({ [key]: round(a + t * (b - a)) });
+  const by100 = (v: number) => Math.round(v / 100) * 100, by10 = (v: number) => Math.round(v / 10) * 10, cents = (v: number) => Math.round(v * 100) / 100;
+  const tour: TourStep[] = [
+    { id: "funnel", caption: "Ten million items go in, twenty come out. Each bar is one stage: a cheap retriever keeps 1,000, a ranker keeps 100, a re-ranker picks the 20 shown.", apply: () => setup() },
+    { id: "latency", caption: "The bottom bar is where the time goes: 125 ms against a 150 ms budget. The teal ranking stage is 75 ms of it, because it scores all 1,000 candidates with a heavy model.", apply: () => setup() },
+    { id: "rank-more", caption: "Pass more candidates to the ranker, from 1,000 to 5,000. Latency shoots past the dashed budget line, while recall barely moves: the retriever had already found most of the good items.", apply: () => setup(), animate: sweep("k1", 1000, 5000, by100), animMs: 3000 },
+    { id: "starved", caption: "Go the other way, down to 200 candidates. Now everything is fast, but recall falls to about 0.41: good items are dropped before the ranker ever sees them.", apply: () => setup(), animate: sweep("k1", 1000, 200, by100), animMs: 2600 },
+    { id: "heavy-ranker", caption: "Keep 1,000 candidates but make the ranker more expensive per item. The teal segment stretches until the request blows the budget: model cost times items scored is the whole story.", apply: () => setup(), animate: sweep("p2", 0.06, 0.2, cents), animMs: 2800 },
+    { id: "budget", caption: "Squeeze the budget from 150 to 100 ms and the same funnel no longer fits. Every funnel is sized backwards from the latency budget: decide how many items each stage can afford.", apply: () => setup(), animate: sweep("budget", 150, 100, by10), animMs: 2400 },
+  ];
+
   // Funnel: bar width proportional to log10(items), so 10M and 20 both stay visible.
   const levels = [{ label: "Catalog", n: CATALOG, color: "var(--faint)" }, ...r.stages.map((s) => ({ label: `${s.name} keeps`, n: s.kept, color: s.color }))];
   const wOf = (n: number) => 40 + (Math.log10(Math.max(n, 1)) / 7) * (W - 80);
@@ -66,6 +79,7 @@ export default function RecsysFunnelLab() {
       title="Recommendation funnel"
       subtitle="Synthetic 10M-item catalog. Choose how many items each stage passes on and how expensive each stage is per item; watch latency, compute, and recall."
       onReset={() => setSt(DEFAULTS)}
+      tour={tour}
       presets={[
         { label: "Rank 5,000", apply: () => set({ k1: 5000 }) },
         { label: "Heavy ranker", apply: () => set({ p2: 0.2 }) },

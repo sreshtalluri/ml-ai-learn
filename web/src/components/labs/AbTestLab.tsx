@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, gaussian, rng } from "@/lib/ml";
-import { LabFrame, Legend, Plot, Slider, Stat } from "./ui";
+import { LabFrame, Legend, Plot, Slider, Stat, type TourStep } from "./ui";
 
 /** Standard normal CDF (Abramowitz and Stegun 7.1.26, |error| < 1.5e-7). */
 export function normalCdf(x: number): number {
@@ -83,6 +83,18 @@ export default function AbTestLab() {
     return [l * 100, powerAt(p1, l, n, st.alpha)] as const;
   }), [p1, n, st.alpha, maxLift]);
   const sim = useMemo(() => simulateAA({ p: p1, perArmPerDay: perArm, days: st.days, sims: SIMS, alpha: st.alpha, seed: st.seed }), [p1, perArm, st.days, st.alpha, st.seed]);
+  // Guided tour: sizing the test (top plot), then peeking (bottom plot).
+  const setup = (p: Partial<typeof DEFAULTS> = {}) => setSt({ ...DEFAULTS, ...p });
+  const sweep = (key: "mde" | "base" | "days", a: number, b: number) => (t: number) => set({ [key]: Math.round(a + t * (b - a)) });
+  const tour: TourStep[] = [
+    { id: "sample-size", caption: "A 10% conversion rate, and we want to detect a 10% relative lift, to 11%. The blue curve is the chance of detecting each true lift with 14,749 users per arm. At the orange line it reaches 80%.", apply: () => setup() },
+    { id: "mde", caption: "Shrink the effect you want to detect from 20% to 5% and watch users per arm explode. Halving the effect roughly quadruples the sample: 5% needs 57,760 per arm.", apply: () => setup({ mde: 20 }), animate: sweep("mde", 20, 5), animMs: 3000 },
+    { id: "baseline", caption: "Rarer events are harder too. Slide the baseline from 10% down to 1% with the same 10% lift, and the users needed grow about tenfold.", apply: () => setup(), animate: sweep("base", 10, 1), animMs: 2600 },
+    { id: "one-look", caption: "The bottom plot runs 2,000 A/A tests where nothing changed. Looking once at the end flags about 5% as significant, matching α, the teal dashed line.", apply: () => setup() },
+    { id: "peeking", caption: "Now check the p-value every day and stop at the first significant result. As the test runs longer, the orange curve climbs far above 5%: every look is another chance for noise to cross the line.", apply: () => setup({ days: 2 }), animate: sweep("days", 2, 30), animMs: 3200 },
+    { id: "takeaway", caption: "So fix the sample size before you start, run the full 10 days it implies here, and look once. If you must monitor, use a sequential test built for repeated looks.", apply: () => setup({ days: 10 }) },
+  ];
+
   const path = (pts: readonly (readonly [number, number])[], sx: (v: number) => number, sy: (v: number) => number) =>
     pts.map(([x, y], i) => `${i ? "L" : "M"}${sx(x).toFixed(1)},${sy(y).toFixed(1)}`).join(" ");
 
@@ -92,6 +104,7 @@ export default function AbTestLab() {
       title="A/B test power and peeking"
       subtitle="Top: how many users a conversion-rate test needs. Bottom: 2,000 seeded A/A tests (no real difference) showing what checking the p-value every day does to your false-positive rate."
       onReset={() => setSt(DEFAULTS)}
+      tour={tour}
       presets={[
         { label: "Small effect (3%)", apply: () => set({ mde: 3 }) },
         { label: "Rare event (1%)", apply: () => set({ base: 1 }) },

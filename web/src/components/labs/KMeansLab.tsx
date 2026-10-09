@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { fmt, gaussian, kmeansAssign, kmeansInertia, kmeansUpdate, rng, type Point2 } from "@/lib/ml";
-import { Button, LabFrame, Legend, linear, Plot, Segmented, Slider, Stat, svgPoint } from "./ui";
+import { Button, LabFrame, Legend, linear, Plot, Segmented, Slider, Stat, svgPoint, type TourStep } from "./ui";
 
 type Dataset = "blobs" | "stretched" | "uneven" | "rings";
 type Init = "random" | "plusplus" | "manual";
@@ -125,6 +125,25 @@ export default function KMeansLab() {
   };
 
   const hMax = Math.max(1, ...history);
+
+  // Guided tour: each step rebuilds dataset, K and initialization, then plays half-steps
+  // (one assign or one update per frame; history.length counts the half-steps taken).
+  const setup = (d: Dataset, kk: number, how: Init, s: number) => {
+    const pts = makeData(d); setDataset(d); setPoints(pts); setK(kk); setInit(how); setSeed(s); restart(pts, kk, how, s);
+  };
+  const halfSteps = (n: number) => (t: number) => {
+    if (history.length >= Math.round(t * n)) return;
+    if (phase === "assign") doAssign(); else doUpdate();
+  };
+  const tour: TourStep[] = [
+    { id: "start", caption: "Ninety grey points in three blobs, and three × centroids dropped on random points. Nothing belongs to any cluster yet.", apply: () => setup("blobs", 3, "random", 4) },
+    { id: "assign", caption: "Assignment step: every point takes the colour of its nearest centroid. The thin lines show who belongs to whom.", apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(1), animMs: 1800 },
+    { id: "update", caption: "Update step: each centroid jumps to the mean of the points it owns. Inertia, the total squared distance in orange, drops from 820 to 324.", apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(2), animMs: 2000 },
+    { id: "converge", caption: "Repeat assign and update until no point switches cluster. Here that takes two updates, and inertia settles at 121 with one centroid per blob.", apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(5), animMs: 3000 },
+    { id: "bad-start", caption: "Same data, seed 11. Two centroids end up splitting the top-right blob while one stretches across the other two. It still converges, but stuck at inertia 502 instead of 121.", apply: () => setup("blobs", 3, "random", 11), animate: halfSteps(7), animMs: 3400 },
+    { id: "plusplus", caption: "k-means++ picks starting points far apart, so each blob tends to get its own centroid. From this start one update reaches inertia 121.", apply: () => setup("blobs", 3, "plusplus", 4), animate: halfSteps(3), animMs: 2400 },
+    { id: "rings", caption: "A ring around a core. K-means boundaries are straight lines, so it slices the ring in half instead of separating ring from core, however it starts.", apply: () => setup("rings", 2, "plusplus", 4), animate: halfSteps(9), animMs: 3400 },
+  ];
   return (
     <LabFrame
       id="kmeans"
@@ -162,6 +181,7 @@ export default function KMeansLab() {
         </>
       }
       interpretation={note}
+      tour={tour}
     >
       <Plot title="K-means clustering" x={D} y={D} xLabel="feature 1" yLabel="feature 2" svgProps={{ ref: svgRef, onPointerDown: onClick }}>
         {() => (

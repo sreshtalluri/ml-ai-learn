@@ -3,6 +3,8 @@
 Everything is offline and deterministic. The document collection is SYNTHETIC.
 Run from guide/:  uv run code/16-rag/rag_eval.py
 """
+import math
+import re
 import sys
 from pathlib import Path
 
@@ -61,15 +63,33 @@ def hit(answer_span, retrieved_chunks):
 
 
 # ---------------------------------------------------------------------------
-# 1. One query, step by step
+# 1. One query, step by step, with the course's TF-IDF: raw counts x ln(N/DF), cosine.
+#    Same tokens, stop words, and formula as the website's RAG lab (web/src/lib/rag.ts),
+#    so the lesson, this script, and the lab print the same numbers. (scikit-learn's
+#    default smooths IDF to ln((1+N)/(1+DF)) + 1 and would rank these chunks differently.)
 # ---------------------------------------------------------------------------
-chunks, owner, vec, M = build(size=20, overlap=5)
-print(f"{len(chunks)} chunks of 20 words (overlap 5)")
+STOP = set("a an the and or of to in on for is are be can if my i do does how what which with it its that this "
+           "have has may must not was were by at from as".split())
+
+
+def course_tfidf_rank(q, chunks):
+    terms = lambda s: [t for t in re.findall(r"[\w']+", s.lower()) if t not in STOP]  # noqa: E731
+    docs = [terms(c) for c in chunks]
+    vocab = sorted({t for d in docs for t in d})
+    idf = {v: math.log(len(docs) / sum(v in d for d in docs)) for v in vocab}
+    vec = lambda toks: np.array([toks.count(v) * idf[v] for v in vocab])  # noqa: E731
+    qv = vec(terms(q))
+    scores = [float(qv @ vec(d) / (np.linalg.norm(qv) * np.linalg.norm(vec(d)) or 1)) for d in docs]
+    return sorted(((s, i) for i, s in enumerate(scores) if s > 0), key=lambda x: (-x[0], x[1]))
+
+
 q, gold, span = QUERIES[4]
-idx, scores = retrieve(q, chunks, vec, M, 3)
-print(f"\nQuery: {q}")
-for rank, (i, s) in enumerate(zip(idx, scores), 1):
-    print(f"  {rank}. [{owner[i]}] score={s:.3f} evidence={'YES' if span in chunks[i] else 'no '} | {chunks[i][:70]}...")
+print(f"Query: {q}")
+for size in (20, 30):
+    chunks, owner, _, _ = build(size=size, overlap=5)
+    print(f"\n{len(chunks)} chunks of {size} words (overlap 5), course TF-IDF:")
+    for rank, (s, i) in enumerate(course_tfidf_rank(q, chunks)[:3], 1):
+        print(f"  {rank}. [{owner[i]}] cosine={s:.3f} evidence={'YES' if span in chunks[i] else 'no '} | {chunks[i][:70]}...")
 
 # ---------------------------------------------------------------------------
 # 2. Evidence recall@3 across chunk sizes

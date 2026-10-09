@@ -135,6 +135,19 @@ On GitHub the reader sees the static figure and the link. On the website, everyt
 
 On the website this becomes the interactive quiz.
 
+## Visual explainers and guided tours
+
+Every lab has a **guided tour**: 4 to 8 steps, defined in the lab component as a `tour` prop on `LabFrame` (see `GradientDescentLab.tsx`). Each step has:
+
+- `id`: short kebab-case name, used by explainers.
+- `caption`: one or two plain sentences (no math markup; it's read aloud when narration is on). Say what to look at and why it matters, like a narrator pointing at the screen.
+- `apply`: puts the lab into the state for this step. Steps are absolute: set every control the step depends on, so any step works when jumped to directly.
+- `animate` (optional): called every frame with `t` from 0 to 1 after `apply`. Use it to move one value smoothly (a slider sweeping, an optimizer walking, a kernel sliding) so the learner sees continuous change rather than a cut.
+
+The website's **Watch** button plays the tour with captions, optional narration, and pause, back, and next controls.
+
+A **visual explainer** (`explainers/<id>.md`, frontmatter `title, summary, lab, lesson, minutes`) is the long-form version: short sections of prose, each starting with `<!-- step:<id> -->`. On the website the lab is pinned beside the text and switches to that step when the section scrolls into view. On GitHub the markers are invisible, so put the lab's static figure in lab markers at the top and keep each section readable on its own. Aim for 5 to 8 sections of 60 to 150 words: one idea per section, in the same order as the tour.
+
 ## Links
 
 Always link with **relative paths to `.md` files**. The website rewrites them to its own routes. Link glossary terms as `[logit](../../glossary.md#logit)`, which the website shows with a hover definition. Links to `.py` files open on GitHub.

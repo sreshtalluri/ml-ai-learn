@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button, LabFrame, Segmented } from "./ui";
+import { Button, LabFrame, Segmented, type TourStep } from "./ui";
 
 type Id = "client" | "gateway" | "orchestration" | "cache" | "retrieval" | "model" | "tools" | "logging" | "evaluation" | "governance";
 interface Comp { label: string; x: number; y: number; color: string; responsibility: string; io: string; failures: string; metrics: string; security: string; scaling: string }
@@ -71,12 +71,26 @@ export default function ArchitectureLab() {
   const visited = new Set(path.slice(0, step + 1).map((p) => p.id));
   const go = (s: number) => { setStep(s); setSel(path[Math.min(s, path.length - 1)].id); };
 
+  // Guided tour: each scenario's request walks hop by hop through the diagram.
+  const at = (sc: Scenario, s: number, id = PATHS[sc][s].id) => { setScenario(sc); setStep(s); setSel(id); };
+  const walk = (sc: Scenario) => (t: number) => { const s = Math.round(t * (PATHS[sc].length - 1)); setStep(s); setSel(PATHS[sc][s].id); };
+  const tour: TourStep[] = [
+    { id: "map", caption: "Ten boxes, one job each. A request enters at the client on the left, the purple orchestration box in the middle decides what to call, and logging, evaluation and governance on the right watch everything.", apply: () => at("happy", 0, "orchestration") },
+    { id: "normal", caption: "Follow a normal question hop by hop. The bold outline is where the request is now. Retrieval takes 90 ms, the model 1.2 s: almost all of the 1.3 seconds is generation.", apply: () => at("happy", 0), animate: walk("happy"), animMs: 3500 },
+    { id: "orchestration", caption: "Orchestration is the part you write. It picks the prompt template and model, assembles context, and checks the output against a schema before anything reaches the user.", apply: () => at("happy", 2) },
+    { id: "cache", caption: "Ask the same question again and the cache answers in 23 ms, skipping retrieval and the model entirely. The cache key must include the tenant, or one customer sees another's answer.", apply: () => at("cache", 0), animate: walk("cache"), animMs: 2400 },
+    { id: "outage", caption: "Now the primary model hangs. A 5 second timeout stops the wait, a circuit breaker routes to a fallback model, and an alert fires. Slow, but the user still gets an answer.", apply: () => at("outage", 0), animate: walk("outage"), animMs: 3500 },
+    { id: "tool", caption: "A refund request. The model only proposes the call; orchestration checks the user owns the order, the tool runs once with an idempotency key, and governance records who did what.", apply: () => at("tool", 0), animate: walk("tool"), animMs: 3500 },
+    { id: "trace", caption: "Every path ends at logging: prompt version, model version, tokens, latency and cost for each request. Without that trace, none of the failures you just saw can be debugged.", apply: () => at("happy", PATHS.happy.length - 1) },
+  ];
+
   return (
     <LabFrame
       id="architecture"
       title="Production LLM architecture"
       subtitle="Click any component for its responsibilities and failure modes, or trace a request through the system."
       onReset={() => { setSel("orchestration"); setScenario("happy"); setStep(0); }}
+      tour={tour}
       controls={
         <>
           <Segmented label="Scenario" value={scenario} onChange={(v) => { setScenario(v); setStep(0); setSel("client"); }}

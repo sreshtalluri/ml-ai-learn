@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { fmt, gaussian, linearFit, linearGrad, mae, mean, regularizedFit, rng, sum } from "@/lib/ml";
-import { Button, LabFrame, Legend, linear, Plot, Segmented, Slider, Stat, svgPoint, Tex } from "./ui";
+import { Button, LabFrame, Legend, linear, Plot, Segmented, Slider, Stat, svgPoint, Tex, type TourStep } from "./ui";
 
 type Pt = { x: number; y: number };
 type Penalty = "none" | "l2" | "l1";
@@ -78,6 +78,27 @@ export default function LinearRegressionLab() {
       : `Best fit with ${penalty.toUpperCase()} penalty λ = ${lambda}: w = ${fmt(f.w)} (unpenalized: ${fmt(ols.w)}). The penalty traded a little MSE for a smaller weight.`);
   };
 
+  // Guided tour (Watch mode + explainers). Each step resets the data and line, then moves one thing.
+  const setup = (nw: number, nb: number, pen: Penalty = "none", lam = 2, data = initial) => {
+    setPts(data); setW(nw); setB(nb); setPenalty(pen); setLambda(lam); setLr(0.01); setChanged("Guided tour step.");
+  };
+  const fitOf = (p: Pt[]) => linearFit(p.map((q) => q.x), p.map((q) => q.y));
+  const best0 = fitOf(initial);
+  const ix = initial.map((p) => p.x), iy = initial.map((p) => p.y);
+  // n gradient steps from (1, 4) with η = 0.01, recomputed from scratch so the step is absolute
+  const gdTo = (k: number) => { let cw = 1, cb = 4; for (let i = 0; i < k; i++) { const gg = linearGrad(ix, iy, cw, cb); cw -= 0.01 * gg.dw; cb -= 0.01 * gg.db; } setW(+cw.toFixed(4)); setB(+cb.toFixed(4)); };
+  const withOutlier = (y: number) => [...initial.slice(0, 9), { x: 9.5, y }];
+  const lamSweep = (t: number) => setLambda(+(t * lamMax).toFixed(1));
+  const tour: TourStep[] = [
+    { id: "residuals", caption: "Ten noisy points and a guessed teal line. Each orange segment is a residual: how far the line misses that point. MSE averages their squares.", apply: () => setup(1, 4) },
+    { id: "slope", caption: "Tilt the line by raising the slope. The residuals shrink, then grow again on the other side; MSE has a single lowest point.", apply: () => setup(0.5, 4), animate: (t) => setW(+(0.5 + t * 3).toFixed(2)), animMs: 3000 },
+    { id: "descend", caption: "Gradient descent does the tilting for us: each step nudges w and b against the gradient. MSE falls from 20.8 toward the best line.", apply: () => setup(1, 4), animate: (t) => gdTo(Math.round(t * 80)), animMs: 3000 },
+    { id: "best-fit", caption: "Gradient descent has arrived. Least squares gets the same line in one calculation, no steps: w ≈ 2.18, b ≈ 1.04, MSE 1.61, both gradients zero.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4)) },
+    { id: "outlier", caption: "Drag the last point down to y = 2. Because errors are squared, that one point drags the whole best-fit line toward it; the slope halves to about 1.06.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4)), animate: (t) => { const d = withOutlier(20.79 - t * 18.79), f = fitOf(d); setPts(d); setW(+f.w.toFixed(4)); setB(+f.b.toFixed(4)); }, animMs: 2800 },
+    { id: "ridge", caption: "L2 ridge adds λw² to the loss. As λ grows, the purple fit flattens and the blue path below shrinks toward zero, but never reaches it.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4), "l2", 0), animate: lamSweep, animMs: 3000 },
+    { id: "lasso", caption: "L1 lasso adds λ|w| instead. Its purple path drops in a straight line and hits exactly zero once λ passes 32.6: the feature is switched off.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4), "l1", 0), animate: lamSweep, animMs: 3000 },
+  ];
+
   const interpretation = (() => {
     const gap = g.mse - linearGrad(xs, ys, ols.w, ols.b).mse;
     if (gap < 1e-3) return "You are at the least-squares optimum: both gradients are zero, so any change to w or b raises MSE.";
@@ -88,6 +109,7 @@ export default function LinearRegressionLab() {
   return (
     <LabFrame
       id="linear-regression"
+      tour={tour}
       title="Linear regression lab"
       subtitle="Synthetic data: y = 2x + 3 + noise. Drag any point."
       onReset={reset}
