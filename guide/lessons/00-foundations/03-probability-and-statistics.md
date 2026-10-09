@@ -155,3 +155,33 @@ $\frac{0.4 \times 0.3}{0.4 \times 0.3 + 0.02 \times 0.7} = \frac{0.12}{0.12 + 0.
 **Next:** [The Python toolkit](04-python-toolkit.md)
 
 **Related:** [Naive Bayes](../05-instance-and-probabilistic/02-naive-bayes.md) · [Classification metrics](../04-classification/02-classification-metrics.md)
+
+## Interview angle
+
+<details>
+<summary><strong>A fraud model has 99% recall and a 1% false-positive rate. 0.1% of transactions are fraud. What fraction of flagged transactions are actually fraud?</strong></summary>
+
+Use Bayes' rule, or just count. Per million transactions: 1,000 are fraud, and 990 of them are flagged; 999,000 are legitimate, and 1% of those, 9,990, are flagged. Precision $= \frac{990}{990 + 9{,}990} = \frac{990}{10{,}980} \approx 0.090$. Only about 9% of flags are real fraud, even though both component rates sound excellent. The false-positive rate applies to a population 999 times larger, so it dominates. What to say next: precision depends on prevalence, so the same model has different precision in markets with different fraud rates, and a validation set rebalanced to 50/50 would report a wildly optimistic precision. To improve it, lower the false-positive rate (higher threshold, better features) or route flags through a cheap review step, and always report precision at the production base rate.
+
+</details>
+
+<details>
+<summary><strong>Why do we minimize the negative log-likelihood instead of maximizing the likelihood directly?</strong></summary>
+
+They have the same optimum, because the logarithm is monotonic, but the log version is far easier to work with. The likelihood of i.i.d. data is a product, $\prod_i P(y_i \mid x_i)$: with a million examples each around 0.5, that is $0.5^{10^6}$, which underflows to exactly 0 in floating point. The log turns the product into a sum, $\sum_i \ln P(y_i \mid x_i)$, which is numerically stable and decomposes per example, so minibatch SGD works. Negating it gives a loss to minimize. It also has an information-theoretic meaning: the average negative log-likelihood is the cross-entropy between the data and the model, in nats. Common losses are special cases: squared error is the negative log-likelihood under Gaussian noise, binary cross-entropy under a Bernoulli model, and categorical cross-entropy under a categorical model.
+
+</details>
+
+<details>
+<summary><strong>Model B beats model A by 0.8 accuracy points on the same 1,000-example test set. Do you ship B?</strong></summary>
+
+Not on that evidence alone. At accuracy near 0.87 with $n = 1000$, the standard error is $\sqrt{0.87 \times 0.13 / 1000} \approx 0.0106$, so a 95% interval is roughly ±2.1 points, and a 0.8-point gap sits well inside the noise. Because both models are scored on the same examples, use a paired analysis: look only at examples where they disagree and run McNemar's test, or bootstrap the accuracy difference by resampling test examples. Paired comparisons are much tighter than two independent intervals. Also ask: was this test set used during tuning (then it is optimistic for whichever model was tuned more), does B win on the slices that matter, and do latency, cost, and calibration favor it? If the gap matters commercially, collect more test data or run an online A/B test.
+
+</details>
+
+<details>
+<summary><strong>Users who adopt feature X churn 30% less. The PM wants to push every user into X. What do you say?</strong></summary>
+
+That is a correlation in observational data, and it can't tell us what pushing users into X would do. The likely confounder is engagement: highly engaged users both discover X and stay, the same way temperature drives both ice-cream sales and swimming incidents. There may also be selection (people who need X differ from those who don't) and reverse causation (users already planning to leave stop exploring features). To estimate the causal effect, run a randomized experiment: prompt a random half of eligible users toward X and compare churn between the two arms, not between adopters and non-adopters. If an experiment is impossible, causal-inference methods such as matching on pre-treatment engagement or difference-in-differences around a launch can help, but they rest on assumptions you must state. Expect the true effect to be much smaller than 30%.
+
+</details>

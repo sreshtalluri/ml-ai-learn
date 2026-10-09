@@ -11,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { getGlossary, getQuiz, REPO_URL, routeForFile, slugify } from "@/lib/content";
 import { BASE_PATH, SITE_URL } from "@/lib/site";
+import { isDeepSection } from "@/lib/toc";
 import { CodeBlock } from "./CodeBlock";
 import { GlossaryLink } from "./GlossaryLink";
 import { LabEmbed } from "./labs/LabEmbed";
@@ -50,6 +51,24 @@ function remarkCallouts() {
   };
 }
 
+const hastText = (n: any): string => (n.type === "text" ? n.value : (n.children ?? []).map(hastText).join(""));
+
+/** rehype plugin: wrap each h2 section in <section>; math, implementation, and engineering get data-deep (hidden in quick mode). */
+function rehypeSections() {
+  return (tree: any) => {
+    const out: any[] = [];
+    let cur: any = null;
+    for (const node of tree.children) {
+      if (node.type === "element" && node.tagName === "h2") {
+        cur = { type: "element", tagName: "section", properties: isDeepSection(hastText(node)) ? { dataDeep: "" } : {}, children: [] };
+        out.push(cur);
+      }
+      (cur ? cur.children : out).push(node);
+    }
+    tree.children = out;
+  };
+}
+
 const TITLES: Record<string, string> = { note: "Note", tip: "Engineering note", important: "Key distinction", warning: "Watch out", caution: "Caution" };
 
 function resolveHref(href: string, file: string): { kind: "internal" | "external" | "glossary"; href: string; term?: string } {
@@ -71,7 +90,7 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
-export function Markdown({ source, file }: { source: string; file: string }) {
+export function Markdown({ source, file, lesson }: { source: string; file: string; lesson?: boolean }) {
   const glossary = new Map(getGlossary().map((g) => [g.id, g]));
 
   const components: Components = {
@@ -119,7 +138,7 @@ export function Markdown({ source, file }: { source: string; file: string }) {
     <div className="prose">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkCallouts]}
-        rehypePlugins={[rehypeRaw, rehypeSlug, [rehypeKatex, { throwOnError: false, strict: false }]]}
+        rehypePlugins={[rehypeRaw, rehypeSlug, ...(lesson ? [rehypeSections] : []), [rehypeKatex, { throwOnError: false, strict: false }]]}
         components={components}
       >
         {preprocess(source)}

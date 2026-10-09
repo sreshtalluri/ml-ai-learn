@@ -157,3 +157,33 @@ Mean prediction 10. Bias² $= (12 - 10)^2 = 4$. Variance $= \frac{1 + 1 + 0 + 4 
 **Next:** [Linear regression](../03-regression/01-linear-regression.md)
 
 **Related:** [Regularization](../03-regression/02-regularization-and-regression-metrics.md) · [Training and regularization for neural networks](../12-training-regularization/01-training-and-regularization.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Explain the bias-variance trade-off. Where do K in KNN, tree depth, and ensembles sit on it?</strong></summary>
+
+Expected squared error at a point decomposes into bias² (how far the average fitted model is from the truth), variance (how much the fit changes across training sets), and irreducible noise $\sigma^2$. Making a model more flexible usually lowers bias and raises variance, so test error is U-shaped in complexity. KNN with $K = 1$ is low bias and high variance: the prediction follows individual noisy points. Large $K$ averages many neighbors, lowering variance but smoothing over real structure, so bias rises. A deep decision tree is low bias and high variance; a stump is the opposite. Ensembles each target one term: bagging and random forests average decorrelated deep trees to cut variance, and boosting adds shallow trees sequentially to cut bias. Regularization strength $\lambda$ moves a model along the same axis.
+
+</details>
+
+<details>
+<summary><strong>Model 1 has training error 0.05 and validation error 0.50. Model 2 has 0.27 and 0.27. Diagnose each and say what you'd try.</strong></summary>
+
+Model 1 is overfitting (high variance): it fits the training data but the large gap means it learned noise. Try more data, regularization (L2, dropout, shallower trees, larger $K$), a simpler model, early stopping, data augmentation, or bagging. Model 2 is underfitting (high bias): the gap is small, but both errors are high, and a small gap is not success. Try a more expressive model, better features (interactions, nonlinear transforms), less regularization, or longer training; more data won't help much. To confirm, plot learning curves against training-set size. A validation curve still falling means more data will help; two curves converged at a high plateau mean you need capacity or features. Also compare against the noise floor, such as human-level or best-known error, so you know how much improvement is achievable.
+
+</details>
+
+<details>
+<summary><strong>The true value at some x is 10. Trained on four different datasets, model A predicts 8, 9, 7, 8 and model B predicts 6, 14, 10, 10. Compute bias and variance for each. Which would you deploy?</strong></summary>
+
+Model A: mean prediction $(8 + 9 + 7 + 8)/4 = 8$, so bias $= 8 - 10 = -2$ and bias² $= 4$. Variance $= \frac{0^2 + 1^2 + (-1)^2 + 0^2}{4} = 0.5$. Expected error, excluding noise, $= 4.5$. Model B: mean $(6 + 14 + 10 + 10)/4 = 10$, so bias $= 0$. Variance $= \frac{16 + 16 + 0 + 0}{4} = 8$, expected error $8$. The biased but stable model A wins, even though B is right on average. That's the point being probed: unbiasedness isn't the goal, total error is. Ridge and lasso deliberately add bias to cut variance for the same reason. And if you could average many independently trained copies of B, its variance would shrink toward zero, which is exactly the motivation for bagging low-bias, high-variance models like deep trees.
+
+</details>
+
+<details>
+<summary><strong>Why does early stopping act as a regularizer?</strong></summary>
+
+Gradient descent from small initial weights moves the model gradually from simple to complex: early epochs fit the dominant, generalizable structure, and later epochs increasingly fit idiosyncrasies of the training set. Validation error therefore traces the same U-shape over epochs that it traces over model complexity. Early stopping monitors validation loss, keeps the best checkpoint, and stops after it fails to improve for a patience window, so the number of steps becomes the complexity knob. For linear models with squared loss there's a formal link: gradient descent stopped after $t$ steps with learning rate $\eta$ behaves approximately like ridge regression with $\lambda \propto 1/(\eta t)$. Practical notes: it's nearly free, but you are now selecting on the validation set, so report results on a separate test set, and use enough patience that a noisy validation curve doesn't stop training too early.
+
+</details>

@@ -24,4 +24,11 @@ export const LAB_COMPONENTS: Record<string, ComponentType> = {
   rag: dynamic(() => import("./RagLab")),
   architecture: dynamic(() => import("./ArchitectureLab")),
   "prompt-injection": dynamic(() => import("./PromptInjectionLab")),
+  lora: dynamic(() => import("./LoraLab")),
+  "vector-search": dynamic(() => import("./VectorSearchLab")),
+  "kv-cache": dynamic(() => import("./KvCacheLab")),
+  batching: dynamic(() => import("./BatchingLab")),
+  "agent-loop": dynamic(() => import("./AgentLoopLab")),
+  "recsys-funnel": dynamic(() => import("./RecsysFunnelLab")),
+  "ab-test": dynamic(() => import("./AbTestLab")),
 };

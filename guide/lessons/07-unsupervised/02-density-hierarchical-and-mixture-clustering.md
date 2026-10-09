@@ -156,3 +156,33 @@ Every point with at least one neighbor within 0.6 becomes core: 1.0, 1.5, 2.0, 2
 **Next:** [PCA, t-SNE, and UMAP](../08-dimensionality-reduction/01-pca.md)
 
 **Related:** [K-means](01-k-means.md) · [Model card: DBSCAN](../../models/dbscan.md) · [Model card: Gaussian mixture](../../models/gaussian-mixture-model.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Explain DBSCAN. When would you choose it over K-means?</strong></summary>
+
+DBSCAN defines clusters as dense regions. A point is a core point if at least `min_samples` points (including itself) lie within radius ε. Clusters form by connecting core points within ε of each other, plus border points within ε of a core point; everything else is labeled noise. Choose it over K-means when clusters have arbitrary, non-convex shapes (rings, curved bands), when you don't know the number of clusters, and when outliers exist and should be flagged rather than forced into a cluster. Downsides: one ε can't fit clusters of very different densities (HDBSCAN handles that), results are sensitive to scaling and to ε, and it struggles in high dimensions where distances concentrate. To pick ε, sort every point's distance to its `min_samples`-th nearest neighbor, plot the curve, and look for the knee.
+
+</details>
+
+<details>
+<summary><strong>How does a Gaussian mixture model differ from K-means, and what is EM doing?</strong></summary>
+
+A GMM models the data as $p(x) = \sum_k \pi_k \mathcal{N}(x \mid \mu_k, \Sigma_k)$: each component has its own mean, its own covariance (so elliptical shapes and different spreads), and a mixing weight. EM alternates two steps. The E-step computes responsibilities $\gamma_{ik}$, the posterior probability that point $i$ came from component $k$, via Bayes' rule. The M-step re-estimates each $\pi_k$, $\mu_k$, and $\Sigma_k$ as responsibility-weighted averages. Each iteration never decreases the likelihood, and like K-means, it converges to a local optimum; K-means is the limit with hard assignments and identical round clusters. Practical differences: soft membership (the lesson's point at $(2.2, 0)$ is 60% the wider cluster despite being nearer the tight one), a likelihood for anomaly scoring, and BIC for choosing $K$. Costs: $O(p^2)$ parameters per full covariance, and components can collapse onto single points without regularization.
+
+</details>
+
+<details>
+<summary><strong>DBSCAN labels 90% of your points as noise on one run and merges everything into one cluster on another. What do you adjust?</strong></summary>
+
+Both point to ε being wrong for the data's scale. Mostly noise: ε is too small, or `min_samples` too large, relative to typical neighbor distances, so few points qualify as core. One giant cluster: ε is large enough that dense regions connect through bridges of sparse points. Steps: first standardize the features, since an unscaled feature dominates every distance and makes any single ε wrong. Then compute each point's distance to its $k$-th nearest neighbor with $k$ = `min_samples`, sort, plot, and set ε near the knee where distances start rising sharply. A common starting point for `min_samples` is about twice the number of features, larger for noisy data. If clusters genuinely differ in density, no single ε works: switch to HDBSCAN, which effectively scans across ε and keeps the most stable clusters. In high dimensions, reduce dimensionality first.
+
+</details>
+
+<details>
+<summary><strong>When would you use hierarchical clustering, and why not on a million points?</strong></summary>
+
+Agglomerative clustering starts with every point as its own cluster and repeatedly merges the closest pair, producing a dendrogram that shows structure at every scale; cutting it at different heights gives different numbers of clusters without refitting. Use it for exploration on small-to-medium data, when nested structure is meaningful (product taxonomies, gene families), or when you need a custom distance. Linkage matters: single linkage chains through bridges, complete and average linkage make compact groups, and Ward behaves like K-means. It doesn't scale: standard implementations need the pairwise distance matrix, $O(n^2)$ memory. For $10^6$ points that's about $5 \times 10^{11}$ distances even storing only half the symmetric matrix, roughly 2 TB in float32, and time is $O(n^2)$ to $O(n^3)$. For large data, cluster a sample, or form a few thousand mini-batch K-means micro-clusters and run hierarchical clustering on their centroids.
+
+</details>

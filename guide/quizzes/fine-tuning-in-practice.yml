@@ -1,0 +1,136 @@
+title: Fine-tuning in practice
+lesson: fine-tuning-in-practice
+questions:
+  - id: ft-lora-params
+    type: numeric
+    difficulty: medium
+    prompt: |
+      LoRA with rank $r = 16$ is applied to the gate, up, and down projections of every layer in a synthetic model with $d = 4096$, $d_{ff} = 11008$, and 32 layers. Attention is not targeted. How many trainable parameters?
+    answer: 23199744
+    tolerance: 0
+    explanation: |
+      Each MLP matrix: $16 \times (4096 + 11008) = 16 \times 15{,}104 = 241{,}664$. Three per layer: $724{,}992$. Times 32 layers: $23{,}199{,}744$.
+  - id: ft-full-mem
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Full fine-tuning with mixed-precision AdamW (bf16 weights and gradients, fp32 master weights and two fp32 Adam moments). How many GB (decimal) are needed for a 3-billion-parameter model, before activations?
+    answer: 48
+    tolerance: 0.5
+    explanation: |
+      $2 + 2 + 4 + 4 + 4 = 16$ bytes per parameter. $16 \times 3 \times 10^9 = 48 \times 10^9$ bytes $= 48$ GB.
+  - id: ft-dpo-loss
+    type: numeric
+    difficulty: hard
+    prompt: |
+      DPO with $\beta = 0.1$. For one pair, the chosen response's log-ratio $\log \frac{\pi_\theta}{\pi_{\text{ref}}}$ is $+1.5$ and the rejected one's is $-0.5$. What is the loss? (3 decimals)
+    answer: 0.598
+    tolerance: 0.002
+    explanation: |
+      Argument $= 0.1 \times (1.5 - (-0.5)) = 0.2$. $\sigma(0.2) = 1/(1 + e^{-0.2}) = 1/1.8187 = 0.5498$. Loss $= -\ln 0.5498 = 0.598$.
+  - id: ft-mask
+    type: single
+    difficulty: medium
+    prompt: |
+      An SFT run on (prompt, answer) pairs produces a model that sometimes continues by writing a new user question after its answer. Prompts are about 4 times longer than answers. What is the most likely data bug?
+    options:
+      - The learning rate is too low.
+      - The loss is computed on prompt tokens as well as response tokens, and/or the end-of-turn token is missing from the targets.
+      - LoRA rank is too small.
+      - The model needs DPO instead of SFT.
+    answer: 1
+    explanation: |
+      Without masking, most of the gradient teaches the model to write user turns. Without an EOS or end-of-turn target, it never learns to stop. Both produce this symptom.
+    why_not:
+      - A low learning rate would make the model change less, not learn to write user turns.
+      - Correct.
+      - Rank limits capacity, it doesn't create this specific behavior.
+      - DPO shapes preferences; it doesn't fix a masking bug in the SFT data.
+  - id: ft-memory-lever
+    type: single
+    difficulty: medium
+    prompt: |
+      A LoRA run on a 13B model in bf16 is out of memory on a 24 GB GPU. Which change frees the most memory?
+    options:
+      - Halve the LoRA rank from 16 to 8.
+      - Load the frozen base in 4-bit NF4 (QLoRA).
+      - Switch from AdamW to SGD for the adapters.
+      - Remove the v projection from the target modules.
+    answer: 1
+    explanation: |
+      The frozen bf16 base is about 26 GB by itself. NF4 brings it to about 7 GB. The adapter-related memory (rank, optimizer, targets) is well under 1 GB, so changing it barely helps.
+    why_not:
+      - Adapter state is a few hundred MB; halving it saves very little.
+      - Correct.
+      - Optimizer state for adapters is already tiny.
+      - Same as rank, a small fraction of a small number.
+  - id: ft-forgetting
+    type: multi
+    difficulty: hard
+    prompt: |
+      A fine-tuned model improved on the target task but lost general reasoning ability. Which changes are reasonable mitigations? Select all that apply.
+    options:
+      - Mix a slice of general instruction data into the training set.
+      - Train for more epochs so the model converges.
+      - Lower the learning rate and use fewer epochs.
+      - Gate releases on a general-capability regression suite.
+      - Raise the LoRA rank to the maximum.
+    answer: [0, 2, 3]
+    explanation: |
+      Replay data, gentler training, and regression gates address forgetting. More epochs and more capacity usually make it worse.
+    why_not:
+      - Replay of general data is a standard mitigation.
+      - More epochs push further from the base model and increase forgetting.
+      - Smaller updates keep the model closer to the base.
+      - Gating catches regressions before users do.
+      - More capacity lets the model move further from its base, which typically increases forgetting.
+  - id: ft-grpo
+    type: numeric
+    difficulty: medium
+    prompt: |
+      GRPO samples a group of 4 answers with verifier rewards $[1, 1, 1, 0]$. Using population standard deviation, what is the advantage of the failing answer? (3 decimals)
+    answer: -1.732
+    tolerance: 0.002
+    explanation: |
+      Mean $= 0.75$. Deviations: $0.25, 0.25, 0.25, -0.75$. Variance $= (3 \times 0.0625 + 0.5625)/4 = 0.75/4 = 0.1875$. Std $= 0.4330$. Advantage $= -0.75 / 0.4330 = -1.732$.
+  - id: ft-choose
+    type: single
+    difficulty: medium
+    prompt: |
+      You have 20,000 prompts for SQL generation and an executor that checks whether each query returns the expected rows. The SFT model already writes valid SQL most of the time. What is a natural next step?
+    options:
+      - DPO on human-written preference pairs you would need to collect.
+      - RL with verifiable rewards (for example GRPO) using the executor as the reward.
+      - Full fine-tuning on the prompts without answers.
+      - Increase decoding temperature.
+    answer: 1
+    explanation: |
+      A programmatic checker is exactly what RLVR needs. Sample several queries per prompt, reward the ones that return the right rows, and push their probability up.
+    why_not:
+      - Possible, but you would have to build preference data when you already have a reward.
+      - Correct.
+      - There are no targets to learn from without answers.
+      - Temperature changes sampling, not the model's skill.
+  - id: ft-lora-init
+    type: short
+    difficulty: medium
+    prompt: Why is LoRA's $B$ matrix initialized to zero while $A$ is random, and what happens at inference after merging?
+    sample_answer: |
+      With $B = 0$, the update $BA$ is zero, so training starts exactly at the pretrained model with no random perturbation. $A$ is random so that the gradient with respect to $B$ is non-zero and learning can start. After training, $W_0 + \frac{\alpha}{r}BA$ is computed once and stored, so the merged model has the same shape and latency as the base.
+    explanation: Zero init preserves the starting point; random A breaks symmetry; merging removes inference overhead.
+  - id: ft-wrong-tool
+    type: single
+    difficulty: easy
+    prompt: Which requirement is the weakest reason to fine-tune?
+    options:
+      - The model must answer with today's inventory levels.
+      - A small model must match a large model's output on one narrow classification task.
+      - Outputs must always follow a company's tone and structure.
+      - Latency must drop by replacing long few-shot prompts.
+    answer: 0
+    explanation: Changing facts belong in retrieval or tool calls. Fine-tuning shapes behavior, not live data.
+    why_not:
+      - Inventory changes constantly; weights would be stale immediately.
+      - Distillation into a small model is a good use of fine-tuning.
+      - Style and structure are behaviors that fine-tuning shapes well.
+      - Fine-tuning can bake in behavior that long prompts were providing, saving tokens.

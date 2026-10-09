@@ -1,7 +1,7 @@
 <!-- GENERATED from reliability-cost-and-observability.yml by web/scripts/gen-quizzes.mjs. Edit the .yml, then run: npm run gen:quizzes -->
 # Quiz: Reliability, cost, and observability
 
-Covers the lesson [Reliability, cost, and observability](../lessons/18-production-ai/02-reliability-cost-and-observability.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/reliability-cost-and-observability/) grades these interactively and tracks a review queue.
+Covers the lesson [Reliability, cost, and observability](../lessons/20-production-ai/02-reliability-cost-and-observability.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/reliability-cost-and-observability/) grades these interactively and tracks a review queue.
 
 ## 1. Calculation (easy)
 

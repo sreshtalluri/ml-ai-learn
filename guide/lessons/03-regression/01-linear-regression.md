@@ -237,3 +237,33 @@ Update: $w = 0 + 0.8667 = 0.8667$, $b = 0 + 0.6 = 0.6$. (The true line is $y = 2
 **Next:** [Regularization and regression metrics](02-regularization-and-regression-metrics.md)
 
 **Related:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Logistic regression](../04-classification/01-logistic-regression.md) · [Model card: linear regression](../../models/linear-regression.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Derive the gradient of the MSE loss for linear regression with respect to w and b.</strong></summary>
+
+With $\hat{y}_i = w \cdot x_i + b$ and $\text{MSE} = \frac{1}{n}\sum_i (y_i - \hat{y}_i)^2$, apply the chain rule per term. The derivative of $(y_i - \hat{y}_i)^2$ with respect to $\hat{y}_i$ is $-2(y_i - \hat{y}_i) = 2(\hat{y}_i - y_i)$; then $\partial \hat{y}_i/\partial w = x_i$ and $\partial \hat{y}_i/\partial b = 1$. Averaging: $\nabla_w = \frac{2}{n}\sum_i(\hat{y}_i - y_i)\,x_i$ and $\partial_b = \frac{2}{n}\sum_i(\hat{y}_i - y_i)$. In matrix form, $\nabla_w = \frac{2}{n}X^\top(Xw + b - y)$: error times input. Quick check with $x = [1, 2, 3]$, $y = [2, 4, 5]$, $w = 1$, $b = 0$: the errors are $-1, -2, -2$, so $\nabla_w = \frac{2}{3}(-1 - 4 - 6) = -7.33$. Setting the gradient to zero gives the normal equation $X^\top X w = X^\top y$, with the bias absorbed as a column of ones.
+
+</details>
+
+<details>
+<summary><strong>Normal equation or gradient descent: when do you use each for linear regression?</strong></summary>
+
+The normal equation $w = (X^\top X)^{-1}X^\top y$ is exact with no learning rate, but costs $O(np^2 + p^3)$ and needs the $p \times p$ matrix in memory: fine for thousands of features, painful beyond roughly $10^4$ to $10^5$. Libraries never actually invert it; they use QR, Cholesky, or SVD, which are more stable when features are nearly collinear and $X^\top X$ is ill-conditioned. Gradient descent costs $O(np)$ per step, streams minibatches when data doesn't fit in memory, supports online updates, and extends to penalties like lasso and to models with no closed form. Its costs: tuning the learning rate, needing scaled features to converge quickly, and only approximate convergence. Rule: for moderate $p$ with data in memory, use a direct solver (scikit-learn's `LinearRegression` does); for huge $n$ or $p$, or streaming data, use SGD.
+
+</details>
+
+<details>
+<summary><strong>Your residuals-versus-predictions plot fans out: residual spread grows with the prediction. What does that mean, and what do you do?</strong></summary>
+
+Heteroscedasticity: error variance grows with the size of the target, typical for prices, incomes, and counts, where errors are roughly proportional. Consequences: coefficients remain unbiased, but standard errors and confidence intervals are wrong, and MSE training is dominated by the large-valued examples, so small-valued ones get relatively poor fits. Fixes: model `log(y)` so errors become multiplicative and roughly constant (back-transform carefully: exponentiating the predicted mean log gives the median, not the mean, so apply a smearing correction if you need the mean); weighted least squares with weights inversely proportional to the estimated variance; heteroscedasticity-robust standard errors if you only need inference; or a loss aligned with relative error. A curved pattern in the same plot means something else: a missing nonlinear term.
+
+</details>
+
+<details>
+<summary><strong>Two features have correlation 0.98. What happens to their coefficients, and does it hurt predictions?</strong></summary>
+
+The fit can trade weight between them almost freely: many combinations of $w_1$ and $w_2$ give nearly the same predictions, so $X^\top X$ is nearly singular and the coefficients become large, high-variance, sometimes opposite in sign, and they swing between retrains on slightly different data. Predictions on data with the same correlation structure are usually fine, because the combined effect is well determined. The damage is to interpretation ("feature 2 has a negative effect" is meaningless) and to robustness: if production data breaks the correlation, predictions become unstable. Diagnose with variance inflation factors or the condition number of $X$. Fix with ridge regression, which shrinks and shares weight across the pair; drop or combine one feature; or use PCA. Lasso keeps one of the pair somewhat arbitrarily, so don't read its choice as causal.
+
+</details>

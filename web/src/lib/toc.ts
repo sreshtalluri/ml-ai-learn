@@ -21,3 +21,20 @@ export function toc(markdown: string): TocItem[] {
 
 /** Remove the leading "# Title" line; pages render the title from frontmatter. */
 export const stripH1 = (md: string) => md.replace(/^\s*# .+\n/, "");
+
+/** Lesson sections hidden in quick mode: math, implementation, engineering, and the knowledge check (sections 3 to 6). */
+export const isDeepSection = (heading: string) => /^[3-6]\.\s/.test(heading.trim());
+
+/** Split a lesson body into `##` sections (the preamble before the first one has heading ""). */
+export function sections(markdown: string): { heading: string; text: string }[] {
+  const out = [{ heading: "", text: "" }];
+  let fenced = false;
+  for (const line of markdown.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    const m = !fenced && line.match(/^##\s+(.+?)\s*$/);
+    if (m) out.push({ heading: m[1], text: "" });
+    else out[out.length - 1].text += line + "\n";
+  }
+  return out;
+}
+

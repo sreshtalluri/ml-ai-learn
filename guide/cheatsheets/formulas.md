@@ -32,4 +32,4 @@ summary: The formulas worth remembering, with the lesson that derives each.
 | Perplexity | $\exp(\text{mean token loss})$ | [Tokenization](../lessons/15-llms/01-tokenization-and-pretraining.md) |
 | LoRA | $W = W_0 + \frac{\alpha}{r}BA$ | [Adapting LLMs](../lessons/15-llms/03-adapting-llms.md) |
 | nDCG | $\frac{\sum \text{rel}_i/\log_2(i+1)}{\text{IDCG}}$ | [LLM evaluation](../lessons/17-llm-evaluation/01-llm-evaluation.md) |
-| Little's law | $L = \lambda W$ | [Production architecture](../lessons/18-production-ai/01-production-architecture.md) |
+| Little's law | $L = \lambda W$ | [Production architecture](../lessons/20-production-ai/01-production-architecture.md) |

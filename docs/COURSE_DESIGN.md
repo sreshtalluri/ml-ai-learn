@@ -68,6 +68,28 @@ Priority: **A** = build now (high learning leverage, misconception is common and
 - **"Try it" prompts.** Every lesson with a lab now has two or three predict-then-check experiments right under the figure, written so they work with the static figure too.
 - **Labs everywhere they matter.** The nine labs marked "built" above bring the total to 20, covering every module where a learner can usefully move a parameter.
 
+## v3: an all-in-one reference with quick and interview modes
+
+The course had two gaps for people preparing for ML and AI roles: thin coverage of what AI-engineering interviews now ask about (inference, agents, fine-tuning mechanics, system design), and no fast path through 30 hours of material. v3 fixes both without forking the content.
+
+**New content (8 lessons, 7 labs).** Placed where the dependencies are, so the default order still reads top to bottom:
+
+| Module | Lessons | Lab | Why it's in the course |
+|---|---|---|---|
+| 15 Large language models | Fine-tuning in practice | LoRA and fine-tuning memory | SFT data, LoRA/QLoRA arithmetic, DPO and RL fine-tuning; the "why does fine-tuning need so much memory" question |
+| 16 RAG | Vector search | Approximate nearest neighbors | ANN indexes are where retrieval quality and latency trade off |
+| 18 LLM inference and serving | LLM inference, Serving LLMs | KV cache, batching | Cost and latency dominate AI-engineering design rounds |
+| 19 Agents and tool use | Tool use and agents, Reliable agents | Agent loop | Tool calling and agent reliability were only covered from the security side |
+| 22 ML system design | ML system design, Experimentation and A/B testing | Recommendation funnel, A/B test | The ML engineer and data scientist design rounds |
+
+Production, security, and projects moved to modules 20, 21, and 23 to make room.
+
+**Three ways through the same lessons.**
+
+- **Quick read** hides sections 3 to 6 (math, implementation, engineering, knowledge check) with one switch, keeping the intuition, the lab, the summary, and interview questions. Whole course: about 8 hours instead of 30. It's a CSS class on `<html>`, so there's no duplicate content to maintain.
+- **Interview angle** sections end every lesson: 195 questions with one-minute model answers, written to the brief "explain the mechanism, choose between options, diagnose a failure, calculate or design".
+- **Role sprints** (`guide/sprints/`) give ML engineers, AI engineers, applied scientists, and data scientists a 7-day plan of lessons, labs, cheat sheets, and a day-7 mock interview. The **rapid-fire drill** on the website takes any sprint, module, or lesson as its scope and mixes interview flashcards with timed quiz questions.
+
 ## Remaining backlog
 
 The B-priority rows above. Each follows the same recipe: a component in `web/src/components/labs/`, an entry in `registry.tsx` and `src/lib/labs.ts`, and a marker around the lesson figure.

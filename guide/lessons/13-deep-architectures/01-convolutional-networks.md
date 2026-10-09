@@ -173,3 +173,33 @@ Convolution: $(32 - 5)/1 + 1 = 28$, so 28×28. Pooling: $28/2 = 14$, so 14×14.
 **Next:** [Recurrent networks](02-recurrent-networks.md)
 
 **Related:** [Training and regularization](../12-training-regularization/01-training-and-regularization.md) · [Model card: CNN](../../models/cnn.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why do CNNs need far less data than an MLP to learn from images?</strong></summary>
+
+Because they build in two assumptions that are true of images: locality and translation equivariance. Locality means each output depends on a small $k \times k$ patch, since nearby pixels are related. Weight sharing means the same kernel is applied at every location, so a pattern learned in one corner is recognized everywhere, and shifting the input shifts the feature map. Pooling adds some tolerance to small shifts. These biases shrink the hypothesis space dramatically. A 3×3 conv from 64 to 128 channels has $128 \times (64 \times 9 + 1) = 73{,}856$ parameters regardless of image size; a dense layer from a $32 \times 32 \times 64$ input to an output of the same size needs over 4 billion. Fewer free parameters, each trained on every spatial location, means less data to fit them. Vision transformers have weaker biases and catch up only with much larger datasets or pretraining.
+
+</details>
+
+<details>
+<summary><strong>An input of 3×224×224 goes through a 7×7 convolution with 64 filters, stride 2, padding 3, then 3×3 max pooling with stride 2 and padding 1. What are the output shapes and parameter count?</strong></summary>
+
+Use $H_{\text{out}} = \lfloor (H - k + 2p)/s \rfloor + 1$. Convolution: $\lfloor (224 - 7 + 6)/2 \rfloor + 1 = \lfloor 223/2 \rfloor + 1 = 111 + 1 = 112$, so the output is $[64, 112, 112]$. Pooling: $\lfloor (112 - 3 + 2)/2 \rfloor + 1 = \lfloor 111/2 \rfloor + 1 = 55 + 1 = 56$, giving $[64, 56, 56]$. Parameters: $C_{\text{out}} \times (C_{\text{in}} \times k \times k + 1) = 64 \times (3 \times 49 + 1) = 64 \times 148 = 9{,}472$. Pooling has none. This is the standard ResNet stem: it cuts spatial size 4x in each dimension before the expensive layers, so later convolutions run on 16x fewer positions. In code, don't trust hand arithmetic for flattened sizes; push a dummy tensor of shape $[1, 3, 224, 224]$ through and print the shapes.
+
+</details>
+
+<details>
+<summary><strong>Your image classifier scores 98% on validation, but fails on photos from the production camera. What do you check?</strong></summary>
+
+Assume distribution shift or a shortcut until proven otherwise. First, preprocessing parity: same resize and crop, same normalization mean and standard deviation as training, RGB versus BGR channel order, same resolution, and same JPEG compression. A mismatch here is the cheapest bug to find. Second, shortcut learning: did the model learn a background, watermark, or camera artifact correlated with the label in the training set? Saliency maps such as Grad-CAM, or testing on images with backgrounds swapped, reveal this. Third, real shift: lighting, angle, sensor noise, or class balance differ in production. Collect a few hundred labeled production images as a new evaluation slice, measure the gap, and look at the confusion matrix. Fixes include augmentation that mimics the camera (blur, color jitter, noise), fine-tuning on production samples, and keeping that slice as a permanent regression test.
+
+</details>
+
+<details>
+<summary><strong>You have 5,000 labeled images for a new classification task. CNN or vision transformer?</strong></summary>
+
+Either, as long as it is pretrained; training anything from scratch on 5,000 images is the real mistake. A pretrained CNN (ResNet, EfficientNet, ConvNeXt) is a strong, cheap default: its locality bias makes it data-efficient, it handles high resolution efficiently, and it is fast on edge hardware. A pretrained vision transformer can match or beat it when pretrained on very large data, and it captures global context from the first layer, but plain self-attention cost grows quadratically with the number of patches. With 5,000 images, I'd fine-tune both a ConvNeXt-class CNN and a comparably sized pretrained ViT using the same augmentation and schedule, and pick by validation accuracy at the latency budget. Start with a frozen backbone and linear head as the baseline, then fine-tune the top layers or everything with a small learning rate. Measure latency on the target hardware, not in FLOPs.
+
+</details>

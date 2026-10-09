@@ -6,7 +6,7 @@ import { actions, useProgress } from "@/lib/progress";
 import { MiniMarkdown } from "../MiniMarkdown";
 
 /** Deterministic shuffle keyed by a string, so server and client render the same order. */
-function shuffled(n: number, key: string): number[] {
+export function shuffled(n: number, key: string): number[] {
   let h = 2166136261;
   for (const c of key) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   const idx = Array.from({ length: n }, (_, i) => i);
@@ -31,7 +31,7 @@ const TYPE_LABEL: Record<Question["type"], string> = {
   order: "Arrange the steps", match: "Match the concepts", short: "Reflection",
 };
 
-function QuestionView({ q, response, setResponse, checked }: {
+export function QuestionView({ q, response, setResponse, checked }: {
   q: Question; response: unknown; setResponse: (r: unknown) => void; checked: boolean;
 }) {
   const opt = "w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors";

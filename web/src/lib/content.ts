@@ -6,6 +6,7 @@ import matter from "gray-matter";
 import YAML from "yaml";
 import { SKILLS, type Skill } from "./skills";
 import type { Quiz } from "./quiz-types";
+import { isDeepSection, sections } from "./toc";
 
 export const GUIDE_DIR = path.join(process.cwd(), "..", "guide");
 export const REPO_URL = "https://github.com/sreshtalluri/ml-ai-learn";
@@ -27,6 +28,29 @@ export interface Lesson {
   body: string;
   labs: string[];    // lab ids referenced by markers
   quiz?: string;     // quiz id referenced by marker
+  quickMinutes: number; // estimate with math, implementation, and engineering hidden
+  interview: InterviewQuestion[];
+}
+
+export interface InterviewQuestion { q: string; a: string }
+
+const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
+
+/** Questions in the lesson's "## Interview angle" section: <details><summary><strong>Q</strong></summary> A </details>. */
+export function parseInterview(body: string): InterviewQuestion[] {
+  const sec = sections(body).find((x) => /^interview angle$/i.test(x.heading));
+  if (!sec) return [];
+  return [...sec.text.matchAll(/<summary>\s*<strong>([\s\S]+?)<\/strong>\s*<\/summary>([\s\S]*?)<\/details>/g)]
+    .map((m) => ({ q: m[1].trim(), a: m[2].trim() }));
+}
+
+/** Quick-read estimate: the share of words still visible (deep sections hidden, collapsed answers unopened). */
+function quickMinutes(body: string, minutes: number) {
+  const total = words(body) || 1;
+  const visible = sections(body)
+    .filter((x) => !isDeepSection(x.heading))
+    .reduce((n, x) => n + words(x.text.replace(/<details>[\s\S]*?<\/details>/g, "")), 0);
+  return Math.max(5, Math.round((minutes * visible) / total));
 }
 
 export interface Module {
@@ -76,6 +100,8 @@ export function getModules(): Module[] {
             body,
             labs: markers(body, "lab"),
             quiz: quizzes[0],
+            quickMinutes: quickMinutes(body, Number(d.minutes ?? 20)),
+            interview: parseInterview(body),
           };
         });
       return {
@@ -213,6 +239,25 @@ export function getQuizzes(): Quiz[] {
 
 export const getQuiz = (id: string) => getQuizzes().find((q) => q.id === id);
 
+// ---------- interview sprints ----------
+
+export interface Sprint { id: string; title: string; role: string; summary: string; order: number; file: string; body: string; lessons: string[] }
+
+export function getSprints(): Sprint[] {
+  return list("sprints")
+    .filter((f) => f.endsWith(".md") && f !== "README.md")
+    .map((f) => {
+      const file = `sprints/${f}`;
+      const { data, content } = matter(read(file));
+      // lessons in the order the sprint links them
+      const lessons = [...new Set([...content.matchAll(/\]\(\.\.\/lessons\/[^/]+\/\d\d-([\w-]+)\.md/g)].map((m) => m[1]))];
+      return { id: f.replace(/\.md$/, ""), title: data.title ?? f, role: data.role ?? "", summary: data.summary ?? "", order: Number(data.order ?? 99), file, body: content, lessons };
+    })
+    .sort((a, b) => a.order - b.order);
+}
+
+export const getSprint = (id: string) => getSprints().find((s) => s.id === id);
+
 // ---------- generic documents ----------
 
 export function getDoc(rel: string) {
@@ -240,5 +285,7 @@ export function routeForFile(rel: string): string | null {
   if ((m = norm.match(/^cheatsheets\/(.+)\.md$/)) && m[1] !== "README") return `/cheatsheets/${m[1]}/`;
   if (norm === "cheatsheets/README.md") return "/cheatsheets/";
   if ((m = norm.match(/^quizzes\/(.+)\.md$/))) return `/quizzes/${m[1]}/`;
+  if (norm === "sprints/README.md") return "/sprints/";
+  if ((m = norm.match(/^sprints\/(.+)\.md$/))) return `/sprints/${m[1]}/`;
   return null;
 }

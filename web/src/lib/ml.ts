@@ -317,7 +317,9 @@ export function rng(seed: number) {
 /** Standard normal via Box-Muller using a seeded uniform source. */
 export function gaussian(rand: () => number) {
   const u = 1 - rand(), v = rand();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  // Math.log/cos differ in the last bits between Node and browsers; rounding keeps
+  // server-rendered lab SVGs identical to the client render (no hydration mismatch).
+  return Math.round(Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * 1e9) / 1e9;
 }
 
 /** Format a number for display: fixed decimals, trims -0. */

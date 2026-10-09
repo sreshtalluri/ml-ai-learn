@@ -191,3 +191,33 @@ Runnable script with the figure and all four comparisons: [`code/01-ml-vocabular
 **Next:** [The end-to-end ML workflow](../02-ml-workflow/01-ml-workflow.md)
 
 **Related:** [K-means](../07-unsupervised/01-k-means.md) · [Tokenization and pretraining](../15-llms/01-tokenization-and-pretraining.md) · [The language of ML](01-ml-vocabulary.md)
+
+## Interview angle
+
+<details>
+<summary><strong>In what sense is LLM pretraining "self-supervised," and how does it differ from supervised learning?</strong></summary>
+
+The objective is mathematically supervised: maximize $\sum_t \log P_\theta(\text{token}_t \mid \text{token}_{<t})$, a cross-entropy over the vocabulary at every position. The difference is where labels come from: they are manufactured from the data itself, with each token serving as the target for the context before it. A sequence of $n$ tokens yields $n - 1$ training pairs with no human annotation, so a trillion-token corpus gives about a trillion examples. Label cost drops to zero, so the dataset scales with available text instead of an annotation budget, and to predict well the model has to learn syntax, facts, and some reasoning. Other self-supervised tasks include masked-token prediction (BERT), masked image patches, and contrastive learning between augmented views. Pretraining is then followed by supervised fine-tuning and preference optimization to make the model useful.
+
+</details>
+
+<details>
+<summary><strong>You have 500 labeled support tickets and 200,000 unlabeled ones. What approaches would you consider, and in what order?</strong></summary>
+
+First a baseline: TF-IDF plus logistic regression on the 500 labels, scored with cross-validation, so every later idea has a number to beat. Then, usually the biggest win: pretrained representations. Embed every ticket with a sentence-embedding model and train a light classifier on top, or fine-tune a small pretrained model; much of the unlabeled data's value is already captured by pretraining. Self-training: predict on the unlabeled pool, add confident pseudo-labels, refit; it helps when classes are well separated, but confirmation bias can amplify the model's own errors. Active learning: label the tickets the model is least sure about, so each labeling hour counts more. Weak supervision: keyword rules or LLM zero-shot labels as noisy training data, checked against a labeled sample. Whatever you do, keep a clean, human-labeled test set for the final evaluation.
+
+</details>
+
+<details>
+<summary><strong>A team ran K-means on customers and launched a campaign targeting "cluster 3, our high-value customers." Results disappointed. What likely went wrong?</strong></summary>
+
+They treated a cluster as a verified category. K-means always returns $K$ groups, even in data with no real group structure, and it minimizes within-cluster distance, not anything about value. Questions to ask: were features scaled, or did one large-unit feature such as total spend define the clusters? Is cluster 3 stable across random seeds and subsamples, or does its membership change every run (cluster numbers are arbitrary and get renumbered on refit)? Was it validated against an outcome, such as future revenue or response to past campaigns? Was "high-value" read off the centroid, which describes the average but not most members? Better framing: if the goal is campaign response, that's a supervised problem. Run a small randomized campaign, collect responses, and model who responds. Use clusters as hypotheses and descriptions, not targeting rules.
+
+</details>
+
+<details>
+<summary><strong>When would you frame a recommendation problem as reinforcement learning rather than supervised learning?</strong></summary>
+
+When the model's actions change the data it later learns from and the reward arrives after sequences of decisions. Recommendation partly fits: what you show determines what users can click, so logged clicks are biased toward past choices, and long-term satisfaction depends on many recommendations, not one. Even so, most production systems start supervised: train a ranker on logged impressions and clicks, which is stable, cheap, and debuggable. Then add exploration (epsilon-greedy or contextual bandits) to collect less biased feedback, and use off-policy evaluation with propensity weighting to estimate how a new policy would do from old logs. Full RL is justified with a simulator or very high interaction volume and a well-defined reward; otherwise reward design invites hacking, such as optimizing clickbait. Rule of thumb: supervised on logs first, bandits second, full RL last.
+
+</details>

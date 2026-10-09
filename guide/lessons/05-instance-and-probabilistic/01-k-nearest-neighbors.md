@@ -219,3 +219,33 @@ K = 1: nearest is P2, predict **1**. K = 3: P2 (1), P1 (0), P3 (1), so votes 2 t
 **Next:** [Naive Bayes](02-naive-bayes.md)
 
 **Related:** [K-means](../07-unsupervised/01-k-means.md) · [Word embeddings](../09-classical-nlp/02-word-embeddings.md) · [Model card: KNN](../../models/k-nearest-neighbors.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why must you scale features before using KNN?</strong></summary>
+
+Distance sums squared differences across features, so the feature with the largest numeric range dominates. In this lesson's example, raw income differences up to 34 outweighed age differences, and with $K = 3$ the query was predicted "did not buy." After standardizing each feature to mean 0 and standard deviation 1, customer D, with almost the same age, became a neighbor and the prediction flipped to "bought." Same data, same $K$, opposite answer, purely because of units. Standardization makes one unit mean one standard deviation for every feature, giving each an equal say by default. Details: fit $\mu$ and $\sigma$ on the training split only and apply them to every query; consider robust scaling when outliers are heavy; and remember equal say isn't always right, since irrelevant features still add noise to every distance, so feature selection or weighting matters too.
+
+</details>
+
+<details>
+<summary><strong>How do you choose K in KNN? What happens at K = 1 and at K = n?</strong></summary>
+
+At $K = 1$, training error is zero (each point is its own nearest neighbor) and the boundary is jagged, following every noisy point: low bias, high variance. At $K = n$, every query gets the training set's majority class or global mean: maximal bias, almost no variance. Choose $K$ in between by cross-validation: plot validation error against $K$ and take the minimum, or the largest $K$ within one standard error of it for a simpler model. Practical details: odd $K$ avoids ties in binary problems; `weights="distance"` makes results less sensitive to the exact choice; with class imbalance, large $K$ drifts toward the majority class, so tune against a balanced metric. A starting heuristic is $K \approx \sqrt{n}$, but treat it only as a starting point. Never choose $K$ on the test set, and never report $K = 1$'s training accuracy.
+
+</details>
+
+<details>
+<summary><strong>You need nearest neighbors over 100 million 768-dimensional embeddings with a 20 ms latency budget. How do you build it?</strong></summary>
+
+Brute force costs $O(np)$ per query: $10^8 \times 768 \approx 7.7 \times 10^{10}$ multiply-adds, and the float32 vectors alone take about 307 GB. That's too slow on CPU and too large for one machine's RAM, so use approximate nearest neighbor search. HNSW builds a navigable multi-layer graph with high recall and low latency, but it's memory-hungry (vectors plus graph links). IVF clusters vectors with K-means and searches only the few nearest lists; combined with product quantization (IVF-PQ), each vector compresses to tens of bytes, so 100M vectors fit in a few GB, at some recall cost. Recover precision by re-ranking the top few hundred candidates with exact distances, and shard across machines if needed. Measure recall@k against brute force on a sample, and tune `efSearch` or `nprobe` to trade recall for latency.
+
+</details>
+
+<details>
+<summary><strong>What is the curse of dimensionality, and why does it hurt KNN in particular?</strong></summary>
+
+In high dimensions, distances concentrate: for random points, the ratio of nearest to farthest neighbor distance approaches 1, so "nearest" carries little information. Each irrelevant dimension adds its own random squared difference to every distance, and those noise terms swamp the few dimensions that carry signal. Volume grows exponentially too: to capture 10% of uniformly distributed data in a sub-cube in 10 dimensions, each side must cover $0.1^{1/10} \approx 79\%$ of that feature's range, so "local" neighborhoods aren't local anymore. For KNN this means you need exponentially more data to keep neighbors close, and accuracy degrades on raw high-dimensional features. Remedies: feature selection, PCA, or learned embeddings, where useful structure lives on a low-dimensional manifold and distances become meaningful. That's why KNN over learned embeddings works and KNN over raw pixels doesn't.
+
+</details>

@@ -12,7 +12,7 @@ On the [website](https://sreshtalluri.github.io/ml-ai-learn/models/) the cards a
 | Clustering | [K-means](k-means.md) · [DBSCAN](dbscan.md) · [Hierarchical clustering](hierarchical-clustering.md) · [Gaussian mixture](gaussian-mixture-model.md) |
 | Dimensionality reduction | [PCA](pca.md) · [Autoencoder](autoencoder.md) |
 | Neural networks | [MLP](multilayer-perceptron.md) · [CNN](cnn.md) · [RNN](rnn.md) · [LSTM](lstm.md) · [GRU](gru.md) |
-| Transformers and LLMs | [Transformer encoder](transformer-encoder.md) · [Transformer decoder](transformer-decoder.md) · [Large language model](large-language-model.md) · [Embedding model](embedding-model.md) · [Reranker](reranker.md) |
+| Transformers and LLMs | [Transformer encoder](transformer-encoder.md) · [Transformer decoder](transformer-decoder.md) · [Large language model](large-language-model.md) · [Embedding model](embedding-model.md) · [Reranker](reranker.md) · [Two-tower model](two-tower-model.md) |
 | Generative | [Diffusion model](diffusion-model.md) |
 
 For choosing between them, start with the [model-selection cheat sheet](../cheatsheets/model-selection.md).

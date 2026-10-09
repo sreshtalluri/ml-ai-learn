@@ -1,7 +1,7 @@
 <!-- GENERATED from production-architecture.yml by web/scripts/gen-quizzes.mjs. Edit the .yml, then run: npm run gen:quizzes -->
 # Quiz: Production architecture
 
-Covers the lesson [Production architecture](../lessons/18-production-ai/01-production-architecture.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/production-architecture/) grades these interactively and tracks a review queue.
+Covers the lesson [Production architecture](../lessons/20-production-ai/01-production-architecture.md). Try each question before opening the answer. The [website](https://sreshtalluri.github.io/ml-ai-learn/quizzes/production-architecture/) grades these interactively and tracks a review queue.
 
 ## 1. Calculation (easy)
 

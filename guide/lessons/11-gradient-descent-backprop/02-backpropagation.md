@@ -167,3 +167,33 @@ $z = 0$, $\hat{y} = 0.5$, $L = -\ln 0.5 = 0.6931$. Error signal $0.5 - 0 = 0.5$.
 **Next:** [Training and regularization](../12-training-regularization/01-training-and-regularization.md)
 
 **Related:** [Gradient descent](01-gradient-descent.md) · [Calculus for ML](../00-foundations/02-calculus-for-ml.md) · [Recurrent networks](../13-deep-architectures/02-recurrent-networks.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Explain backpropagation. Why is it so much cheaper than estimating gradients numerically?</strong></summary>
+
+Backpropagation is reverse-mode automatic differentiation: the chain rule applied from the loss backward through the computational graph. The forward pass stores every intermediate value. The backward pass starts with $\partial L/\partial L = 1$ and, at each node, multiplies the incoming gradient by that node's local derivative and passes it upstream, adding contributions when a value fed several places. Work done for later layers is reused by earlier ones, so one backward pass costs about two forward passes and yields the gradient for every parameter at once. Finite differences need two forward passes per parameter: for a model with $P = 10^9$ parameters, that is $2 \times 10^9$ forward passes versus about 3 for backprop. The price is memory: the stored activations are why training uses far more memory than inference, and gradient checkpointing trades recomputation for that memory.
+
+</details>
+
+<details>
+<summary><strong>Why is sigmoid paired with cross-entropy rather than with mean squared error?</strong></summary>
+
+Because cross-entropy cancels the sigmoid's derivative and leaves the clean error signal $\partial L/\partial z = \hat{y} - y$. The cross-entropy derivative is $\partial L/\partial \hat{y} = (\hat{y} - y)/(\hat{y}(1-\hat{y}))$ and the sigmoid's is $\hat{y}(1-\hat{y})$; their product is $\hat{y} - y$. With MSE, $L = \tfrac12(\hat{y} - y)^2$, the gradient is $(\hat{y} - y)\,\hat{y}(1-\hat{y})$, and the extra factor goes to zero exactly when the model is confidently wrong. Example: $y = 1$, $\hat{y} = 0.01$. Cross-entropy gives $\partial L/\partial z = -0.99$, a strong push. MSE gives $-0.99 \times 0.01 \times 0.99 \approx -0.0098$, about 100 times weaker, so learning stalls on the examples that most need fixing. The same holds for softmax with categorical cross-entropy: the gradient on the logits is $\hat{p} - \text{onehot}(y)$.
+
+</details>
+
+<details>
+<summary><strong>Your later layers learn, but the first layers' gradients are near zero. What's wrong and how do you fix it?</strong></summary>
+
+Distinguish "tiny" from "exactly zero" first. Exactly zero usually means the graph is broken: a `.detach()`, `.item()`, NumPy conversion, or a frozen parameter cuts the path, or every unit in a layer is a dead ReLU. Tiny but nonzero is vanishing gradients: the gradient reaching layer 1 is a product of one weight matrix and one activation derivative per layer, and sigmoid's derivative is at most 0.25, so ten sigmoid layers scale the signal by at most $0.25^{10} \approx 10^{-6}$. Log per-layer gradient norms to see where it shrinks. Fixes: ReLU-family activations; He initialization for ReLU (Xavier for tanh); normalization layers; and residual connections, which give the gradient an identity path around each block. For sequences, gated cells (LSTM, GRU) or attention instead of a vanilla RNN.
+
+</details>
+
+<details>
+<summary><strong>You wrote a custom layer with a hand-derived backward pass. How do you verify the gradients?</strong></summary>
+
+Use a centered finite-difference check: for a few parameter entries, compute $(L(w + h) - L(w - h))/(2h)$ and compare with your analytic gradient. The centered version has error of order $h^2$, much better than the one-sided version's order $h$. Run it in float64 with $h$ around $10^{-5}$ to $10^{-6}$; in float32, rounding error swamps the difference. Compare with a relative error, $|g_a - g_n| / \max(|g_a|, |g_n|)$: around $10^{-7}$ or smaller is correct, above $10^{-3}$ is almost certainly a bug. Test random inputs rather than special values like zeros, and avoid points sitting exactly on a ReLU kink, where the numeric estimate is meaningless. In the course example the check returns exactly $-1, -0.5, -0.5$. PyTorch's `torch.autograd.gradcheck` automates this. A loss that drops after one step does not prove the gradient is right.
+
+</details>

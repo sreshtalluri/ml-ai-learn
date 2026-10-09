@@ -29,4 +29,4 @@ summary: Patterns, formulas, and monitoring for dependable, affordable AI servic
 
 **Monitor:** latency percentiles (not averages), errors, cost, cache hit rate, input/prompt drift, retrieval gaps, quality signals, version skew.
 
-Lessons: [Production architecture](../lessons/18-production-ai/01-production-architecture.md) · [Reliability, cost, and observability](../lessons/18-production-ai/02-reliability-cost-and-observability.md)
+Lessons: [Production architecture](../lessons/20-production-ai/01-production-architecture.md) · [Reliability, cost, and observability](../lessons/20-production-ai/02-reliability-cost-and-observability.md)

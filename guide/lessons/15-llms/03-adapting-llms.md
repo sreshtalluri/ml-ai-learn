@@ -147,6 +147,36 @@ $16 \times (2048 + 8192) = 16 \times 10{,}240 = 163{,}840$. Full matrix: $2048 \
 - Use RAG or tools for changing facts, fine-tuning for behavior and format, and always evaluate.
 - Hallucinations come from the objective; grounding, tools, verification, and abstention reduce them.
 
-**Next:** [The RAG pipeline](../16-rag/01-rag-pipeline.md)
+**Next:** [Fine-tuning in practice](04-fine-tuning-in-practice.md)
 
 **Related:** [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md) · [Transfer learning](../13-deep-architectures/03-autoencoders-diffusion-and-transfer.md) · [Model card: large language model](../../models/large-language-model.md)
+
+## Interview angle
+
+<details>
+<summary><strong>A team wants to fine-tune an LLM on their internal docs so it can answer questions about them. What do you recommend?</strong></summary>
+
+Usually RAG, not fine-tuning, because the requirement is knowledge, and knowledge belongs in context. With RAG, updating an answer means re-indexing a document, answers can cite their sources, permissions can be enforced at retrieval, and you can check groundedness. Fine-tuning changes weights: it is expensive to redo whenever a doc changes, it can't cite, and it injects facts unreliably. The model may learn the style of the docs and then confidently invent details, a well-known way to create hallucinations. Fine-tuning is the right tool for behavior: a strict output format, a house tone, a narrow task where a small model should match a large one, or consistently following a complex procedure. My decision order: prompting first, then RAG when knowledge is missing, then LoRA fine-tuning for remaining behavior gaps, each step justified by an evaluation set that shows it helped.
+
+</details>
+
+<details>
+<summary><strong>How does LoRA work, and how many parameters does it train for a 7B model?</strong></summary>
+
+LoRA freezes the pretrained weight $W_0$ and learns a low-rank update: $W = W_0 + \frac{\alpha}{r}BA$, with $A$ of shape $[r, d_{\text{in}}]$ and $B$ of shape $[d_{\text{out}}, r]$, so only $r(d_{\text{in}} + d_{\text{out}})$ parameters train. $B$ starts at zero, so training begins exactly at the pretrained model. For one $4096 \times 4096$ projection with $r = 8$: $8 \times 8192 = 65{,}536$ trainable parameters versus 16.8 million, 0.39%. Applied to Q, K, V, and O in 32 layers: $65{,}536 \times 4 \times 32 = 8{,}388{,}608$, about 0.12% of a 7B model, and the adapter is about 17 MB in 16-bit instead of 14 GB. Optimizer state shrinks proportionally, which is the main memory win. After training you can merge $BA$ into $W_0$ for zero extra latency, or keep adapters separate so many tasks share one base model. QLoRA also quantizes the frozen base to 4 bits.
+
+</details>
+
+<details>
+<summary><strong>After fine-tuning on product documentation, the model confidently states wrong prices. What happened?</strong></summary>
+
+Fine-tuning taught the form of the answer more reliably than the facts. During supervised fine-tuning the model learns that product questions get confident, specific answers with prices, but each individual price appears in only a few examples, so it is memorized weakly or not at all. At inference the model produces a plausible price from the right distribution, a hallucination in the documentation's voice. Prices also change, so even correctly memorized values go stale the moment they're updated. Diagnose by testing on questions whose answers appeared many times in training versus once, and on items updated after training. The fix is architectural: put prices in context through RAG or, better for structured live data, a tool call to the pricing system, and instruct the model to quote only from that. Keep the fine-tune for tone and format, and add evaluation cases that check facts against the source.
+
+</details>
+
+<details>
+<summary><strong>Compare RLHF with DPO. Why have direct preference methods become popular?</strong></summary>
+
+Both start from preference pairs: for prompt $x$, a chosen response $y_w$ and a rejected $y_l$. Classic RLHF trains a separate reward model on those pairs, then optimizes the policy with an RL algorithm such as PPO to maximize reward, with a KL penalty keeping it near the reference model. That means several models in memory, online sampling, and sensitive tuning. DPO showed the same KL-regularized objective can be optimized directly with a classification-style loss: $-\log\sigma\big(\beta[(\log\pi_\theta(y_w) - \log\pi_{\text{ref}}(y_w)) - (\log\pi_\theta(y_l) - \log\pi_{\text{ref}}(y_l))]\big)$. No reward model and no RL loop, so it is simpler, cheaper, and more stable. The trade-off is that DPO is offline, learning only from fixed pairs. Online RL with verifiable rewards, such as GRPO, which normalizes rewards within a group of sampled answers and drops the value model, often does better for math and code, where correctness can be checked automatically.
+
+</details>

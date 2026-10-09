@@ -155,3 +155,33 @@ Parent: $1 - (0.75^2 + 0.25^2) = 1 - 0.625 = 0.375$. Both children are pure (0),
 **Next:** [Random forests and gradient boosting](02-random-forests-and-boosting.md)
 
 **Related:** [Overfitting and bias-variance](../02-ml-workflow/02-overfitting-and-bias-variance.md) · [Model card: decision tree](../../models/decision-tree.md)
+
+## Interview angle
+
+<details>
+<summary><strong>How does a decision tree choose a split? Does Gini versus entropy matter?</strong></summary>
+
+At each node, the tree tries every feature and every candidate threshold (midpoints between sorted values) and picks the split with the largest impurity decrease: parent impurity minus the size-weighted impurity of the two children. Gini is $1 - \sum_k p_k^2$; entropy is $-\sum_k p_k \log_2 p_k$. In this lesson's example, splitting a 5/5 node by age into [4, 1] and [1, 4] drops Gini from 0.5 to 0.32, while the income split only reaches 0.48, so age wins, and entropy agrees. In practice the two criteria pick the same split in the vast majority of cases. Gini is slightly cheaper (no logarithm) and is scikit-learn's default; entropy is slightly more sensitive to rare-class purity. The choices that matter far more are depth, minimum leaf size, and pruning. Splitting is greedy, so the tree is not globally optimal.
+
+</details>
+
+<details>
+<summary><strong>Why do decision trees overfit, and how do you control it?</strong></summary>
+
+An unrestricted tree keeps splitting until every leaf is pure, which can mean one training example per leaf: zero training error and a model that has memorized noise. Trees are also high variance, because a small change in the data can change the top split, and everything below it changes too. Controls: pre-pruning with `max_depth`, `min_samples_leaf` (often the most effective single knob, since it forces each prediction to average several examples), `min_samples_split`, and `max_leaf_nodes`; post-pruning with cost-complexity pruning, which grows the full tree and then removes branches whose impurity reduction doesn't justify a per-leaf penalty `ccp_alpha`. Choose these by cross-validation. The other answer is to stop relying on a single tree: random forests average many deep trees to cut variance, and boosting combines many shallow ones to cut bias.
+
+</details>
+
+<details>
+<summary><strong>Your tree's most important feature is `customer_id`. What's going on?</strong></summary>
+
+The tree is memorizing. A unique or near-unique column offers a split point between almost every pair of examples, so the greedy search can always find a threshold that isolates a few examples into pure leaves, and those impurity decreases add up to high impurity-based importance. None of it generalizes: new customers get new IDs. More broadly, impurity-based importance is biased toward continuous and high-cardinality features, because they get more chances to find a lucky split. Fix: drop identifier columns, and check for timestamps or row order that encode the target. Then measure importance with permutation importance on validation data, which asks how much the validation metric drops when a column is shuffled. If an ID-like column still matters there, suspect leakage, for example IDs assigned in a way that correlates with the outcome.
+
+</details>
+
+<details>
+<summary><strong>Why can't tree models extrapolate, and when would you choose a linear model over a tree ensemble?</strong></summary>
+
+Each leaf predicts a constant, the mean of its training examples, so a regression tree's output is bounded by the range of training targets. Train on houses up to 3,000 sq ft where price rises steadily, and a 6,000 sq ft house lands in the right-most leaf and gets the price of the largest training houses; a linear model would continue the trend (sometimes absurdly, but in the right direction). Forests and boosting inherit this. It matters for growth trends (sales rising year over year), prices under inflation, and any feature drifting beyond its training range. Choose a linear model, or add a linear trend, detrend the target, or model differences, when the relationship is roughly monotonic and extrapolation is required, data is small, or coefficients must be explained. Choose trees for interactions, nonlinearity, mixed feature types, and no scaling.
+
+</details>

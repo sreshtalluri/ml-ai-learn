@@ -23,4 +23,4 @@ summary: Threats to LLM applications and the enforceable controls that contain t
 
 **Test:** keep injection, exfiltration, and privilege-escalation cases in the evaluation set; gate releases on attack success rate; red-team regularly. Demonstrate attacks only with mocked tools.
 
-Lessons: [Securing AI systems](../lessons/19-safety-security/01-ai-security.md) · [Production architecture](../lessons/18-production-ai/01-production-architecture.md)
+Lessons: [Securing AI systems](../lessons/21-safety-security/01-ai-security.md) · [Production architecture](../lessons/20-production-ai/01-production-architecture.md)

@@ -133,3 +133,26 @@ Align from the right: (5, 1, 4) and (_, 3, 1). Compare: 4 vs 1 gives 4; 1 vs 3 g
 **Next:** [The language of ML](../01-ml-vocabulary/01-ml-vocabulary.md)
 
 **Related:** [The ML workflow](../02-ml-workflow/01-ml-workflow.md)
+
+## Interview angle
+
+<details>
+<summary><strong>What happens when you subtract a [1000] array from a [1000, 1] array in NumPy, and how do you prevent it?</strong></summary>
+
+Broadcasting aligns shapes from the right: `[1000]` is treated as `[1, 1000]`, each size-1 dimension stretches, and the result is `[1000, 1000]`, a million values where you expected a thousand. Nothing errors. A loss averaged over that matrix is still a finite number, just the wrong one, and memory jumps from 8 KB to 8 MB (or out of memory for larger $n$). Typical sources: a model output of shape `[n, 1]` compared with labels of shape `[n]`, or `X.mean(axis=1)` without `keepdims=True` subtracted from `X`. Prevention: keep vectors consistently 1-D or consistently `[n, 1]`, use `keepdims=True` when you want to broadcast a reduction back, and put `assert a.shape == b.shape` before element-wise arithmetic in loss and metric code. A unit test on a tiny input with a known answer catches it immediately.
+
+</details>
+
+<details>
+<summary><strong>A colleague runs `df["x"].fillna(df["x"].median())` on the full dataset before splitting into train and test. What's wrong, and how should it be structured?</strong></summary>
+
+The median is computed over all rows, including the test set, so test information leaks into the training features. For a median the leak is usually small, but the same pattern with scaling, target encoding, or feature selection can inflate scores substantially, and it means preprocessing isn't part of the model. Fix: split first, fit every statistic on the training split only, and apply it unchanged to validation, test, and production. In scikit-learn, put `SimpleImputer(strategy="median")` in a `Pipeline` with the model: `cross_val_score` then refits the imputer inside each fold automatically, and the fitted pipeline carries the training median into serving, which also prevents training-serving skew. Bonus: add a "was missing" indicator column (`add_indicator=True`), because missingness itself is often predictive.
+
+</details>
+
+<details>
+<summary><strong>You rerun the same training script and get a different validation score every time. How do you make it reproducible, and what can still vary?</strong></summary>
+
+Seed every source of randomness: create a NumPy generator with `np.random.default_rng(seed)` and pass it explicitly, seed Python's `random`, set `random_state=` on every scikit-learn splitter and estimator, and in PyTorch call `torch.manual_seed` and enable deterministic algorithms, with seeded DataLoader workers. Pin package versions in a lock file and record the data and code versions next to each result. What can still vary: GPU kernels that use atomic adds sum in nondeterministic order; different hardware, BLAS builds, or thread counts change floating-point summation order; and data loaded without a stable sort order reorders silently. Full bitwise determinism may cost speed. The deeper point: run several seeds anyway and report the mean and spread. If two configurations differ by less than the seed-to-seed standard deviation, you haven't shown one is better.
+
+</details>

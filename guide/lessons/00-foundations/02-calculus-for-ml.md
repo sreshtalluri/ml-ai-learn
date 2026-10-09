@@ -158,3 +158,33 @@ Chain rule: $\frac{1}{1 + e^{w}} \cdot e^{w} = \frac{e^w}{1+e^w} = \sigma(w)$. A
 **Next:** [Probability and statistics](03-probability-and-statistics.md)
 
 **Related:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Backpropagation](../11-gradient-descent-backprop/02-backpropagation.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Derive the derivative of the sigmoid and explain how it leads to vanishing gradients.</strong></summary>
+
+$\sigma(t) = (1 + e^{-t})^{-1}$. Chain rule: $\sigma'(t) = -(1 + e^{-t})^{-2} \cdot (-e^{-t}) = \frac{e^{-t}}{(1+e^{-t})^2}$. Split it as $\frac{1}{1+e^{-t}} \cdot \frac{e^{-t}}{1+e^{-t}} = \sigma(t)\big(1 - \sigma(t)\big)$. The maximum is at $t = 0$, where $\sigma = 0.5$ and the derivative is $0.25$; at $|t| = 5$ it is about $0.0066$. Backpropagation multiplies one such factor per sigmoid layer, so through 10 layers the gradient shrinks by at least $0.25^{10} \approx 10^{-6}$, and far more if units saturate. Early layers stop learning. That is why hidden layers use ReLU-family activations (derivative 1 for positive inputs), along with careful initialization, normalization, and residual connections. Sigmoid is still fine at the output of a binary classifier when paired with cross-entropy, which cancels the $\sigma'$ term.
+
+</details>
+
+<details>
+<summary><strong>Why does the negative gradient point in the direction of steepest descent? When does following it work poorly?</strong></summary>
+
+For a small step $\delta$, the first-order Taylor expansion is $L(w + \delta) \approx L(w) + \nabla L \cdot \delta$. Among all steps of fixed length $\epsilon$, the change $\nabla L \cdot \delta = \lVert \nabla L \rVert \, \epsilon \cos\theta$ is most negative when $\cos\theta = -1$, that is, when $\delta$ points exactly opposite the gradient. So $-\nabla L$ is the locally steepest downhill direction, and its length is the slope. Two caveats interviewers look for. "Steepest" is measured in Euclidean distance in parameter space, so on badly scaled surfaces (like $x^2 + 2y^2$, or much worse ratios) the steepest direction does not point at the minimum and gradient descent zigzags; feature scaling and adaptive optimizers address this. And the guarantee is local: take too large a step and the linear approximation breaks, so the loss can go up.
+
+</details>
+
+<details>
+<summary><strong>You wrote a custom layer with a hand-derived backward pass, and the model trains poorly. How do you check your gradients?</strong></summary>
+
+Gradient checking with central differences. For each parameter $w_i$, compute $\frac{L(w + h e_i) - L(w - h e_i)}{2h}$ with $h \approx 10^{-5}$, and compare with the analytic gradient using relative error $\frac{|g_a - g_n|}{\max(|g_a|, |g_n|, \epsilon)}$. Around $10^{-7}$ means correct; $10^{-2}$ or worse means a bug. Practical details: run in float64, because in float32 rounding error dominates at small $h$; check a handful of random coordinates on a tiny input instead of every parameter; turn off dropout and other randomness so both evaluations see the same function; avoid kinks such as ReLU at exactly 0. Typical bugs it catches: a missing inner derivative in the chain rule, a sign error, a wrong sum over the batch dimension, a transposed matrix. PyTorch's `torch.autograd.gradcheck` automates this.
+
+</details>
+
+<details>
+<summary><strong>For L(w) = (wx − y)² with x = 2, y = 7, w = 1: what is the gradient, and what learning rate lands exactly on the optimum in one step?</strong></summary>
+
+The gradient is $2(\hat{y} - y)x = 2(2 - 7)(2) = -20$. The optimum is $w^* = y/x = 3.5$, so we need $1 - \eta(-20) = 3.5$, giving $\eta = 2.5/20 = 0.125$. That is no coincidence: the second derivative is $2x^2 = 8$, and $\eta = 1/8$ is the Newton step, which solves a quadratic in one move. The same curvature sets the stability limit: on a quadratic, gradient descent converges only if $\eta < 2/\text{curvature} = 0.25$. At exactly $0.25$ it bounces between $w = 1$ and $w = 6$ forever; above it, it diverges. With many parameters, the largest curvature (the top Hessian eigenvalue) caps the learning rate while the smallest sets how slowly you crawl along flat directions. Their ratio, the condition number, explains why badly scaled problems train slowly.
+
+</details>

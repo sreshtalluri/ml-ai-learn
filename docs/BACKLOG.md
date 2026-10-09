@@ -1,10 +1,10 @@
 # Backlog
 
-The first milestone from the spec is complete: application shell, home dashboard, navigation, structured content, progress persistence, Model Explorer, Math Lab, glossary, lesson template, all 41 lessons (the seven flagship lessons in full depth), the required labs, the quiz system, cheat sheets, tests, and documentation. This list is what remains from the full spec.
+The first milestone from the spec is complete: application shell, home dashboard, navigation, structured content, progress persistence, Model Explorer, Math Lab, glossary, lesson template, all 49 lessons (the seven flagship lessons in full depth), the required labs, the quiz system, cheat sheets, tests, and documentation. This list is what remains from the full spec.
 
 ## Labs not yet built
 
-The lesson-by-lesson review in [COURSE_DESIGN.md](COURSE_DESIGN.md) ranks every candidate lab. Twenty are built. The B-priority ones still to build:
+The lesson-by-lesson review in [COURSE_DESIGN.md](COURSE_DESIGN.md) ranks every candidate lab. Twenty-seven are built. The B-priority ones still to build:
 
 | Lab | Lesson |
 |---|---|
@@ -15,9 +15,9 @@ The lesson-by-lesson review in [COURSE_DESIGN.md](COURSE_DESIGN.md) ranks every 
 | Semantic vector space and analogies | [Word embeddings](../guide/lessons/09-classical-nlp/02-word-embeddings.md) |
 | Training curves: early stopping, dropout, schedules | [Training and regularization](../guide/lessons/12-training-regularization/01-training-and-regularization.md) |
 | RNN unrolling and vanishing gradients | [Recurrent networks](../guide/lessons/13-deep-architectures/02-recurrent-networks.md) |
-| Transformer sizing (params, compute, KV cache) | [Transformer architecture](../guide/lessons/14-transformers/02-transformer-architecture.md) |
+| Transformer sizing (params and FLOPs; the KV-cache lab covers memory) | [Transformer architecture](../guide/lessons/14-transformers/02-transformer-architecture.md) |
 | Evaluation comparison (fixed vs broken cases, intervals) | [LLM evaluation](../guide/lessons/17-llm-evaluation/01-llm-evaluation.md) |
-| Reliability simulator (retries, breakers, fallbacks) | [Reliability, cost, and observability](../guide/lessons/18-production-ai/02-reliability-cost-and-observability.md) |
+| Reliability simulator (retries, breakers, fallbacks) | [Reliability, cost, and observability](../guide/lessons/20-production-ai/02-reliability-cost-and-observability.md) |
 
 Pattern for adding a lab: create `web/src/components/labs/<Name>Lab.tsx` using `LabFrame` and `Plot`, register it in `registry.tsx`, add metadata to `src/lib/labs.ts`, and wrap the lesson's figure in `<!-- lab:<id> --> … <!-- /lab -->`. The registry test fails if metadata and components disagree.
 

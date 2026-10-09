@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getGlossary, getLessons, getModels, GUIDE_DIR, slugify } from "./content";
+import { getGlossary, getLessons, getModels, getSprints, GUIDE_DIR, slugify } from "./content";
 import { LABS } from "./labs";
 
 const stripCode = (s: string) => s.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
@@ -58,6 +58,35 @@ describe("lessons", () => {
 
   it("every lab is embedded in its own lesson", () => {
     for (const lab of LABS) expect(lessons.find((l) => l.slug === lab.lesson)?.labs, lab.id).toContain(lab.id);
+  });
+
+  it("end with 3 to 5 parseable interview questions", () => {
+    for (const l of lessons) {
+      expect(l.interview.length, `${l.slug} interview questions`).toBeGreaterThanOrEqual(3);
+      expect(l.interview.length, `${l.slug} interview questions`).toBeLessThanOrEqual(5);
+      for (const x of l.interview) {
+        expect(x.a.split(/\s+/).length, `${l.slug}: ${x.q}`).toBeGreaterThan(40);
+        // <summary> is raw HTML: math and markdown escapes would show up literally
+        expect(x.q, `${l.slug} question title`).not.toMatch(/[$\\]/);
+      }
+    }
+  });
+
+  it("quick read is meaningfully shorter than the full lesson", () => {
+    for (const l of lessons) expect(l.quickMinutes, l.slug).toBeLessThan(l.minutes);
+  });
+});
+
+describe("interview sprints", () => {
+  const slugs = new Set(getLessons().map((l) => l.slug));
+  it("cover seven days and link real lessons", () => {
+    const sprints = getSprints();
+    expect(sprints.length).toBeGreaterThanOrEqual(4);
+    for (const s of sprints) {
+      for (let d = 1; d <= 7; d++) expect(s.body, `${s.id} day ${d}`).toContain(`## Day ${d}:`);
+      expect(s.lessons.length, s.id).toBeGreaterThanOrEqual(10);
+      for (const l of s.lessons) expect(slugs.has(l), `${s.id} -> ${l}`).toBe(true);
+    }
   });
 });
 

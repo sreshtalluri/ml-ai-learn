@@ -159,3 +159,33 @@ $4 + 0 - 3 = 1$. $[64, 10] \times [10, 3] = [64, 3]$.
 **Next:** [Calculus for ML](02-calculus-for-ml.md)
 
 **Related:** [Forward pass](../10-neural-networks/01-neural-network-forward-pass.md) · [Self-attention](../14-transformers/01-self-attention.md)
+
+## Interview angle
+
+<details>
+<summary><strong>What does a dot product measure geometrically, and why do embedding systems usually rank by cosine similarity instead of the raw dot product?</strong></summary>
+
+The dot product $x \cdot w = \lVert x \rVert \, \lVert w \rVert \cos\theta$ mixes two things: how aligned the vectors are and how long they are. Cosine similarity divides out both lengths, leaving only direction, in $[-1, 1]$. In embeddings, direction usually encodes meaning while length often tracks nuisance factors such as word frequency or document length, so a raw dot-product search can favor a vector just for being long. Example: $a = [3, 1]$ and $c = [1, 2]$ have dot product 5 but cosine 0.707, a 45° angle. Practical point: if you L2-normalize every vector once at indexing time, the dot product equals the cosine, so a vector database can use fast inner-product search. If a retriever was trained with unnormalized dot-product scoring, use what it was trained with; switching between the two silently changes rankings.
+
+</details>
+
+<details>
+<summary><strong>What does multiplying an [m, n] matrix by an [n, p] matrix cost? Estimate the FLOPs for a batch of 64 inputs through a 4096 → 4096 linear layer.</strong></summary>
+
+It takes $m \times n \times p$ multiply-adds, because each of the $mp$ output entries is a length-$n$ dot product; that is usually quoted as $2mnp$ FLOPs. Here $X$ is $[64, 4096]$ and $W$ is $[4096, 4096]$, giving a $[64, 4096]$ output. Multiply-adds: $64 \times 4096 \times 4096 \approx 1.07 \times 10^9$, so about 2.1 GFLOPs. The weights alone are 16.8M parameters, 67 MB in float32. The follow-up insight: that is only about 32 FLOPs per byte of weights loaded, below what a modern GPU needs to stay compute-bound, so at small batch sizes this layer is limited by memory bandwidth rather than arithmetic. Larger batches reuse the same weights for more rows and raise utilization, which is why inference servers batch requests together.
+
+</details>
+
+<details>
+<summary><strong>Your regression loss is `((y - y_hat) ** 2).mean()`. Training doesn't crash, but the loss plateaus high and every prediction converges to the same value. What's the likely bug?</strong></summary>
+
+Broadcasting. If `y` has shape `[B]` and `y_hat` has shape `[B, 1]` (a linear layer with one output), then `y - y_hat` broadcasts to `[B, B]`: every prediction is compared with every target. Minimizing that pushes each prediction toward the mean of all targets, so predictions collapse to a constant and the loss stalls near the target variance. Nothing errors, which is why it survives code review. Fix: squeeze the output (`y_hat.squeeze(-1)`) or reshape `y` to `[B, 1]`, and assert shapes before computing the loss: `assert y_hat.shape == y.shape`. PyTorch's `MSELoss` even warns about this exact mismatch, and people ignore the warning. The general habit from this lesson: write the shape next to every line, and treat any `[B, B]` tensor you did not intend as a bug.
+
+</details>
+
+<details>
+<summary><strong>A vectorized matrix product does the same arithmetic as a Python loop of dot products. Why is it often 100× or more faster?</strong></summary>
+
+Same number of multiply-adds, very different execution. A Python loop pays interpreter overhead on every element (type checks, boxed objects, function calls), often hundreds of nanoseconds for work the CPU does in under one. A single `X @ W` call hands the whole problem to an optimized BLAS or GPU kernel that uses SIMD instructions, all cores, and cache blocking: it loads a tile of $W$ into fast cache and reuses it for many rows of $X$ before evicting it. That reuse is the key, because memory traffic, not arithmetic, usually limits speed. Typical speedups are 100× to 1000× on CPU and more on GPU. The trade-off is memory: a batched computation holds the whole batch at once, so batch size is chosen to fit memory. This is also why deep learning is written as matrix products in the first place.
+
+</details>

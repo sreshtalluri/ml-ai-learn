@@ -165,6 +165,36 @@ DCG@5 $= 1/\log_2 2 + 1/\log_2 4 = 1 + 0.5 = 1.5$. With $R = 3$ the ideal orderi
 - LLM judges scale grading but are biased; calibrate them against humans.
 - Compare versions on the same cases with paired statistics, and always report latency and cost.
 
-**Next:** [Production architecture](../18-production-ai/01-production-architecture.md)
+**Next:** [LLM inference](../18-llm-inference/01-llm-inference.md)
 
-**Related:** [The RAG pipeline](../16-rag/01-rag-pipeline.md) · [Classification metrics](../04-classification/02-classification-metrics.md) · [Securing AI systems](../19-safety-security/01-ai-security.md)
+**Related:** [The RAG pipeline](../16-rag/01-rag-pipeline.md) · [Classification metrics](../04-classification/02-classification-metrics.md) · [Securing AI systems](../21-safety-security/01-ai-security.md)
+
+## Interview angle
+
+<details>
+<summary><strong>How would you evaluate an LLM feature before launch?</strong></summary>
+
+Build a fixed evaluation set and measure each layer of the system on it, then gate the release on those numbers. Start with 50 to 200 realistic cases from real or expected user queries, tagged by topic, difficulty, and adversarial type, each with an expected answer or rubric and, for RAG, the expected source documents. Measure retrieval (recall@k, MRR), grounding (are claims supported by the retrieved context?), task quality (exact match, token F1, or rubric scores from humans or a calibrated LLM judge), safety (prompt-injection and harmful-content cases), and operations (p50 and p95 latency, cost per request). Categorize every failure so scores become a to-do list. Compare candidate versions on the same cases with paired statistics. Before full launch, run a shadow test or a small A/B test with online signals such as thumbs, escalations, and task completion, and feed production failures back into the offline set.
+
+</details>
+
+<details>
+<summary><strong>Explain recall@k, MRR, and nDCG. When would you use each for a RAG retriever?</strong></summary>
+
+Recall@k asks "did the relevant items make it into the top $k$?" MRR asks "how high was the first relevant item?" nDCG asks "how good was the whole ordering?" Take relevance $[0, 1, 0, 1, 0]$ with two relevant documents. Recall@3 $= 1/2 = 0.5$ and recall@5 $= 1.0$. The reciprocal rank is $1/2$ because the first hit is at rank 2. DCG@5 $= 1/\log_2 3 + 1/\log_2 5 = 0.631 + 0.431 = 1.062$; the ideal ordering gives $1 + 0.631 = 1.631$, so nDCG@5 $= 0.651$. For RAG, recall@k at the $k$ you actually put in the prompt is the primary metric, because the generator sees all $k$ chunks: if the evidence isn't there, nothing downstream can fix it. MRR suits single-answer lookups and tight $k$. nDCG matters with graded relevance, or when the model seems to weight earlier chunks more.
+
+</details>
+
+<details>
+<summary><strong>Your LLM judge says version 2 is clearly better, but users are complaining more. What is going on?</strong></summary>
+
+The judge is probably measuring something other than what users value. LLM judges have known biases: verbosity (preferring longer answers), position (preferring whichever answer is shown first in pairwise comparisons), self-preference (favoring outputs from their own model family), and run-to-run inconsistency. If v2 gives longer, more confident answers, a judge can reward it while users find it slower and less precise. Diagnose by sampling 50 to 100 cases, having humans grade them blind, and measuring judge-human agreement. Then look at where they disagree. Fix the judge: a specific rubric with a reference answer, pairwise comparisons with randomized order (or both orders), a length-controlled analysis, and a judge from a different model family. Also check the evaluation set for staleness, since user questions may have drifted from the offline cases, and compare latency and cost, which users feel and the judge ignores.
+
+</details>
+
+<details>
+<summary><strong>Version 2 fixed 6 cases and broke 2 on a 40-case evaluation set. Do you ship it?</strong></summary>
+
+Not on accuracy evidence alone; the improvement isn't statistically clear yet. Accuracy went from 0.75 to 0.85, a gain of 0.10. Only the 8 cases that changed carry information about the difference. A paired bootstrap, resampling cases and recomputing both versions on each resample, gives a 95% interval of about $[-0.025, +0.225]$, which includes zero. An exact sign test on the 6-versus-2 split gives a two-sided p-value of $2 \times (1 + 8 + 28)/256 = 74/256 \approx 0.29$. Ignoring the pairing makes the interval wider, so always pair. Then weigh the other dimensions: here v2 also raised p95 latency and cost per request. My answer: grow the evaluation set (several hundred cases makes a 10-point gain much easier to resolve), read the 2 regressions to see if they're severe, and if shipping, ramp gradually with online metrics.
+
+</details>

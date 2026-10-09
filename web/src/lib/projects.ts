@@ -1,5 +1,5 @@
-// Portfolio project ladder (Module 20). Milestones are tracked on the progress dashboard;
-// full write-ups live in guide/lessons/20-projects/02-project-ladder.md.
+// Portfolio project ladder (Module 23). Milestones are tracked on the progress dashboard;
+// full write-ups live in guide/lessons/23-projects/02-project-ladder.md.
 export const PROJECTS = [
   { id: "tabular-failure-lab", title: "Tabular model failure-analysis lab", milestones: ["Baseline + leakage audit", "Gradient-boosted model with tuned threshold", "Calibration and error slices", "Drift simulation and write-up"] },
   { id: "incident-triage", title: "Semantic incident-triage system", milestones: ["TF-IDF severity classifier baseline", "Embedding-based similar-incident search", "Clustering of recurring failure themes", "API with evaluation report"] },

@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, Clock, GithubLogo } from "@phosphor-icons/react/dist/ssr";
 import { Markdown } from "@/components/Markdown";
 import { BookmarkButton, CompleteButton, NoteBox, VisitTracker } from "@/components/PageControls";
+import { QuickToggle, ShowFullButton } from "@/components/QuickToggle";
 import { getAdjacent, getLesson, getLessons, getModule, REPO_URL } from "@/lib/content";
 import { SKILLS } from "@/lib/skills";
-import { stripH1, toc } from "@/lib/toc";
+import { isDeepSection, stripH1, toc } from "@/lib/toc";
 
 export function generateStaticParams() {
   return getLessons().map((l) => ({ slug: l.slug }));
@@ -24,7 +25,9 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
   const mod = getModule(lesson.moduleId)!;
   const { prev, next } = getAdjacent(slug);
   const body = stripH1(lesson.body);
-  const items = toc(body);
+  const headings = toc(body);
+  // a ### entry is hidden in quick mode when its parent ## section is
+  const items = headings.map((t, i) => ({ ...t, deep: isDeepSection(headings.slice(0, i + 1).findLast((h) => h.depth === 2)?.text ?? "") }));
   const path = `/learn/${slug}/`;
   const prereqs = lesson.prerequisites.map((s) => getLesson(s)).filter((l) => l !== undefined);
   const related = lesson.related.map((s) => getLesson(s)).filter((l) => l !== undefined);
@@ -56,7 +59,7 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
         <header className="mb-8">
           <p className="text-sm text-muted flex flex-wrap items-center gap-x-3 gap-y-1">
             <Link href={`/modules/${mod.id}/`} className="hover:text-ink">Module {mod.number}: {mod.title}</Link>
-            <span className="inline-flex items-center gap-1"><Clock size={14} /> {lesson.minutes} min</span>
+            <span className="inline-flex items-center gap-1"><Clock size={14} /> <span className="full-only">{lesson.minutes} min</span><span className="quick-only">{lesson.quickMinutes} min quick read</span></span>
             <span style={{ color: SKILLS[lesson.skill].color }}>{SKILLS[lesson.skill].label}</span>
           </p>
           <h1 className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight">{lesson.title}</h1>
@@ -69,6 +72,7 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
             </p>
           )}
           <div className="mt-5 flex flex-wrap gap-2">
+            <QuickToggle />
             <CompleteButton slug={slug} />
             <BookmarkButton path={path} title={lesson.title} />
             <a href={`${REPO_URL}/blob/main/guide/${lesson.file}`} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-ink">
@@ -77,13 +81,21 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
           </div>
         </header>
 
-        <Markdown source={body} file={lesson.file} />
+        <p className="quick-only mb-8 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-muted">
+          Quick read: the intuition, interactive visualization, summary, and interview questions. The math, implementation, engineering, and knowledge-check sections are hidden. <ShowFullButton />
+        </p>
+        <Markdown source={body} file={lesson.file} lesson />
 
         <footer className="mt-12 space-y-6">
           <div className="flex flex-wrap items-center gap-3">
             <CompleteButton slug={slug} />
             <span className="text-sm text-muted">Marking lessons complete feeds your progress dashboard.</span>
           </div>
+          {lesson.interview.length > 0 && (
+            <p className="text-sm text-muted">
+              <Link href={`/drill/?lesson=${slug}`} className="text-accent hover:underline">Drill this lesson&apos;s {lesson.interview.length} interview questions</Link> as rapid-fire flashcards.
+            </p>
+          )}
           <NoteBox path={path} />
           {related.length > 0 && (
             <div>
@@ -116,7 +128,7 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
           <p className="font-medium mb-3">On this page</p>
           <ul className="space-y-1.5">
             {items.map((t) => (
-              <li key={t.id} className={t.depth === 3 ? "pl-3" : ""}>
+              <li key={t.id} className={t.depth === 3 ? "pl-3" : ""} data-deep-toc={t.deep ? "" : undefined}>
                 <a href={`#${t.id}`} className={`hover:text-ink ${t.depth === 3 ? "text-faint" : "text-muted"}`}>{t.text}</a>
               </li>
             ))}

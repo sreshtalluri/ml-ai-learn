@@ -131,3 +131,33 @@ Runnable script for this figure: [`code/02-ml-workflow/workflow.py`](../../code/
 **Next:** [Learning paradigms](02-learning-paradigms.md)
 
 **Related:** [Linear regression](../03-regression/01-linear-regression.md) · [The ML workflow](../02-ml-workflow/01-ml-workflow.md) · [Glossary](../../glossary.md)
+
+## Interview angle
+
+<details>
+<summary><strong>What's the difference between a parameter and a hyperparameter? Why can't you choose hyperparameters by minimizing training loss?</strong></summary>
+
+Parameters are learned from data by the optimizer: the weights and bias of a linear model, the thresholds in a tree. Hyperparameters are fixed before training and control how learning happens or how complex the model may be: learning rate $\eta$, penalty strength $\lambda$, $K$ in KNN, tree depth. Most can't be fit on the training loss because the training loss rewards complexity: minimizing it over $\lambda$ always picks $\lambda = 0$, over tree depth always picks the deepest tree, over $K$ always picks $K = 1$. Each choice memorizes better and generalizes worse. So hyperparameters are chosen on held-out validation data, by grid, random, or Bayesian search, or with cross-validation, and the test set stays untouched until the final number. Feature lists, thresholds, and preprocessing settings are effectively hyperparameters too, and belong in the model version.
+
+</details>
+
+<details>
+<summary><strong>Your fraud model trains on cross-entropy, but the business metric is recall at a fixed review budget. Why not train on the metric directly?</strong></summary>
+
+Because the metric is not a usable training signal. Recall at a fixed budget depends on ranking examples and counting how many positives land above a cutoff, so it is piecewise constant in the weights: its gradient is zero almost everywhere. Cross-entropy is differentiable, defined per example, convex for logistic regression, and rewards well-ranked, calibrated scores, which is exactly what a budget-based decision needs. The standard workflow: choose the metric first, train with a loss that pushes in the same direction, then select models, hyperparameters, and the threshold on validation data using the real metric. When the mismatch hurts, use class weights, a ranking loss, or a smooth surrogate of the metric. The mistakes to avoid are reporting loss values to stakeholders and picking models by validation loss when the metric disagrees.
+
+</details>
+
+<details>
+<summary><strong>Offline test RMSE is excellent, but production error is much worse with the same model file. What do you check?</strong></summary>
+
+Start with training-serving skew: are features computed identically? Compare logged production feature values with what the training pipeline produces for the same entities; common culprits are a separate code path, unit or currency differences, timezone handling, default values for missing data, or features that use information not yet available at serving time (which also means the offline score was leaky). Next, check whether the test split resembled production: a random split on data with time structure or repeated entities overstates performance. Then check distribution shift: compare input feature distributions and the prediction distribution between the training period and now. Finally, verify the production labels and metric computation, including label delays. Lasting fixes: one shared feature pipeline or feature store, time-based evaluation splits, and monitoring of inputs and predictions.
+
+</details>
+
+<details>
+<summary><strong>You fit a linear regression, then add 50 pure-noise features and refit. What happens to training RMSE and test RMSE, and why?</strong></summary>
+
+Training RMSE goes down, or at least can't go up: least squares with more features has strictly more freedom, and it could always set the new weights to zero. With noise features it finds small, spurious correlations in this particular sample and uses them. Test RMSE goes up, because those learned weights fit noise that doesn't recur in new data and add error to every prediction. That widening gap is overfitting, and it shows why training error says nothing about generalization. Rough size: for a correctly specified linear model with $n$ rows and $p$ features, expected training MSE is about $\sigma^2(1 - p/n)$ and test MSE about $\sigma^2(1 + p/n)$, so 50 junk features on 200 rows moves each by roughly 25% of the noise variance, in opposite directions. Remedies: regularization, feature selection, or more data.
+
+</details>

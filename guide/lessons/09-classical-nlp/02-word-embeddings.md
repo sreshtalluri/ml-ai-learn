@@ -162,3 +162,33 @@ $50{,}000 \times 768 = 38{,}400{,}000$ parameters. Output shape $[8, 128, 768]$.
 **Next:** [The neural-network forward pass](../10-neural-networks/01-neural-network-forward-pass.md)
 
 **Related:** [From text to vectors](01-text-to-vectors.md) · [Self-attention](../14-transformers/01-self-attention.md) · [Model card: embedding model](../../models/embedding-model.md)
+
+## Interview angle
+
+<details>
+<summary><strong>How does skip-gram with negative sampling learn word embeddings?</strong></summary>
+
+Slide a window over text to form (center word, context word) pairs. For each true pair $(w, c)$, sample $k$ "negative" words from a smoothed unigram distribution (frequency raised to the 3/4 power). Then train a binary classifier: maximize $\log\sigma(e_w \cdot u_c) + \sum_j \log\sigma(-e_w \cdot u_{n_j})$, raising the dot product for real pairs and lowering it for random ones. Words that occur in similar contexts receive similar updates, pulled toward the same context vectors, so their embeddings end up close: the distributional hypothesis in action. Negative sampling replaces a softmax over the whole vocabulary, which costs $O(V)$ per example, with $k + 1$ binary classifications ($k$ is typically 5 to 20), which makes training cheap. Only the embedding rows used in a batch get updated. Levy and Goldberg showed it implicitly factorizes a shifted PMI matrix.
+
+</details>
+
+<details>
+<summary><strong>Static embeddings or contextual transformer embeddings: when does each fit?</strong></summary>
+
+Static embeddings (Word2Vec, GloVe, fastText) give one vector per word type regardless of context, so "bank" in "river bank" and "bank account" share a single averaged vector. They're small, fast (a table lookup), and good features for lightweight models or tight compute budgets. Contextual embeddings from transformers compute a vector per token from the whole input, so ambiguity is resolved and word order matters; sentence-embedding models trained contrastively produce strong vectors for whole passages, the basis of semantic search and RAG. Costs: a forward pass per input, GPU or slower CPU inference, larger vectors, and versioning, since a new model means re-embedding the corpus. Rule of thumb: for retrieval, meaning-sensitive classification, or anything with ambiguity, use a modern embedding model benchmarked on your own data; use static embeddings when latency or footprint dominate, or as a baseline.
+
+</details>
+
+<details>
+<summary><strong>Semantic search quality collapsed right after you upgraded the embedding model. What happened?</strong></summary>
+
+Almost certainly an embedding-space mismatch: queries are embedded with the new model while the index still holds document vectors from the old one, or only partly re-embedded ones. Vectors from different models, even different versions of the same model, live in unrelated coordinate systems, so their cosine similarities are meaningless, even when the dimensions match. Check whether query and document vectors carry the same model version tag. Other suspects: the new model expects normalized vectors or cosine but the index uses raw inner product; it requires instruction prefixes such as "query: " and "passage: " for asymmetric search; its maximum input length is shorter, silently truncating chunks; or the dimension changed and the index was misconfigured. Fix: re-embed the entire corpus, store the model version with every vector, build the new index alongside the old one, and compare recall@k on a labeled query set before switching traffic.
+
+</details>
+
+<details>
+<summary><strong>You need to index 50 million documents with 1,024-dimensional float32 embeddings. How much memory do the vectors need, and how would you cut it?</strong></summary>
+
+$5 \times 10^7 \times 1024 \times 4$ bytes $= 2.05 \times 10^{11}$ bytes, about 205 GB for the raw vectors, before index overhead (an HNSW graph adds more). Ways to cut it: store float16, halving it to about 102 GB with negligible quality loss; scalar-quantize to int8, about 51 GB, with a small recall loss that re-ranking recovers; product quantization to around 64 bytes per vector, about 3.2 GB, with a larger loss, so re-rank the top candidates using full vectors kept on disk; binary quantization at 128 bytes per vector as a fast first pass; or fewer dimensions, from a smaller model or one trained to allow truncation (Matryoshka embeddings), for example 256 dimensions. Measure recall@k against exact search on a labeled query set for each option, because the quality loss depends on the model and the data.
+
+</details>

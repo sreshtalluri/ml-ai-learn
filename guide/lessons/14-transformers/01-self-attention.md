@@ -215,3 +215,33 @@ Output $= 0.1956\,[10, 0] + 0.8044\,[0, 6] = [1.956,\; 4.827]$. Now the second v
 **Next:** [The transformer architecture](02-transformer-architecture.md)
 
 **Related:** [Tokenization and pretraining](../15-llms/01-tokenization-and-pretraining.md) · [Recurrent networks](../13-deep-architectures/02-recurrent-networks.md) · [Model card: transformer decoder](../../models/transformer-decoder.md)
+
+## Interview angle
+
+<details>
+<summary><strong>Why do we scale attention scores by the square root of d_k?</strong></summary>
+
+To keep the scores at unit scale so the softmax doesn't saturate. If the entries of $q$ and $k$ are independent with mean 0 and variance 1, then $q \cdot k = \sum_{m=1}^{d_k} q_m k_m$ is a sum of $d_k$ terms each with variance 1, so its variance is $d_k$ and its standard deviation $\sqrt{d_k}$. With $d_k = 512$, raw scores have a standard deviation around 22.6. Softmax of values that far apart is nearly one-hot: one key gets almost all the weight, and the gradient of a saturated softmax is close to zero, so the query and key projections barely learn. Dividing by $\sqrt{d_k}$ restores standard deviation 1 regardless of head size. Dividing by $d_k$ instead would over-shrink scores, making attention nearly uniform for large heads. Scaling doesn't change which key scores highest, only how peaked the distribution is.
+
+</details>
+
+<details>
+<summary><strong>Walk me through what happens to memory when context length doubles during decoding.</strong></summary>
+
+KV-cache memory doubles, per-token attention compute doubles, and prefill attention compute roughly quadruples. During decoding each new token attends to the keys and values of all earlier tokens, which are cached. The cache holds $2 \times \text{layers} \times \text{KV heads} \times d_{\text{head}} \times \text{bytes}$ per token. For 32 layers, 32 KV heads, $d_{\text{head}} = 128$, in fp16: $2 \times 32 \times 32 \times 128 \times 2 = 524{,}288$ bytes, 0.5 MiB per token. At 4,096 tokens that is 2 GiB per sequence; at 8,192 it is 4 GiB, multiplied by batch size. That is why the cache, not the weights, limits batch size at long contexts. Prefill builds $n \times n$ scores, so it scales as $O(n^2)$, though FlashAttention avoids storing that matrix. Grouped-query attention with 8 KV heads cuts the cache 4x, and paged attention reduces fragmentation waste.
+
+</details>
+
+<details>
+<summary><strong>Your decoder-only model reaches a suspiciously low training loss but generates garbage. What do you check?</strong></summary>
+
+First suspect is the causal mask: if it is missing or wrong, position $i$ can attend to position $i+1$, which is the token it is supposed to predict. The model learns to copy the answer, training loss collapses, and at generation time, when the future doesn't exist, it has learned nothing useful. Test it directly: change a future token and check that logits at earlier positions don't move, or inspect an attention matrix and confirm the upper triangle is exactly zero. Second, check the target shift: logits at position $t$ must be scored against token $t + 1$, not token $t$. Third, padding: padding tokens must be masked as keys and excluded from the loss. Fourth, inference parity: the generation loop must use the same tokenizer, position handling, and mask as training, and the KV-cache path should match a full recompute on a short prompt.
+
+</details>
+
+<details>
+<summary><strong>What does multi-head attention buy you, and why do modern LLMs use grouped-query attention instead of full multi-head attention?</strong></summary>
+
+Multi-head attention runs $h$ smaller attentions in parallel, each with $d_k = d_{\text{model}}/h$, so different heads can track different relations (previous token, syntax, coreference) at about the cost of one full-width head. With $d_{\text{model}} = 512$ and $h = 8$, each head has $d_k = 64$. The cost appears at inference: every head has its own keys and values in the KV cache, and decoding is usually limited by memory bandwidth for reading that cache. Grouped-query attention keeps all query heads but shares each key/value head across a group of query heads. With 32 query heads and 8 KV heads, the cache shrinks 4x, which allows bigger batches and longer contexts with a small quality cost. Multi-query attention is the extreme case, a single KV head, with the largest savings and a larger quality risk. GQA is the common middle ground.
+
+</details>
