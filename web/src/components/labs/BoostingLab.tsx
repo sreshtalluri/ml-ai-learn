@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, gaussian, mean, rng } from "@/lib/ml";
-import { LabFrame, Legend, Plot, Slider, Stat } from "./ui";
+import { LabFrame, Legend, Plot, Slider, Stat, type TourStep } from "./ui";
 
 type Stump = { thr: number; left: number; right: number };
 const f = (x: number) => Math.sin(x) + 0.3 * x;
@@ -57,9 +57,22 @@ export default function BoostingLab() {
   const grid = Array.from({ length: 200 }, (_, i) => (i / 199) * 10);
   const msMax = Math.max(...run.testMse.slice(0, 1), ...run.trainMse.slice(0, 1));
 
+  // Guided tour (Watch mode + explainers). Each step sets η and the round, then advances rounds.
+  const setup = (eta: number, rounds: number) => { setLr(eta); setM(rounds); };
+  const roundsTo = (a: number, b: number) => (t: number) => setM(Math.round(a + t * (b - a)));
+  const tour: TourStep[] = [
+    { id: "start", caption: "Round 0: the teal model is just the mean of y, a flat line at 1.92. The gray bars are residuals, what the model still gets wrong.", apply: () => setup(0.3, 0) },
+    { id: "stump", caption: "Tree 1 is a one-split stump fitted to those residuals: below x = 6.04 push down, above push up. The purple dashed line adds 0.3 of it.", apply: () => setup(0.3, 0) },
+    { id: "rounds", caption: "Repeat: fit a stump to what is left, add a fraction. Over 30 rounds the teal curve bends into the wave and training error falls from 1.46 to 0.10.", apply: () => setup(0.3, 0), animate: roundsTo(0, 30), animMs: 3200 },
+    { id: "small-steps", caption: "With η = 0.05 each tree corrects only a little. After 100 rounds the fit is still catching up, but it moves smoothly.", apply: () => setup(0.05, 0), animate: roundsTo(0, 100), animMs: 3200 },
+    { id: "big-steps", caption: "With η = 1 each tree takes the full correction. Training error drops to 0.28 after a single round, and the fit turns jumpy.", apply: () => setup(1, 0), animate: roundsTo(0, 20), animMs: 2600 },
+    { id: "too-many", caption: "Keep adding trees at η = 1. Training error sinks toward zero, but test error stalls near 0.21: later trees fit noise. Early stopping keeps the ringed round.", apply: () => setup(1, 20), animate: roundsTo(20, MAX_ROUNDS), animMs: 3200 },
+  ];
+
   return (
     <LabFrame
       id="boosting"
+      tour={tour}
       title="Gradient boosting, round by round"
       subtitle="Synthetic 1D regression. Each round fits a one-split tree (a stump) to the current residuals and adds a fraction of it."
       onReset={() => { setLr(0.3); setM(5); }}

@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import type { Mat } from "@/lib/ml";
-import { Button, LabFrame, Segmented, Slider, Stat } from "./ui";
+import { Button, LabFrame, Segmented, Slider, Stat, type TourStep } from "./ui";
 
 const IMAGES: Record<string, Mat> = {
   "vertical edge": Array.from({ length: 7 }, () => [0, 0, 0, 9, 9, 9, 9]),
@@ -68,11 +68,26 @@ export default function ConvolutionLab() {
   const terms = K.flatMap((row, u) => row.map((w, v) => ({ w, x: X[r0 + u]?.[c0 + v] ?? 0 })));
   const pooled = n >= 2 ? maxPool(Y) : [];
 
+  // Guided tour: each step sets image, kernel, stride, padding and window position.
+  const setup = (image: string, kernel: string, st = 1, pd = 0, at = 0) => { setImg(image); setKer(kernel); setStride(st); setPad(pd); setPos(at); };
+  const slide = (t: number) => setPos(Math.round(t * (n * n - 1)));
+  const V = "vertical edge", H = "horizontal edge";
+  const tour: TourStep[] = [
+    { id: "setup", caption: "A 7×7 image, dark on the left and bright from column 4, and a 3×3 kernel with −1s on its left column and +1s on its right.", apply: () => setup(V, V) },
+    { id: "slide", caption: "The purple window slides across the image. At each stop, multiply the 9 overlapping pairs and add them up: that sum is one cell of the feature map.", apply: () => setup(V, V), animate: slide, animMs: 3400 },
+    { id: "edge", caption: "Where the window straddles the edge, the −1s sit on 0s and the +1s on 9s, giving 27. On flat regions the two sides cancel to 0.", apply: () => setup(V, V, 1, 0, 1) },
+    { id: "mismatch", caption: "Same kernel, horizontal edge. Left and right columns of every window are equal, so every output is 0. This kernel only sees vertical edges.", apply: () => setup(H, V, 1, 0, 7) },
+    { id: "stride", caption: "Stride 2 moves the window two pixels at a time, so the feature map shrinks to 3×3 while the 9 weights stay the same.", apply: () => setup(V, V, 2), animate: slide, animMs: 2400 },
+    { id: "padding", caption: "Padding 1 adds a ring of zeros around the image. Windows can now centre on border pixels, so the output stays 7×7. The orange cells on the right border are fake edges made by those zeros.", apply: () => setup(V, V, 1, 1), animate: slide, animMs: 3400 },
+    { id: "pool", caption: "Max pooling keeps the largest value in each 2×2 block of the feature map. The 27s survive, so the edge is still found even if it shifts a pixel.", apply: () => setup(V, V, 1, 0, 1) },
+  ];
+
   return (
     <LabFrame
       id="convolution"
       title="Convolution and pooling"
       subtitle="Click any output cell (or use the slider) to see the 3×3 window that produced it."
+      tour={tour}
       onReset={() => { setImg("vertical edge"); setKer("vertical edge"); setStride(1); setPad(0); setPos(1); }}
       presets={[
         { label: "Kernel mismatch", apply: () => { setImg("horizontal edge"); setKer("vertical edge"); } },

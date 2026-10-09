@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { attention, fmt, gaussian, matmul, rng, transpose, type Mat } from "@/lib/ml";
-import { Button, LabFrame, Segmented, Stat, Tex, Toggle } from "./ui";
+import { Button, LabFrame, Segmented, Stat, Tex, Toggle, type TourStep } from "./ui";
 
 const D_MODEL = 4;
 const D_K = 2;
@@ -133,10 +133,26 @@ export default function AttentionLab() {
     return <>Output for {qLabels[fi]} <Tex>{`= ${terms} = [${r.output[fi].map((v) => fmt(v, 3)).join(", ")}]`}</Tex>. It is a blend of value vectors, weighted by attention.</>;
   })();
 
+  // Guided tour (Watch mode + explainers). No causal mask, so every token sees every other.
+  const setup = (step: number, f = 1, m: "sentence" | "example" = "sentence") => {
+    setMode(m); setText("the cat sat on the mat"); setCausal(false); setPositions(true); setStepIdx(step); setFocus(f);
+  };
+  const sweep = (t: number) => setFocus(Math.round(t * (nq - 1)));
+  const tour: TourStep[] = [
+    { id: "embed", caption: "Each word becomes a row of four numbers: a toy embedding plus a position signal. The orange outline marks “cat”, the token we follow through every step.", apply: () => setup(0) },
+    { id: "qkv", caption: "Three weight matrices turn every row into a query, a key and a value, two numbers each. The query asks, the key advertises, the value is what gets passed on.", apply: () => setup(1) },
+    { id: "scores", caption: "Each cell of S is one query dotted with one key: large when the two point the same way. Watch the outline walk down the rows as every token scores every other token.", apply: () => setup(2, 0), animate: sweep, animMs: 2600 },
+    { id: "scale", caption: "Every score is divided by √2, the square root of the key width. With 64-wide keys raw scores get large, and this keeps softmax from locking onto one word.", apply: () => setup(3) },
+    { id: "softmax", caption: "Softmax turns each row into weights that sum to 1. Darker blue cells are the words a token pays most attention to; follow the outline row by row.", apply: () => setup(5, 0), animate: sweep, animMs: 2600 },
+    { id: "output", caption: "Each output row is a blend of the value rows, mixed in exactly those proportions. The new vector for “cat” now carries a little of every word it attended to.", apply: () => setup(6) },
+    { id: "referent", caption: "The course example: the query matches key 1, so it gets weight 0.67 and the output is mostly value 1. Training tunes the projections so “it” matches “animal” the same way.", apply: () => setup(6, 0, "example") },
+  ];
+
   return (
     <LabFrame
       id="attention"
       title="Self-attention lab"
+      tour={tour}
       subtitle={mode === "example" ? "The course's worked example: q = [1, 0], keys [1, 0] and [0, 1], values [10, 0] and [0, 6], d_k = 2." : "Toy embeddings (d_model = 4) and random projections (d_k = 2), fixed seeds. Real models learn these."}
       onReset={() => { setMode("sentence"); setText("the cat sat on the mat"); setCausal(true); setPositions(true); setStepIdx(0); setFocus(1); }}
       presets={[

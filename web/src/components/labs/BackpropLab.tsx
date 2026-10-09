@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { bce, fmt, sigmoid } from "@/lib/ml";
-import { LabFrame, Slider, Tex } from "./ui";
+import { LabFrame, Slider, Tex, type TourStep } from "./ui";
 
 const DEFAULTS = { x1: 2, x2: 1, w1: 0.5, w2: -1, b: 0, y: 1, lr: 0.1 };
 
@@ -37,12 +37,28 @@ export default function BackpropLab() {
   ];
 
   const better = s.L2 < s.L;
+
+  // Guided tour: every step starts from the course example, then changes at most one value.
+  type Key = keyof typeof DEFAULTS;
+  const at = (o: Partial<typeof DEFAULTS> = {}) => setV({ ...DEFAULTS, ...o });
+  const swing = (k: Key, amp: number, half = false) => (t: number) =>
+    at({ [k]: +(DEFAULTS[k] + amp * Math.sin((half ? 1 : 2) * Math.PI * t)).toFixed(2) });
+  const tour: TourStep[] = [
+    { id: "forward", caption: "Rows 1 and 2 are the forward pass. Inputs 2 and 1 times weights 0.5 and −1 give z = 0, and the sigmoid turns that into a prediction ŷ = 0.5.", apply: () => at() },
+    { id: "loss", caption: "Row 3 scores the guess: L = 0.693 for ŷ = 0.5 when the label is 1. Watch w₁ swing: as ŷ climbs toward 1 the loss shrinks, as ŷ falls it grows.", apply: () => at(), animate: swing("w1", 1.5), animMs: 3200 },
+    { id: "chain", caption: "Row 4 starts the backward pass. The chain rule multiplies the loss's slope by the sigmoid's slope, they cancel, and what's left is ŷ − y = −0.5.", apply: () => at() },
+    { id: "gradients", caption: "Each weight's gradient is that −0.5 times its own input: −1 for w₁, −0.5 for w₂ and b. Watch x₁ swing and the w₁ gradient follow it.", apply: () => at(), animate: swing("x1", 1), animMs: 3000 },
+    { id: "update", caption: "Row 8 moves each weight against its gradient, scaled by η. Row 9 reruns the forward pass: ŷ rises from 0.5 to 0.574. Watch a bigger η take a bigger step.", apply: () => at(), animate: swing("lr", 0.9, true), animMs: 3000 },
+    { id: "flip", caption: "Flip the label to y = 0. The forward pass is identical, but the error signal becomes +0.5, so every gradient and every update changes sign.", apply: () => at({ y: 0 }) },
+    { id: "cost", caption: "One subtraction in row 4 fed all three gradients. That reuse is why one backward pass costs about as much as a forward pass, however many weights there are.", apply: () => at() },
+  ];
   return (
     <LabFrame
       id="backprop"
       title="Backpropagation lab"
       subtitle="One neuron, sigmoid output, binary cross-entropy. Defaults are the course example."
       onReset={() => setV(DEFAULTS)}
+      tour={tour}
       presets={[
         { label: "Course example", apply: () => setV(DEFAULTS) },
         { label: "Label y = 0", apply: () => setV({ ...v, y: 0 }) },

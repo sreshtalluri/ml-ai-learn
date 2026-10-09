@@ -1,9 +1,12 @@
 "use client";
 // Shared building blocks for every lab, so all labs look and behave the same:
 // title, controls with labels, presets, reset, an explanation of what changed, and an interpretation.
-import { useEffect, type ReactNode } from "react";
-import { ArrowCounterClockwise } from "@phosphor-icons/react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ArrowCounterClockwise, PlayCircle } from "@phosphor-icons/react";
 import { actions } from "@/lib/progress";
+import { TourPlayer, useScrollDrivenTour, type TourStep } from "./tour";
+
+export type { TourStep } from "./tour";
 
 export function LabFrame({
   id,
@@ -14,6 +17,7 @@ export function LabFrame({
   onReset,
   readout,
   interpretation,
+  tour,
   children,
 }: {
   id: string;
@@ -24,17 +28,26 @@ export function LabFrame({
   onReset?: () => void;
   readout?: ReactNode;          // live numbers (metrics, current step)
   interpretation?: ReactNode;   // 1-3 sentences on what the current state means
+  tour?: TourStep[];            // guided steps: Watch mode here, scrolling explainers via TourContext
   children: ReactNode;          // the visualization
 }) {
   useEffect(() => actions.touchLab(id), [id]);
+  const [watching, setWatching] = useState(false);
+  const inExplainer = useScrollDrivenTour(tour);
   return (
-    <section aria-label={title} className="@container not-prose my-8 rounded-xl border border-line bg-surface shadow-sm">
+    <section aria-label={title} data-tour-steps={tour?.map((s) => s.id).join(" ")} className="@container not-prose my-8 rounded-xl border border-line bg-surface shadow-sm">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
         <div>
           <h3 className="font-semibold tracking-tight">{title}</h3>
           {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* in an explainer the text drives the lab, so presets only show on wide screens */}
+        <div className={`flex-wrap items-center gap-1.5 ${inExplainer ? "hidden lg:flex" : "flex"}`}>
+          {tour && !inExplainer && !watching && (
+            <button type="button" onClick={() => setWatching(true)} className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-white dark:text-zinc-950">
+              <PlayCircle size={14} weight="fill" /> Watch ({tour.length} steps)
+            </button>
+          )}
           {presets?.map((p) => (
             <button key={p.label} type="button" onClick={p.apply} className="rounded-full border border-line px-2.5 py-1 text-xs text-muted hover:text-ink hover:border-faint">
               {p.label}
@@ -47,6 +60,7 @@ export function LabFrame({
           )}
         </div>
       </header>
+      {watching && tour && <TourPlayer tour={tour} onExit={() => setWatching(false)} />}
       {/* Container query: side panel only when the lab itself is wide (labs page), stacked inside lessons. */}
       <div className="grid gap-0 @4xl:grid-cols-[minmax(0,1fr)_17rem]">
         <div className="p-3 sm:p-5 min-w-0">{children}</div>
@@ -145,7 +159,9 @@ export interface Scale { (v: number): number; invert: (px: number) => number; do
 
 export function linear(domain: [number, number], range: [number, number]): Scale {
   const [d0, d1] = domain, [r0, r1] = range;
-  const f = ((v: number) => r0 + ((v - d0) / (d1 - d0)) * (r1 - r0)) as Scale;
+  // Rounded to 0.01 px: Node and browsers disagree in the last bits of Math.sin/cos/exp, and
+  // unrounded SVG coordinates would then differ between server render and hydration.
+  const f = ((v: number) => Math.round((r0 + ((v - d0) / (d1 - d0)) * (r1 - r0)) * 100) / 100) as Scale;
   f.invert = (px: number) => d0 + ((px - r0) / (r1 - r0)) * (d1 - d0);
   f.domain = domain;
   f.range = range;

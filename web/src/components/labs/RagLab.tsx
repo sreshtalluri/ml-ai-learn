@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { fmt } from "@/lib/ml";
 import { chunkDocs, QUERIES, rerankScore, retrieve } from "@/lib/rag";
-import { LabFrame, Slider, Stat, Toggle } from "./ui";
+import { LabFrame, Slider, Stat, Toggle, type TourStep } from "./ui";
 
 const DOC_COLOR: Record<string, string> = { refunds: "var(--c-blue)", shipping: "var(--c-teal)", accounts: "var(--c-purple)", warranty: "var(--c-orange)" };
 
@@ -30,9 +30,25 @@ export default function RagLab() {
   const contextWords = top.reduce((s, r) => s + r.chunk.text.split(/\s+/).length, 0);
   const citation = evidence ? top.findIndex((r) => r.chunk.text.includes(evidence)) + 1 : 0;
 
+  // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then animates.
+  const setup = (o: { qi: number; size?: number; k?: number; semantic?: boolean; rerank?: boolean }) => {
+    setQi(o.qi); setCustom(""); setSize(o.size ?? 20); setOverlap(5); setK(o.k ?? 3); setSemantic(!!o.semantic); setRerank(!!o.rerank);
+  };
+  const tour: TourStep[] = [
+    { id: "chunks", caption: "Four policy documents are cut into overlapping chunks. Shrink the chunk size from 60 words to 20 and the index grows from 4 chunks to 10; each card below is one chunk.", apply: () => setup({ qi: 3, size: 60 }), animate: (t) => { const v = Math.round(60 - 40 * t); if (v !== size) setSize(v); }, animMs: 2600 },
+    { id: "question", caption: "The question: are shipping costs refunded if my item was broken on arrival? Common words are dropped, and the remaining query terms are scored against every chunk.", apply: () => setup({ qi: 3 }) },
+    { id: "lexical", caption: "Lexical retrieval rewards shared words, weighted by how rare they are. The refunds chunk with the underlined evidence ranks first; shipping chunks follow because they also say shipping.", apply: () => setup({ qi: 3 }) },
+    { id: "miss", caption: "Now ask: can I get reimbursed for a game I never opened? The answer is in the refunds document, but no chunk shares a single word with the question, so nothing comes back.", apply: () => setup({ qi: 4 }) },
+    { id: "semantic", caption: "Semantic matching knows reimbursed means refund, game means digital download, and opened means accessed. The same evidence now ranks first.", apply: () => setup({ qi: 4, semantic: true }) },
+    { id: "topk", caption: "Ask about getting money back and the refund chunk only ranks fourth. Grow top-k and it enters the context at k = 4, but the words sent to the model keep climbing.", apply: () => setup({ qi: 0, k: 1 }), animate: (t) => { const v = Math.round(1 + 5 * t); if (v !== k) setK(v); }, animMs: 2600 },
+    { id: "rerank", caption: "Back to k = 1 with the reranker on. It rescores the top 10 by how closely the query terms sit together and lifts the refund chunk from fourth to first.", apply: () => setup({ qi: 0, k: 1, rerank: true }) },
+    { id: "no-prompt-fix", caption: "If the evidence never reaches the context, no prompt can fix it: the model can only say it doesn't know, or make something up. Fix retrieval first.", apply: () => setup({ qi: 4 }) },
+  ];
+
   return (
     <LabFrame
       id="rag"
+      tour={tour}
       title="RAG pipeline lab"
       subtitle="Four synthetic policy documents. Chunk them, retrieve for a question, optionally rerank, and see whether the evidence reaches the model."
       onReset={() => { setQi(3); setCustom(""); setSize(20); setOverlap(5); setK(3); setSemantic(false); setRerank(false); }}

@@ -14,6 +14,7 @@ There is one source of truth. Lessons, quizzes, the glossary, model cards, and c
 ## What's inside
 
 - **24 modules, 49 lessons**: math foundations, ML vocabulary and workflow, regression, classification, KNN, Naive Bayes, SVMs, trees and boosting, clustering, PCA, classical NLP and embeddings, neural networks, gradient descent, backpropagation, training and regularization, CNNs, RNNs, autoencoders and diffusion, self-attention, transformers, tokenization and pretraining, decoding, adapting LLMs, fine-tuning in practice (SFT, LoRA/QLoRA, DPO, RL fine-tuning), RAG, vector search (IVF, HNSW, PQ, hybrid search), LLM evaluation, LLM inference (KV cache, quantization, speculative decoding, MoE), serving (continuous batching, paged attention, cost per token), tool use and agents (MCP, workflows vs agents), reliable agents, production architecture, reliability and cost, AI security, ML system design, A/B testing, a 12-week plan, and a five-project portfolio ladder.
+- **Watch it move.** Every lab has a **Watch** button that plays a captioned, animated tour (4 to 8 steps, optional narration), and six **visual explainers** ([guide/explainers](guide/explainers/README.md)) pin the lab beside the text and change it as you scroll: bias-variance, gradient descent, backpropagation, self-attention, RAG, and the KV cache.
 - **Three ways to read.** Full lessons; **quick read** (one switch hides the math, implementation, engineering, and exercises: about 8 hours for the whole course instead of 30); or a **7-day interview sprint** for ML engineer, AI engineer, applied scientist, or data scientist roles ([guide/sprints](guide/sprints/README.md)).
 - **195 interview questions** with model answers, at the end of every lesson, plus a rapid-fire drill on the website (timed flashcards and quiz blitzes, with shaky cards saved for later).
 - **Worked examples verified by code.** Every hand calculation in a lesson is reproduced by a script in [`guide/code/`](guide/code/) and by unit tests in `web/`.
@@ -78,7 +79,7 @@ GitHub shows the figure. The website replaces everything between the markers wit
 
 ```bash
 cd web
-npm test               # 100 tests: math, worked examples, progress, labs, calculators, content integrity, interview sections, sprints
+npm test               # 161 tests: math, worked examples, progress, labs, calculators, content integrity, interview sections, sprints, guided tours, explainers
 npm run typecheck
 npm run lint
 npm run check:quizzes  # quiz YAML valid and generated markdown up to date

@@ -40,11 +40,12 @@ export default function Home() {
       </section>
 
       <section className="py-12 border-t border-line" aria-labelledby="ways">
-        <h2 id="ways" className="text-2xl font-semibold tracking-tight">Four ways to use it</h2>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <h2 id="ways" className="text-2xl font-semibold tracking-tight">Five ways to use it</h2>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { title: "Deep dive", href: "/path/", cta: "Full course", body: `${lessons.length} lessons in ${modules.length} modules. Intuition, an interactive lab, the math with every step, code, and engineering trade-offs.` },
             { title: "Quick read", href: "/path/", cta: "Pick a lesson", body: `Flip any lesson to Quick read: intuition, the lab, the summary, and interview questions in about a quarter of the time.` },
+            { title: "Watch it move", href: "/explainers/", cta: "Visual explainers", body: "Press Watch on any lab for a captioned, animated tour, or scroll an explainer where the lab moves as you read." },
             { title: "Interview prep", href: "/sprints/", cta: "Choose your role", body: "Seven-day sprints for ML engineer, AI engineer, applied scientist, and data scientist loops, plus a rapid-fire drill." },
             { title: "Quick reference", href: "/cheatsheets/", cta: "Cheat sheets", body: "Cheat sheets, model cards, the glossary, and the Math Lab when you need one fact fast." },
           ].map((w) => (

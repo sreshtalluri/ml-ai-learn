@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from "react";
 import { fmt, gaussian, rng } from "@/lib/ml";
 import { diverged, initState, step, SURFACES, type OptimizerId, type OptState, type P2 } from "@/lib/optim";
-import { Button, LabFrame, Legend, linear, Plot, Slider, Stat, svgPoint, Toggle } from "./ui";
+import { Button, LabFrame, Legend, linear, Plot, Slider, Stat, svgPoint, Toggle, type TourStep } from "./ui";
 
 const OPTS: { id: OptimizerId; label: string; color: string }[] = [
   { id: "sgd", label: "Gradient descent", color: "var(--c-blue)" },
@@ -72,6 +72,24 @@ export default function GradientDescentLab() {
   const anyDead = OPTS.some((o) => enabled[o.id] && tracks[o.id].dead);
   const clampPt = (p: P2): P2 => [Math.min(s.x[1] + 1, Math.max(s.x[0] - 1, p[0])), Math.min(s.y[1] + 1, Math.max(s.y[0] - 1, p[1]))];
 
+  // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then animates.
+  const setup = (id: string, eta: number, opts: Record<OptimizerId, boolean>, n = 0) => {
+    const sf = SURFACES.find((x) => x.id === id)!;
+    setSurfaceId(id); setStart(sf.start); setLr(eta); setNoise(0); setEnabled(opts);
+    setTracks(fresh(sf.start)); setSteps(0); noiseRng.current = rng(17);
+    return n;
+  };
+  const walkTo = (n: number) => (t: number) => { const target = Math.round(t * n); if (target > steps) advance(target - steps); };
+  const onlyGd = { sgd: true, momentum: false, adam: false };
+  const tour: TourStep[] = [
+    { id: "start", caption: "This is a loss surface seen from above. Darker blue means higher loss, and the ring marks the minimum we want to reach.", apply: () => setup("bowl", 0.1, onlyGd) },
+    { id: "arrow", caption: "The teal arrow is minus the gradient, scaled by the learning rate: the direction of steepest descent from where we stand.", apply: () => setup("bowl", 0.1, onlyGd) },
+    { id: "descend", caption: "Each step moves along that arrow, then recomputes it. Steps shrink on their own as the slope flattens near the minimum.", apply: () => setup("bowl", 0.1, onlyGd), animate: walkTo(25), animMs: 2600 },
+    { id: "zigzag", caption: "Raise the learning rate and the path zigzags across the narrow valley: each step overshoots the steep direction.", apply: () => setup("bowl", 0.18, onlyGd), animate: walkTo(25), animMs: 2600 },
+    { id: "diverge", caption: "Past the stability limit, η × 10 > 2 here, every overshoot is bigger than the last and the loss explodes.", apply: () => setup("bowl", 0.21, onlyGd), animate: walkTo(20), animMs: 2400 },
+    { id: "optimizers", caption: "Momentum and Adam on the same surface: momentum builds speed along the valley floor, Adam rescales each direction separately.", apply: () => setup("bowl", 0.03, { sgd: true, momentum: true, adam: true }), animate: walkTo(60), animMs: 3200 },
+  ];
+
   const interpretation = anyDead
     ? `Diverged. Each step overshot the minimum by more than the last, so the loss exploded. On the narrow bowl the steep direction has curvature 10, and plain gradient descent is only stable while η × 10 < 2.`
     : steps === 0
@@ -117,6 +135,7 @@ export default function GradientDescentLab() {
         </>
       }
       interpretation={interpretation}
+      tour={tour}
     >
       <Plot
         title="Loss surface with optimizer paths"

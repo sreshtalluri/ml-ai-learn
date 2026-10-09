@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, gaussian, gini, rng } from "@/lib/ml";
-import { Button, LabFrame, Legend, Plot, Segmented, Slider, Stat } from "./ui";
+import { Button, LabFrame, Legend, Plot, Segmented, Slider, Stat, type TourStep } from "./ui";
 
 type Pt = { x: number; y: number; label: number };
 type Feat = "x" | "y";
@@ -33,6 +33,26 @@ export function bestSplit(pts: Pt[], idx: number[]) {
     }
   }
   return best;
+}
+
+/** Greedy tree with up to k best splits, breadth first, same depth limit as the Split button. */
+function grow(pts: Pt[], k: number): Node[] {
+  const nodes: Node[] = [{ id: 0, idx: pts.map((_, i) => i), box: [DOM.x[0], DOM.x[1], DOM.y[0], DOM.y[1]], depth: 0 }];
+  const queue = [0];
+  while (k > 0 && queue.length) {
+    const n = nodes[queue.shift()!];
+    if (n.depth >= 4 || gini(counts(pts, n.idx)) === 0) continue;
+    const { feat, thr } = bestSplit(pts, n.idx);
+    const L = n.idx.filter((i) => pts[i][feat] < thr), R = n.idx.filter((i) => pts[i][feat] >= thr);
+    if (!L.length || !R.length) continue;
+    const [x0, x1, y0, y1] = n.box, id = nodes.length;
+    n.split = { feat, thr, left: id, right: id + 1 };
+    nodes.push({ id, idx: L, box: feat === "x" ? [x0, thr, y0, y1] : [x0, x1, y0, thr], depth: n.depth + 1 },
+      { id: id + 1, idx: R, box: feat === "x" ? [thr, x1, y0, y1] : [x0, x1, thr, y1], depth: n.depth + 1 });
+    queue.push(id, id + 1);
+    k--;
+  }
+  return nodes;
 }
 
 export default function DecisionTreeLab() {
@@ -77,9 +97,22 @@ export default function DecisionTreeLab() {
     return `${pathText(parent) === "root" ? "" : pathText(parent) + " and "}${NAMES[s.feat]} ${s.left === n.id ? "<" : "≥"} ${s.thr}`;
   };
 
+  // Guided tour (Watch mode + explainers). Each step rebuilds the tree from scratch, then moves one thing.
+  const setup = (k: number, s = 0, f: Feat = "x", t = 45) => { setNodes(grow(pts, k)); setSel(s); setFeat(f); setThr(t); };
+  const bestAt = (k: number, s: number) => { const ns = grow(pts, k), b = bestSplit(pts, ns[s].idx); setup(k, s, b.feat, b.thr); };
+  const tour: TourStep[] = [
+    { id: "data", caption: "60 customers by age and income: orange squares bought, blue circles didn't. Right now the whole plane is one leaf, with Gini impurity 0.495.", apply: () => setup(0) },
+    { id: "sweep", caption: "Slide a candidate age split, the purple line, across the plane. Watch the decrease readout: it rises, peaks, then falls as the children get mixed again.", apply: () => setup(0, 0, "x", 20), animate: (t) => setThr(Math.round(40 + t * 100) / 2), animMs: 3200 },
+    { id: "best-split", caption: "The peak is at age 41.5, a Gini decrease of 0.213. Growing a tree just means trying every feature and threshold and keeping the biggest decrease.", apply: () => bestAt(0, 0) },
+    { id: "recurse", caption: "Split at age 41.5, then repeat inside each child. In the older group, the best candidate is income 62.7, which separates most of the buyers.", apply: () => bestAt(1, 2) },
+    { id: "grow", caption: "Keep splitting the best leaf, one region at a time. Training accuracy climbs from 82% to 95% as the rectangles get smaller.", apply: () => setup(1), animate: (t) => setNodes(grow(pts, 1 + Math.round(t * 7))), animMs: 3000 },
+    { id: "overfit", caption: "Grown to depth 4, the tree carves out leaves holding one or two points to reach 96.7%. That is memorization, which is why max_depth and min_samples_leaf exist.", apply: () => setup(100) },
+  ];
+
   return (
     <LabFrame
       id="decision-tree"
+      tour={tour}
       title="Build a decision tree"
       subtitle="Synthetic customers. Pick a leaf (click a region), choose a feature and threshold, then split."
       onReset={reset}

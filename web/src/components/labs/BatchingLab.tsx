@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, rng } from "@/lib/ml";
-import { Button, LabFrame, Segmented, Slider, Stat } from "./ui";
+import { Button, LabFrame, Segmented, Slider, Stat, type TourStep } from "./ui";
 
 // Step-level serving simulator. One time step = one decode iteration; every busy slot emits one token.
 // Mirrors guide/code/18-llm-inference/batching_sim.py. Workloads are SYNTHETIC.
@@ -79,6 +79,18 @@ export default function BatchingLab() {
   const cur = runs[s.policy], st = runs.static.m, co = runs.continuous.m;
   const capacity = slots / MEAN;
 
+  // Guided tour: lesson example first, then the synthetic workload with one knob moving per step.
+  const setup = (p: Partial<typeof DEFAULT>) => setS({ ...DEFAULT, ...p });
+  const sweep = (key: "sigma" | "rate" | "slots", a: number, b: number, dp: number) => (t: number) => setS((x) => ({ ...x, [key]: Number((a + t * (b - a)).toFixed(dp)) }));
+  const tour: TourStep[] = [
+    { id: "example-static", caption: "Two slots, four requests that need 2, 8, 3 and 3 tokens. Static batching runs a pair to completion before starting the next pair, so the short request's slot sits empty: 11 steps.", apply: () => setup({ example: true, policy: "static" }) },
+    { id: "example-continuous", caption: "Continuous batching refills a slot the step after its request finishes. Same work, no gap: 8 steps, 2 tokens per step instead of 1.45.", apply: () => setup({ example: true, policy: "continuous" }) },
+    { id: "static-gaps", caption: "Now 30 synthetic requests on 4 slots under static batching. Watch the blank gaps grow as output lengths spread out: each batch waits for its longest request.", apply: () => setup({ policy: "static", sigma: 0 }), animate: sweep("sigma", 0, 1.5, 1), animMs: 3000 },
+    { id: "continuous", caption: "The same spread under continuous batching. Bars pack tightly no matter how uneven the lengths get, because a free slot is refilled at once.", apply: () => setup({ policy: "continuous", sigma: 0 }), animate: sweep("sigma", 0, 1.5, 1), animMs: 3000 },
+    { id: "load", caption: "Raise the arrival rate past capacity, 4 slots ÷ 24 tokens ≈ 0.17 requests per step. No policy can keep up: requests queue and latency is mostly waiting.", apply: () => setup({ rate: 0.04 }), animate: sweep("rate", 0.04, 0.3, 2), animMs: 3200 },
+    { id: "slots", caption: "More slots raise capacity, so the same heavy load clears sooner. On a real GPU the slot count is set by how many KV caches fit in memory.", apply: () => setup({ rate: 0.2, slots: 2 }), animate: sweep("slots", 2, 12, 0), animMs: 3000 },
+  ];
+
   const W = 560, rowH = Math.max(14, Math.min(30, 220 / slots)), padL = 48, padT = 8, padB = 30;
   const H = padT + rowH * slots + padB;
   const tMax = Math.max(st.makespan, co.makespan);
@@ -91,6 +103,7 @@ export default function BatchingLab() {
       title="Static vs continuous batching"
       subtitle={s.example ? "Lesson example: 2 slots, 4 requests at t = 0 with 2, 8, 3, and 3 output tokens." : `${N} synthetic requests, mean output ${MEAN} tokens. One step = one decode iteration; each busy slot emits one token per step.`}
       onReset={() => setS(DEFAULT)}
+      tour={tour}
       presets={[
         { label: "Lesson example", apply: () => setS({ ...DEFAULT, example: true }) },
         { label: "Light load", apply: () => setS({ ...DEFAULT, rate: 0.04 }) },

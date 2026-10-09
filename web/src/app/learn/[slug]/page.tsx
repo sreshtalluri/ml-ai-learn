@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Clock, GithubLogo } from "@phosphor-icons/react/
 import { Markdown } from "@/components/Markdown";
 import { BookmarkButton, CompleteButton, NoteBox, VisitTracker } from "@/components/PageControls";
 import { QuickToggle, ShowFullButton } from "@/components/QuickToggle";
-import { getAdjacent, getLesson, getLessons, getModule, REPO_URL } from "@/lib/content";
+import { getAdjacent, getExplainers, getLesson, getLessons, getModule, REPO_URL } from "@/lib/content";
 import { SKILLS } from "@/lib/skills";
 import { isDeepSection, stripH1, toc } from "@/lib/toc";
 
@@ -31,6 +31,7 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
   const path = `/learn/${slug}/`;
   const prereqs = lesson.prerequisites.map((s) => getLesson(s)).filter((l) => l !== undefined);
   const related = lesson.related.map((s) => getLesson(s)).filter((l) => l !== undefined);
+  const explainer = getExplainers().find((e) => e.lesson === slug);
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-8 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_14rem] lg:gap-10">
@@ -81,6 +82,11 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
           </div>
         </header>
 
+        {explainer && (
+          <p className="mb-6 rounded-xl border border-accent/40 bg-accent-soft/40 px-4 py-3 text-sm text-muted">
+            <strong className="text-ink">Visual explainer:</strong> <Link href={`/explainers/${explainer.id}/`} className="text-accent hover:underline">{explainer.title}</Link>, a {explainer.minutes}-minute scroll-through where the lab moves as you read. Or press <strong>Watch</strong> on the lab below.
+          </p>
+        )}
         <p className="quick-only mb-8 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-muted">
           Quick read: the intuition, interactive visualization, summary, and interview questions. The math, implementation, engineering, and knowledge-check sections are hidden. <ShowFullButton />
         </p>

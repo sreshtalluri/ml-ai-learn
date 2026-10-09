@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt, gaussian, mean, rng } from "@/lib/ml";
-import { Button, LabFrame, Legend, Plot, Slider, Stat, Toggle } from "./ui";
+import { Button, LabFrame, Legend, Plot, Slider, Stat, Toggle, type TourStep } from "./ui";
 
 // SYNTHETIC: 80 points from a 2D Gaussian with adjustable correlation.
 function makeData(rho: number) {
@@ -38,11 +38,24 @@ export default function PcaLab() {
   const pc1Deg = ((P.angle * 180) / Math.PI + 180) % 180;
   const D: [number, number] = [-4.5, 4.5];
 
+  // Guided tour: each step sets correlation, axis angle and projection lines.
+  const pc1Of = (r: number) => ((pca2(makeData(r)).angle * 180) / Math.PI + 180) % 180;
+  const setup = (r: number, d: number) => { setRho(r); setDeg(+d.toFixed(1)); setShowRes(true); };
+  const tour: TourStep[] = [
+    { id: "cloud", caption: "Eighty correlated points, centred at the origin. The teal line is a candidate axis: each point drops onto it along an orange line, keeping one number instead of two.", apply: () => setup(0.8, 0) },
+    { id: "rotate", caption: "Rotate the axis and watch the dot on the right trace how much variance the projected points keep. It peaks where the axis runs along the cloud.", apply: () => setup(0.8, 0), animate: (t) => setDeg(Math.round(t * 360) / 2), animMs: 3500 },
+    { id: "pc1", caption: "That peak is PC1, at about 41.5° here. Projecting onto it keeps 91% of the variance, and the orange lines are as short as they can be.", apply: () => setup(0.8, pc1Of(0.8)) },
+    { id: "trade-off", caption: "Turn 90° to PC2 and the orange lines grow as the teal share falls to 9%. Kept plus lost always adds up to the same total.", apply: () => setup(0.8, pc1Of(0.8)), animate: (t) => setDeg(+((pc1Of(0.8) + 90 * t) % 180).toFixed(1)), animMs: 2800 },
+    { id: "correlation", caption: "Now loosen the correlation while the axis follows PC1. As the cloud turns round, PC1's share drops from 97% toward about 60%: there is less to compress.", apply: () => setup(0.95, pc1Of(0.95)), animate: (t) => { const r = +(0.95 - 0.95 * t).toFixed(2); setRho(r); setDeg(+pc1Of(r).toFixed(1)); }, animMs: 3200 },
+    { id: "takeaway", caption: "PCA picks the direction of most variance, which is the same as the direction of least squared projection error. With strong correlation, one number per point is almost enough.", apply: () => setup(0.8, pc1Of(0.8)) },
+  ];
+
   return (
     <LabFrame
       id="pca"
       title="Find the first principal component"
       subtitle="Synthetic, centered 2D data. Rotate the axis: PCA picks the direction that keeps the most variance when you project onto it."
+      tour={tour}
       onReset={() => { setRho(0.8); setDeg(0); setShowRes(true); }}
       presets={[
         { label: "Snap to PC1", apply: () => setDeg(+pc1Deg.toFixed(1)) },

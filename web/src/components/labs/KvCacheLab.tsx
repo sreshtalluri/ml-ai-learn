@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { fmt } from "@/lib/ml";
-import { LabFrame, Legend, Plot, Segmented, Slider, Stat } from "./ui";
+import { LabFrame, Legend, Plot, Segmented, Slider, Stat, type TourStep } from "./ui";
 
 // SYNTHETIC model shapes and accelerator specs, in the range of current hardware but not any specific product.
 // GB means 10^9 bytes. Activations, framework overhead, and fragmentation are not included.
@@ -68,6 +68,20 @@ export default function KvCacheLab() {
   const yMax = Math.max(r.capacityGB, r.totalGB) * 1.15;
   const slope = (r.perTokBytes * 1024 * s.batch) / 1e9; // GB per thousand tokens of context
   const xEnd = Math.min(xMax, (yMax - r.weightsGB) / slope); // clip the line at the top of the plot
+  // Guided tour: the 8B shape with full multi-head attention first (to show the problem), then GQA and FP8 KV.
+  const setup = (p: Partial<typeof DEFAULT>) => setS({ ...DEFAULT, attn: "mha", batch: 1, exp: 9, ...p });
+  const sweep = (key: "exp" | "batch", a: number, b: number) => (t: number) => set({ [key]: Math.round(a + t * (b - a)) });
+  const tour: TourStep[] = [
+    { id: "weights", caption: "An 8-billion-parameter model in 16-bit takes 16 GB: the purple band. The red dashed line is the GPU's 80 GB. The weights are a fixed cost, the same for every request.", apply: () => setup({}) },
+    { id: "per-token", caption: "Every token the model has seen leaves a key and a value in every layer. With 32 KV heads that is 512 KiB per token, so one 8k-token conversation holds 4.3 GB.", apply: () => setup({ exp: 13 }) },
+    { id: "context", caption: "Watch the orange marker slide right as the context grows. The blue line rises in a straight line: twice the tokens, twice the cache. At 64k tokens one user needs 34 GB.", apply: () => setup({}), animate: sweep("exp", 9, 16), animMs: 3000 },
+    { id: "batch", caption: "Every user in the batch has their own cache. Going from 1 to 8 users at 8k tokens multiplies the blue line's slope by 8, to 34 GB of cache.", apply: () => setup({ exp: 13 }), animate: sweep("batch", 1, 8), animMs: 2400 },
+    { id: "overflow", caption: "Keep adding users and the total crosses the red line around 15 users. At 16 it needs 85 GB on an 80 GB GPU: the cache, not the model, is what runs out.", apply: () => setup({ exp: 13, batch: 8 }), animate: sweep("batch", 8, 16), animMs: 2400 },
+    { id: "gqa", caption: "Grouped-query attention lets 4 query heads share each key-value head, so only 8 are stored. Same 16 users, a quarter of the cache: 17 GB, 33 GB total.", apply: () => setup({ attn: "gqa", exp: 13, batch: 16 }) },
+    { id: "fp8-kv", caption: "Storing the cache in 8 bits halves it again. Now stretch the context to 32k: in 16 bits this would need 85 GB, in FP8 it is 50 GB and still fits.", apply: () => setup({ attn: "gqa", exp: 13, batch: 16, kvBits: "8" }), animate: sweep("exp", 13, 15), animMs: 2200 },
+    { id: "bandwidth", caption: "Every new token reads all weights and all cache once, so memory bandwidth caps speed. As users grow from 1 to 48, total tokens per second climbs while each user slows from 176 to 44.", apply: () => setup({ attn: "gqa", exp: 13 }), animate: sweep("batch", 1, 48), animMs: 3200 },
+  ];
+
   const kvShare = r.kvGB / r.totalGB;
 
   return (
@@ -76,6 +90,7 @@ export default function KvCacheLab() {
       title="KV cache and inference memory"
       subtitle="Synthetic model shapes and accelerator specs (illustrative, not specific products). GB = 10⁹ bytes; activations and overhead not included."
       onReset={() => setS(DEFAULT)}
+      tour={tour}
       presets={[
         { label: "Lesson example (8B, 8k × 16)", apply: () => setS(DEFAULT) },
         { label: "70B on one GPU", apply: () => setS({ ...DEFAULT, modelId: "70b", exp: 13, batch: 8 }) },
