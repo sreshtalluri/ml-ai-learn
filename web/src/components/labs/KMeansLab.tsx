@@ -34,6 +34,19 @@ function initCentroids(points: Point2[], k: number, how: Init, seed: number): Po
   return cs;
 }
 
+/** Plays n half-steps (assign, update, assign, ...) from a fresh start, like the tour does. */
+function simulate(kind: Dataset, k: number, how: Init, seed: number, n: number) {
+  const pts = makeData(kind);
+  let c = initCentroids(pts, k, how, seed), a: number[] = [], updates = 0;
+  const inertia: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i % 2 === 0) a = kmeansAssign(pts, c); else { c = kmeansUpdate(pts, a, c); updates++; }
+    inertia.push(kmeansInertia(pts, a, c));
+  }
+  return { n: pts.length, inertia, last: inertia[inertia.length - 1], updates };
+}
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
 const COLORS = ["var(--c-blue)", "var(--c-orange)", "var(--c-teal)", "var(--c-purple)", "var(--c-red)", "var(--c-green)"];
 const D: [number, number] = [0, 10];
 
@@ -66,9 +79,11 @@ export default function KMeansLab() {
     setAssign(a);
     setHistory((h) => [...h, kmeansInertia(points, a, centroids)]);
     setPhase("update");
-    setNote(assign && changed === 0
-      ? `No point changed cluster: K-means has converged after ${iter} updates. Inertia ${fmt(kmeansInertia(points, a, centroids), 2)}.`
-      : `Assignment step: ${changed} point${changed === 1 ? "" : "s"} joined a different centroid. Each point now belongs to the nearest one.`);
+    setNote(!assign
+      ? "Assignment step: every point now belongs to its nearest centroid."
+      : changed === 0
+        ? `No point changed cluster: K-means has converged after ${plural(iter, "update")}. Inertia ${fmt(kmeansInertia(points, a, centroids), 2)}.`
+        : `Assignment step: ${plural(changed, "point")} switched to a different centroid. Each point now belongs to the nearest one.`);
     return { a, changed };
   };
 
@@ -97,7 +112,7 @@ export default function KMeansLab() {
       if (same) break;
     }
     setCentroids(c); setAssign(a); setIter(it); setHistory(h); setPhase("update");
-    setNote(`Converged after ${it} update steps with inertia ${fmt(kmeansInertia(points, a, c), 2)}. Try another seed: different starts can converge to different (worse) solutions.`);
+    setNote(`Converged after ${plural(it, "update step")} with inertia ${fmt(kmeansInertia(points, a, c), 2)}. Try another seed: different starts can converge to different (worse) solutions.`);
   };
 
   const sx = linear(D, [48, 548]), sy = linear(D, [320, 12]);
@@ -135,13 +150,16 @@ export default function KMeansLab() {
     if (history.length >= Math.round(t * n)) return;
     if (phase === "assign") doAssign(); else doUpdate();
   };
+  // Caption numbers come from replaying the same half-steps each tour step plays.
+  const good = simulate("blobs", 3, "random", 4, 5), bad = simulate("blobs", 3, "random", 11, 7), pp = simulate("blobs", 3, "plusplus", 4, 3);
+  const i0 = (v: number) => fmt(v, 0);
   const tour: TourStep[] = [
-    { id: "start", caption: "Ninety grey points in three blobs, and three × centroids dropped on random points. Nothing belongs to any cluster yet.", apply: () => setup("blobs", 3, "random", 4) },
+    { id: "start", caption: `${good.n} grey points in three blobs, and three × centroids dropped on random points. Nothing belongs to any cluster yet.`, apply: () => setup("blobs", 3, "random", 4) },
     { id: "assign", caption: "Assignment step: every point takes the colour of its nearest centroid. The thin lines show who belongs to whom.", apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(1), animMs: 1800 },
-    { id: "update", caption: "Update step: each centroid jumps to the mean of the points it owns. Inertia, the total squared distance in orange, drops from 820 to 324.", apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(2), animMs: 2000 },
-    { id: "converge", caption: "Repeat assign and update until no point switches cluster. Here that takes two updates, and inertia settles at 121 with one centroid per blob.", apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(5), animMs: 3000 },
-    { id: "bad-start", caption: "Same data, seed 11. Two centroids end up splitting the top-right blob while one stretches across the other two. It still converges, but stuck at inertia 502 instead of 121.", apply: () => setup("blobs", 3, "random", 11), animate: halfSteps(7), animMs: 3400 },
-    { id: "plusplus", caption: "k-means++ picks starting points far apart, so each blob tends to get its own centroid. From this start one update reaches inertia 121.", apply: () => setup("blobs", 3, "plusplus", 4), animate: halfSteps(3), animMs: 2400 },
+    { id: "update", caption: `Update step: each centroid jumps to the mean of the points it owns. Inertia, the total squared distance (orange, in the readout), drops from ${i0(good.inertia[0])} to ${i0(good.inertia[1])}.`, apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(2), animMs: 2000 },
+    { id: "converge", caption: `Repeat assign and update until no point switches cluster. Here that takes ${plural(good.updates, "update")}, and inertia settles at ${i0(good.last)} with one centroid per blob.`, apply: () => setup("blobs", 3, "random", 4), animate: halfSteps(5), animMs: 3000 },
+    { id: "bad-start", caption: `Same data, seed 11. Two centroids end up splitting the top-right blob while one stretches across the other two. It still converges, but stuck at inertia ${i0(bad.last)} instead of ${i0(good.last)}.`, apply: () => setup("blobs", 3, "random", 11), animate: halfSteps(7), animMs: 3400 },
+    { id: "plusplus", caption: `k-means++ picks starting points far apart, so each blob tends to get its own centroid. From this start ${plural(pp.updates, "update")} reaches inertia ${i0(pp.last)}.`, apply: () => setup("blobs", 3, "plusplus", 4), animate: halfSteps(3), animMs: 2400 },
     { id: "rings", caption: "A ring around a core. K-means boundaries are straight lines, so it slices the ring in half instead of separating ring from core, however it starts.", apply: () => setup("rings", 2, "plusplus", 4), animate: halfSteps(9), animMs: 3400 },
   ];
   return (

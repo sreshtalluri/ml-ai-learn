@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { fmt, gaussian, rng } from "@/lib/ml";
-import { diverged, initState, step, SURFACES, type OptimizerId, type OptState, type P2 } from "@/lib/optim";
+import { diverged, initState, step, SURFACES, type OptimizerId, type OptState, type P2, type Surface } from "@/lib/optim";
 import { Button, LabFrame, Legend, linear, Plot, Slider, Stat, svgPoint, Toggle, type TourStep } from "./ui";
 
 const OPTS: { id: OptimizerId; label: string; color: string }[] = [
@@ -11,6 +11,13 @@ const OPTS: { id: OptimizerId; label: string; color: string }[] = [
 ];
 
 type Track = { st: OptState; path: P2[]; dead: boolean };
+
+/** Loss after n noise-free steps from the surface's start (used to write tour captions from real runs). */
+const lossAfter = (s: Surface, o: OptimizerId, lr: number, n: number) => {
+  let st = initState(s.start);
+  for (let i = 0; i < n; i++) st = step(o, st, s.grad(st.p), lr);
+  return s.f(st.p);
+};
 const W = 560, H = 360, M = { t: 12, r: 12, b: 40, l: 48 };
 
 export default function GradientDescentLab() {
@@ -81,17 +88,20 @@ export default function GradientDescentLab() {
   };
   const walkTo = (n: number) => (t: number) => { const target = Math.round(t * n); if (target > steps) advance(target - steps); };
   const onlyGd = { sgd: true, momentum: false, adam: false };
+  const bowl = SURFACES[0];
+  const l = (o: OptimizerId, eta: number, n: number) => fmt(lossAfter(bowl, o, eta, n), 2);
   const tour: TourStep[] = [
-    { id: "start", caption: "This is a loss surface seen from above. Darker blue means higher loss, and the ring marks the minimum we want to reach.", apply: () => setup("bowl", 0.1, onlyGd) },
+    { id: "start", caption: "This is a loss surface seen from above. Darker blue means higher loss, and the ring marks the minimum we want to reach. We start at the blue dot.", apply: () => setup("bowl", 0.1, onlyGd) },
     { id: "arrow", caption: "The teal arrow is minus the gradient, scaled by the learning rate: the direction of steepest descent from where we stand.", apply: () => setup("bowl", 0.1, onlyGd) },
-    { id: "descend", caption: "Each step moves along that arrow, then recomputes it. Steps shrink on their own as the slope flattens near the minimum.", apply: () => setup("bowl", 0.1, onlyGd), animate: walkTo(25), animMs: 2600 },
-    { id: "zigzag", caption: "Raise the learning rate and the path zigzags across the narrow valley: each step overshoots the steep direction.", apply: () => setup("bowl", 0.18, onlyGd), animate: walkTo(25), animMs: 2600 },
-    { id: "diverge", caption: "Past the stability limit, η × 10 > 2 here, every overshoot is bigger than the last and the loss explodes.", apply: () => setup("bowl", 0.21, onlyGd), animate: walkTo(20), animMs: 2400 },
-    { id: "optimizers", caption: "Momentum and Adam on the same surface: momentum builds speed along the valley floor, Adam rescales each direction separately.", apply: () => setup("bowl", 0.03, { sgd: true, momentum: true, adam: true }), animate: walkTo(60), animMs: 3200 },
+    { id: "descend", caption: `Each step moves along that arrow, then recomputes it. Steps shrink on their own as the slope flattens: after 25 steps the loss is down from ${fmt(bowl.f(bowl.start), 1)} to ${l("sgd", 0.1, 25)}.`, apply: () => setup("bowl", 0.1, onlyGd), animate: walkTo(25), animMs: 2600 },
+    { id: "zigzag", caption: "Raise the learning rate to 0.18 and the path zigzags across the narrow valley: each step overshoots the steep direction, but by a little less each time.", apply: () => setup("bowl", 0.18, onlyGd), animate: walkTo(25), animMs: 2600 },
+    { id: "diverge", caption: `At 0.21 we are past the stability limit (η × 10 > 2 here): every overshoot is bigger than the last, the path flies off the map, and after 20 steps the loss has grown to ${fmt(lossAfter(bowl, "sgd", 0.21, 20), 0)}.`, apply: () => setup("bowl", 0.21, onlyGd), animate: walkTo(20), animMs: 2400 },
+    { id: "optimizers", caption: `Three optimizers, η = 0.03, 60 steps. Momentum (orange) builds up speed, overshoots and swirls around the minimum, but still ends closest (loss ${l("momentum", 0.03, 60)}). Gradient descent (blue) crawls (${l("sgd", 0.03, 60)}). Adam (purple) takes similar-sized steps in both directions, so it heads straight for the minimum, but each step is only about η long (${l("adam", 0.03, 60)}).`, apply: () => setup("bowl", 0.03, { sgd: true, momentum: true, adam: true }), animate: walkTo(60), animMs: 3200 },
   ];
 
-  const interpretation = anyDead
-    ? `Diverged. Each step overshot the minimum by more than the last, so the loss exploded. On the narrow bowl the steep direction has curvature 10, and plain gradient descent is only stable while η × 10 < 2.`
+  const growing = enabled.sgd && !main.dead && steps > 0 && s.f(main.st.p) > s.f(start);
+  const interpretation = anyDead || growing
+    ? `${anyDead ? "Diverged" : `Diverging: after ${steps} steps the loss has grown from ${fmt(s.f(start), 2)} to ${fmt(s.f(main.st.p), 2)}`}. Each step overshot the minimum by more than the last, so the loss ${anyDead ? "exploded" : "keeps growing"}. ${s.id === "bowl" ? "On the narrow bowl the steep direction has curvature 10, and plain gradient descent is only stable while η × 10 < 2." : "Lower the learning rate."}`
     : steps === 0
       ? s.note
       : `After ${steps} steps, gradient descent sits at loss ${fmt(s.f(main.st.p), 4)} with gradient norm ${fmt(gNorm, 3)}. The arrow shows −∇L: the direction of steepest descent, scaled by η. ${noise ? "Noisy gradients mimic mini-batches: the path jitters but still trends downhill." : ""}`;

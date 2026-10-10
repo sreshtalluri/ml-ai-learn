@@ -60,7 +60,7 @@ This is why a loss that suddenly jumps to `NaN` usually means the learning rate 
 <!-- step:optimizers -->
 ## Smarter steps
 
-Same surface, three optimizers. Plain gradient descent (blue) still crawls. **Momentum** (orange) keeps a running velocity, so it speeds up along the valley floor, where the gradient keeps pointing the same way, while the back-and-forth across the valley cancels out. **Adam** (purple) also scales each direction by how large its gradients have been, so the steep and shallow directions get similar-sized steps.
+Same surface, three optimizers, a small $\eta = 0.03$ and 60 steps each. Plain gradient descent (blue) still crawls along the valley floor. **Momentum** (orange) keeps a running velocity, so it keeps speeding up while the gradient points the same way. It builds up so much speed that it overshoots and swirls around the minimum, yet it still ends up closest. **Adam** (purple) scales each direction by how large its gradients have been, so the steep and shallow directions get similar-sized steps and it heads straight for the minimum. Each of its steps is only about $\eta$ long, though, so at this small $\eta$ it is still on its way.
 
 That's why most deep networks today are trained with Adam or a close relative.
 

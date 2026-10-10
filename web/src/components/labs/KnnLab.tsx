@@ -21,9 +21,27 @@ const COLORS = ["var(--c-blue)", "var(--c-orange)"];
 const NAMES = ["did not buy", "bought"];
 type Metric = "euclidean" | "manhattan";
 
+const DATA = makeData();
+// Standardization statistics come from the (training) data only.
+const STATS = (() => {
+  const xs = DATA.map((p) => p.x), ys = DATA.map((p) => p.y);
+  return { mx: mean(xs), sx: Math.sqrt(variance(xs)), my: mean(ys), sy: Math.sqrt(variance(ys)) };
+})();
+const toSpace = (scaled: boolean) => (p: { x: number; y: number }) => (scaled ? { x: (p.x - STATS.mx) / STATS.sx, y: (p.y - STATS.my) / STATS.sy } : { x: p.x, y: p.y });
+const spaceOf = (scaled: boolean) => DATA.map((p) => ({ ...p, ...toSpace(scaled)(p) }));
+// Leave-one-out accuracy: how well does this K / metric / scaling setting generalize?
+function looAccuracy(space: LabeledPoint[], k: number, metric: Metric) {
+  let correct = 0;
+  space.forEach((p, i) => {
+    if (knnPredict(space.filter((_, j) => j !== i), p, k, metric) === p.label) correct++;
+  });
+  return correct / space.length;
+}
+const Q0 = { x: 47, y: 100 };
+
 export default function KnnLab() {
-  const data = useMemo(() => makeData(), []);
-  const [q, setQ] = useState({ x: 47, y: 100 });
+  const data = DATA;
+  const [q, setQ] = useState(Q0);
   const [k, setK] = useState(5);
   const [metric, setMetric] = useState<Metric>("euclidean");
   const [scaled, setScaled] = useState(false);
@@ -31,28 +49,16 @@ export default function KnnLab() {
   const [dragging, setDragging] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Standardization statistics come from the (training) data only.
-  const stats = useMemo(() => {
-    const xs = data.map((p) => p.x), ys = data.map((p) => p.y);
-    return { mx: mean(xs), sx: Math.sqrt(variance(xs)), my: mean(ys), sy: Math.sqrt(variance(ys)) };
-  }, [data]);
-  const tf = (p: { x: number; y: number }) => (scaled ? { x: (p.x - stats.mx) / stats.sx, y: (p.y - stats.my) / stats.sy } : p);
-  const space = useMemo(() => data.map((p) => ({ ...p, ...tf(p) })), [data, scaled]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stats = STATS;
+  const tf = toSpace(scaled);
+  const space = useMemo(() => spaceOf(scaled), [scaled]);
 
   const neighbors = knnNeighbors(space, tf(q), k, metric);
   const votes = [0, 1].map((c) => neighbors.filter((n) => n.point.label === c).length);
   const pred = knnPredict(space, tf(q), k, metric);
   const radius = neighbors[neighbors.length - 1].distance;
 
-  // Leave-one-out accuracy: how well does this K / metric / scaling setting generalize?
-  const loo = useMemo(() => {
-    let correct = 0;
-    space.forEach((p, i) => {
-      const rest = space.filter((_, j) => j !== i);
-      if (knnPredict(rest, p, k, metric) === p.label) correct++;
-    });
-    return correct / space.length;
-  }, [space, k, metric]);
+  const loo = useMemo(() => looAccuracy(space, k, metric), [space, k, metric]);
 
   // Background decision regions on a coarse grid.
   const grid = useMemo(() => {
@@ -79,18 +85,33 @@ export default function KnnLab() {
   const cx = sx(q.x), cy = sy(q.y);
 
   const interpretation = scaled
-    ? `With standardized features, one standard deviation of age counts as much as one standard deviation of income, so the neighborhood stretches to cover similar ages. Leave-one-out accuracy is ${fmt(loo * 100, 1)}%.`
+    ? `With standardized features, one standard deviation of age counts as much as one standard deviation of income, so the neighborhood narrows in age and widens in income: neighbors are now customers of similar age. Leave-one-out accuracy is ${fmt(loo * 100, 1)}%.`
     : `In raw units, income spans about 150 while age spans about 50, so distance is dominated by income: the neighborhood is a thin horizontal band of similar incomes, regardless of age. Turn on scaling and compare the leave-one-out accuracy (now ${fmt(loo * 100, 1)}%).`;
 
   // Guided tour (Watch mode + explainers). Each step sets query, K, and scaling, then moves one.
-  const setup = (kk: number, sc: boolean, query = { x: 47, y: 100 }) => { setQ(query); setK(kk); setMetric("euclidean"); setScaled(sc); setRegions(true); };
+  // Captions quote numbers computed from the same data and settings the step shows.
+  const pctOf = (v: number) => `${fmt(v * 100, 1)}%`;
+  const [rawSp, zSp] = useMemo(() => [spaceOf(false), spaceOf(true)], []);
+  const tourNums = useMemo(() => {
+    const ks = Array.from({ length: 15 }, (_, i) => 1 + 2 * i);
+    const accs = ks.map((kk) => looAccuracy(zSp, kk, "euclidean"));
+    const peak = accs.indexOf(Math.max(...accs));
+    // first age (in 0.1-year steps from 25) where the raw-units prediction at income 100 becomes "bought"
+    let flip = 25;
+    while (flip < 65 && knnPredict(rawSp, { x: flip, y: 100 }, 5, "euclidean") !== 1) flip = +(flip + 0.1).toFixed(1);
+    return {
+      raw5: looAccuracy(rawSp, 5, "euclidean"), z5: accs[2], z1: accs[0], peakK: ks[peak], peakAcc: accs[peak], k29: accs[14], flip,
+      rawPred: knnPredict(rawSp, Q0, 5, "euclidean"), zPred: knnPredict(zSp, toSpace(true)(Q0), 5, "euclidean"),
+    };
+  }, [rawSp, zSp]);
+  const setup = (kk: number, sc: boolean, query = Q0) => { setQ(query); setK(kk); setMetric("euclidean"); setScaled(sc); setRegions(true); };
   const tour: TourStep[] = [
     { id: "query", caption: "The ringed dot is a new customer. KNN finds the 5 closest training points, joined by lines inside the purple outline, and predicts by majority vote.", apply: () => setup(5, false) },
-    { id: "move", caption: "Slide the customer from age 25 to 65 at the same income. The neighbors change as it moves, and the prediction flips to bought around age 50.", apply: () => setup(5, false, { x: 25, y: 100 }), animate: (t) => setQ({ x: +(25 + t * 40).toFixed(1), y: 100 }), animMs: 3200 },
+    { id: "move", caption: `Slide the customer from age 25 to 65 at the same income. The neighbors change as it moves, and the prediction flips to bought at about age ${Math.round(tourNums.flip)}.`, apply: () => setup(5, false, { x: 25, y: 100 }), animate: (t) => setQ({ x: +(25 + t * 40).toFixed(1), y: 100 }), animMs: 3200 },
     { id: "raw-units", caption: "Look at the purple outline: a flat band. Income spans 150 units and age only 50, so distance is mostly income, the feature that doesn't matter here.", apply: () => setup(5, false) },
-    { id: "scaled", caption: "Standardize both features and the neighborhood stretches to cover similar ages. This customer flips to bought, and leave-one-out accuracy rises from 76.7% to 80%.", apply: () => setup(5, true) },
-    { id: "k1", caption: "With K = 1 each prediction copies a single neighbor, noise included. The shaded regions turn patchy and accuracy falls to 70%.", apply: () => setup(1, true) },
-    { id: "k-sweep", caption: "Raise K and the regions smooth out. Accuracy peaks at 86.7% near K = 15, then slips to 78% at K = 29 as the vote averages over too wide an area.", apply: () => setup(1, true), animate: (t) => setK(1 + 2 * Math.round(t * 14)), animMs: 3400 },
+    { id: "scaled", caption: `Standardize both features and the outline turns rounder: narrower in age, taller in income, so the neighbors are now customers of similar age. ${tourNums.zPred !== tourNums.rawPred ? `This customer flips to ${NAMES[tourNums.zPred]}, and l` : "L"}eave-one-out accuracy goes from ${pctOf(tourNums.raw5)} to ${pctOf(tourNums.z5)}.`, apply: () => setup(5, true) },
+    { id: "k1", caption: `With K = 1 each prediction copies a single neighbor, noise included. The shaded regions turn patchy and accuracy falls to ${pctOf(tourNums.z1)}.`, apply: () => setup(1, true) },
+    { id: "k-sweep", caption: `Raise K and the regions smooth out. Accuracy peaks at ${pctOf(tourNums.peakAcc)} at K = ${tourNums.peakK}, then slips to ${pctOf(tourNums.k29)} at K = 29 as the vote averages over too wide an area.`, apply: () => setup(1, true), animate: (t) => setK(1 + 2 * Math.round(t * 14)), animMs: 3400 },
   ];
 
   return (
@@ -99,7 +120,7 @@ export default function KnnLab() {
       tour={tour}
       title="K-nearest neighbors lab"
       subtitle="Synthetic customers: age vs income. Click or drag anywhere to move the query point."
-      onReset={() => { setQ({ x: 47, y: 100 }); setK(5); setMetric("euclidean"); setScaled(false); setRegions(true); }}
+      onReset={() => { setQ(Q0); setK(5); setMetric("euclidean"); setScaled(false); setRegions(true); }}
       presets={[
         { label: "K = 1 (noisy)", apply: () => setK(1) },
         { label: "K = 25 (smooth)", apply: () => setK(25) },

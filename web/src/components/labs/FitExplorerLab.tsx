@@ -15,6 +15,23 @@ function makeData(n: number, noise: number, seed: number) {
   });
 }
 
+type Pt = { x: number; y: number };
+const mse = (c: number[], pts: Pt[]) => mean(pts.map((p) => (p.y - polyEval(c, p.x)) ** 2));
+// Train and validation MSE for every identifiable degree at this training size and noise.
+function errorCurve(train: Pt[], val: Pt[], n: number) {
+  return Array.from({ length: MAX_DEG }, (_, i) => {
+    const d = i + 1;
+    if (d >= n) return null; // more coefficients than points: not identifiable
+    const c = polyFit(train.map((p) => p.x), train.map((p) => p.y), d);
+    return { d, train: mse(c, train), val: mse(c, val) };
+  }).filter((r) => r !== null);
+}
+const curveFor = (n: number, noise: number) => errorCurve(makeData(n, noise, 7), makeData(200, noise, 99), n);
+const at = (c: ReturnType<typeof curveFor>, d: number) => c.find((r) => r.d === d)!;
+// Tour captions quote these, so they always match what the lab shows.
+const BASE = curveFor(20, 0.3), MORE = curveFor(60, 0.3), NOISY = curveFor(20, 0.8);
+const BASE_BEST = BASE.reduce((a, b) => (b.val < a.val ? b : a));
+
 export default function FitExplorerLab() {
   const [degree, setDegree] = useState(3);
   const [n, setN] = useState(20);
@@ -22,15 +39,7 @@ export default function FitExplorerLab() {
   const train = useMemo(() => makeData(n, noise, 7), [n, noise]);
   const val = useMemo(() => makeData(200, noise, 99), [noise]);
 
-  const mse = (c: number[], pts: { x: number; y: number }[]) => mean(pts.map((p) => (p.y - polyEval(c, p.x)) ** 2));
-  const curve = useMemo(() => {
-    return Array.from({ length: MAX_DEG }, (_, i) => {
-      const d = i + 1;
-      if (d >= n) return null; // more coefficients than points: not identifiable
-      const c = polyFit(train.map((p) => p.x), train.map((p) => p.y), d);
-      return { d, train: mse(c, train), val: mse(c, val) };
-    }).filter((r) => r !== null);
-  }, [train, val, n]);
+  const curve = useMemo(() => errorCurve(train, val, n), [train, val, n]);
   const coefs = useMemo(() => polyFit(train.map((p) => p.x), train.map((p) => p.y), Math.min(degree, n - 1)), [train, degree, n]);
   const cur = curve.find((r) => r.d === degree) ?? curve[curve.length - 1];
   const best = curve.reduce((a, b) => (b.val < a.val ? b : a));
@@ -48,14 +57,16 @@ export default function FitExplorerLab() {
   // Guided tour (Watch mode + explainers). Each step sets all three knobs, then sweeps one.
   const setup = (d: number, pts = 20, sigma = 0.3) => { setDegree(d); setN(pts); setNoise(sigma); };
   const sweep = (set: (v: number) => void, a: number, b: number) => (t: number) => set(Math.round(a + t * (b - a)));
+  const f2 = (v: number) => fmt(v, 2), f3 = (v: number) => fmt(v, 3);
+  const [lin, d12] = [at(BASE, 1), at(BASE, 12)];
   const tour: TourStep[] = [
     { id: "data", caption: "The blue dots are 20 noisy samples of the dashed sine curve. The teal curve is a polynomial fitted to the dots; the right panel scores it.", apply: () => setup(3) },
-    { id: "underfit", caption: "A straight line can't bend. It misses the sine everywhere: train error 0.21, validation 0.30. Both high, small gap: that is underfitting, or high bias.", apply: () => setup(1) },
+    { id: "underfit", caption: `A straight line can't bend. It misses the sine everywhere: train error ${f2(lin.train)}, validation ${f2(lin.val)}. Both high, small gap: that is underfitting, or high bias.`, apply: () => setup(1) },
     { id: "complexity", caption: "Raise the degree and the teal curve bends to follow the dots. The blue training error falls with every step.", apply: () => setup(1), animate: sweep(setDegree, 1, 9), animMs: 3000 },
-    { id: "overfit", caption: "Keep going and the orange validation error turns back up. At degree 12, train error is 0.025 but validation is 0.57: the curve is chasing noise. That is high variance.", apply: () => setup(9), animate: sweep(setDegree, 9, 14), animMs: 2800 },
-    { id: "sweet-spot", caption: "The orange ring marks the bottom of the U: degree 3, validation error 0.10. Pick complexity by validation error, never by training error.", apply: () => setup(3) },
-    { id: "more-data", caption: "Same degree 12, but grow the training set from 20 to 60 points. With more points to pin it down, validation error drops from 0.57 to about 0.13.", apply: () => setup(12), animate: sweep(setN, 20, 60), animMs: 3000 },
-    { id: "noise", caption: "Back to 20 points at degree 12, and turn the noise up from zero. With no noise there is nothing to overfit; the more noise, the wilder the fit.", apply: () => setup(12, 20, 0), animate: (t) => setNoise(Math.round(t * 16) / 20), animMs: 3000 },
+    { id: "overfit", caption: `Keep going: past degree 9 the orange validation error turns back up. At degree 12, train error is ${f3(d12.train)} but validation is ${f2(d12.val)}: the curve is chasing noise. That is high variance.`, apply: () => setup(9), animate: sweep(setDegree, 9, 12), animMs: 2400 },
+    { id: "sweet-spot", caption: `The orange ring marks the bottom of the U: degree ${BASE_BEST.d}, validation error ${f2(BASE_BEST.val)}. Pick complexity by validation error, never by training error.`, apply: () => setup(BASE_BEST.d) },
+    { id: "more-data", caption: `Same degree 12, but grow the training set from 20 to 60 points. With more points to pin it down, validation error drops from ${f2(d12.val)} to ${f2(at(MORE, 12).val)}.`, apply: () => setup(12), animate: sweep(setN, 20, 60), animMs: 3000 },
+    { id: "noise", caption: `Back to 20 points at degree 12, and turn the noise up from zero to 0.8. With no noise there is nothing to overfit; the more noise, the wilder the fit: validation error ends at ${f2(at(NOISY, 12).val)}.`, apply: () => setup(12, 20, 0), animate: (t) => setNoise(Math.round(t * 16) / 20), animMs: 3000 },
   ];
 
   return (
@@ -99,7 +110,7 @@ export default function FitExplorerLab() {
               </>
             )}
           </Plot>
-          <Legend items={[{ label: "true function", color: "var(--faint)", dashed: true }, { label: `degree-${degree} fit`, color: "var(--c-teal)" }, { label: "training points", color: "var(--c-blue)" }]} />
+          <Legend items={[{ label: "true function", color: "var(--faint)", dashed: true }, { label: `degree-${cur.d} fit`, color: "var(--c-teal)" }, { label: "training points", color: "var(--c-blue)" }]} />
         </div>
         <div>
           <Plot title="Error versus model complexity" x={[1, Math.max(2, curve[curve.length - 1].d)]} y={[logY(Math.min(...curve.map((r) => r.train))) - 0.2, logY(yMax) + 0.2]} xLabel="polynomial degree" yLabel="log₁₀ MSE" height={300}>

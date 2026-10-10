@@ -35,7 +35,7 @@ export function chunkDocs(size: number, overlap: number): Chunk[] {
   return out;
 }
 
-const terms = (s: string) => tokenize(s).filter((t) => !STOP.has(t));
+export const terms = (s: string) => tokenize(s).filter((t) => !STOP.has(t));
 
 export function expand(query: string): string[] {
   return terms(query).flatMap((t) => [t, ...(SYNONYMS[t] ?? [])]);
