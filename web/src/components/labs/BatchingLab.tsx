@@ -82,12 +82,16 @@ export default function BatchingLab() {
   // Guided tour: lesson example first, then the synthetic workload with one knob moving per step.
   const setup = (p: Partial<typeof DEFAULT>) => setS({ ...DEFAULT, ...p });
   const sweep = (key: "sigma" | "rate" | "slots", a: number, b: number, dp: number) => (t: number) => setS((x) => ({ ...x, [key]: Number((a + t * (b - a)).toFixed(dp)) }));
+  // Caption numbers for the spread steps, from the same simulation the timeline draws.
+  const BUSY = 0.3, SPREAD = 1.2;
+  const spread = (() => { const w = makeWorkload(N, BUSY, MEAN, SPREAD, DEFAULT.seed); return { st: metrics(w, 4, simulate(w, 4, "static").finish), co: metrics(w, 4, simulate(w, 4, "continuous").finish) }; })();
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
   const tour: TourStep[] = [
     { id: "example-static", caption: "Two slots, four requests that need 2, 8, 3 and 3 tokens. Static batching runs a pair to completion before starting the next pair, so the short request's slot sits empty: 11 steps.", apply: () => setup({ example: true, policy: "static" }) },
     { id: "example-continuous", caption: "Continuous batching refills a slot the step after its request finishes. Same work, no gap: 8 steps, 2 tokens per step instead of 1.45.", apply: () => setup({ example: true, policy: "continuous" }) },
-    { id: "static-gaps", caption: "Now 30 synthetic requests on 4 slots under static batching. Watch the blank gaps grow as output lengths spread out: each batch waits for its longest request.", apply: () => setup({ policy: "static", sigma: 0 }), animate: sweep("sigma", 0, 1.5, 1), animMs: 3000 },
-    { id: "continuous", caption: "The same spread under continuous batching. Bars pack tightly no matter how uneven the lengths get, because a free slot is refilled at once.", apply: () => setup({ policy: "continuous", sigma: 0 }), animate: sweep("sigma", 0, 1.5, 1), animMs: 3000 },
-    { id: "load", caption: "Raise the arrival rate past capacity, 4 slots ÷ 24 tokens ≈ 0.17 requests per step. No policy can keep up: requests queue and latency is mostly waiting.", apply: () => setup({ rate: 0.04 }), animate: sweep("rate", 0.04, 0.3, 2), animMs: 3200 },
+    { id: "static-gaps", caption: `Now a busy server: 30 synthetic requests arriving faster than 4 slots can serve them, under static batching. Watch blank gaps open as output lengths spread out: each batch waits for its longest request, leaving ${pct(spread.st.idle)} of slot time idle.`, apply: () => setup({ policy: "static", rate: BUSY, sigma: 0 }), animate: sweep("sigma", 0, SPREAD, 1), animMs: 3000 },
+    { id: "continuous", caption: `The same requests under continuous batching. Bars pack tightly however uneven the lengths, because a free slot is refilled at once. Idle time falls to ${pct(spread.co.idle)}: a slot sits empty only when no request is waiting.`, apply: () => setup({ policy: "continuous", rate: BUSY, sigma: 0 }), animate: sweep("sigma", 0, SPREAD, 1), animMs: 3000 },
+    { id: "load", caption: `Raise the arrival rate past capacity, ${DEFAULT.slots} slots ÷ ${MEAN} tokens ≈ ${fmt(DEFAULT.slots / MEAN, 2)} requests per step. No policy can keep up: requests queue, and mean latency (readout) becomes mostly waiting.`, apply: () => setup({ rate: 0.04 }), animate: sweep("rate", 0.04, BUSY, 2), animMs: 3200 },
     { id: "slots", caption: "More slots raise capacity, so the same heavy load clears sooner. On a real GPU the slot count is set by how many KV caches fit in memory.", apply: () => setup({ rate: 0.2, slots: 2 }), animate: sweep("slots", 2, 12, 0), animMs: 3000 },
   ];
 
@@ -114,8 +118,8 @@ export default function BatchingLab() {
         <>
           <Segmented label="Policy shown" value={s.policy} onChange={(v) => setS((x) => ({ ...x, policy: v }))} options={[{ value: "static", label: "Static" }, { value: "continuous", label: "Continuous" }]} />
           <Slider label="arrival rate (requests/step)" value={s.rate} min={0.02} max={0.3} step={0.01} onChange={(v) => set({ rate: v })} format={(v) => fmt(v, 2)}
-            hint={`capacity ≈ slots ÷ mean length = ${fmt(capacity, 3)}`} />
-          <Slider label="batch slots K" value={s.slots} min={1} max={16} onChange={(v) => set({ slots: v })} />
+            hint={s.example ? "lesson example: 4 fixed requests, all at t = 0" : `capacity ≈ slots ÷ mean length = ${fmt(capacity, 3)}`} />
+          <Slider label="batch slots K" value={slots} min={1} max={16} onChange={(v) => set({ slots: v })} />
           <Slider label="output-length spread σ" value={s.sigma} min={0} max={1.5} step={0.1} onChange={(v) => set({ sigma: v })} format={(v) => fmt(v, 1)} hint="log-normal σ; 0 = every request the same length" />
           <Button onClick={() => set({ seed: s.seed + 1 })}>New workload</Button>
         </>
