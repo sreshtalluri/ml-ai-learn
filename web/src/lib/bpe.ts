@@ -1,8 +1,10 @@
-// Tiny byte-pair encoding for teaching. Words are split on spaces; "▁" marks a word start (as in SentencePiece).
+// Tiny byte-pair encoding for teaching. "▁" marks the start of a word (as in SentencePiece);
+// punctuation is split off as its own token, as GPT-style pre-tokenizers do.
 
 export type Merge = [string, string];
 
-const words = (text: string) => text.toLowerCase().split(/\s+/).filter(Boolean).map((w) => ["▁", ...w]);
+const words = (text: string) =>
+  (text.toLowerCase().match(/[\p{L}\p{N}']+|[^\s\p{L}\p{N}]/gu) ?? []).map((w) => (/[\p{L}\p{N}]/u.test(w) ? ["▁", ...w] : [w]));
 
 /** Learn up to `n` merges: repeatedly join the most frequent adjacent pair (ties: first seen). */
 export function trainBpe(corpus: string, n: number): Merge[] {
@@ -32,7 +34,22 @@ function applyMerge(s: string[], a: string, b: string): string[] {
   return out;
 }
 
+/** Tokens for each word of `text` after applying the first `k` merges in training order. */
+export function encodeWords(text: string, merges: Merge[], k = merges.length): string[][] {
+  return words(text).map((w) => merges.slice(0, k).reduce((s, [a, b]) => applyMerge(s, a, b), w));
+}
+
 /** Tokenize text by applying the first `k` merges in training order. */
-export function encode(text: string, merges: Merge[], k = merges.length): string[] {
-  return words(text).flatMap((w) => merges.slice(0, k).reduce((s, [a, b]) => applyMerge(s, a, b), w));
+export const encode = (text: string, merges: Merge[], k = merges.length): string[] => encodeWords(text, merges, k).flat();
+
+/** The merge counts k (1-based) at which applying merge k changes this text's tokens. */
+export function effectiveMerges(text: string, merges: Merge[]): number[] {
+  let seqs = words(text);
+  const out: number[] = [];
+  merges.forEach(([a, b], i) => {
+    const next = seqs.map((s) => applyMerge(s, a, b));
+    if (next.some((s, j) => s.length !== seqs[j].length)) out.push(i + 1);
+    seqs = next;
+  });
+  return out;
 }

@@ -30,6 +30,8 @@ function recommend(a: Record<string, Answer>) {
   const { signal, output, time } = a;
   if (!signal) return null;
   const timeNote = time === "yes" ? " Split by time, not randomly, so validation mimics predicting the future." : "";
+  if (signal === "labels" && output === "actions")
+    return { name: "Supervised learning: imitation", why: "You have logged decisions with the correct action for each situation, so treat it as classification (behavior cloning): predict the expert's action from the state. Move to reinforcement learning only if you also have a reward and need to beat the demonstrator." + timeNote };
   if (signal === "reward" || output === "actions")
     return { name: "Reinforcement learning", why: "The only feedback is a reward that depends on a sequence of actions, so the model must learn a policy by trial and error. In practice, frame it as supervised learning first if you have logged decisions with known outcomes; RL is expensive and unstable." + timeNote };
   if (signal === "self")
@@ -37,7 +39,7 @@ function recommend(a: Record<string, Answer>) {
   if (signal === "some")
     return { name: "Semi-supervised learning", why: "Train on the few labels, use the model to pseudo-label confident unlabeled examples, and retrain; or pretrain a representation on all the data and fine-tune on the labels. Check that pseudo-labels don't amplify the model's own mistakes." + timeNote };
   if (signal === "none" || output === "structure")
-    return { name: "Unsupervised learning", why: "With no target, the goal is structure: clustering (K-means, DBSCAN), dimensionality reduction (PCA), or anomaly detection. A discovered cluster is a hypothesis, not a verified real-world category, so review clusters with domain experts." + timeNote };
+    return { name: "Unsupervised learning", why: "The goal is structure, not predicting a target: clustering (K-means, DBSCAN), dimensionality reduction (PCA), or anomaly detection. A discovered cluster is a hypothesis, not a verified real-world category, so review clusters with domain experts." + timeNote };
   if (output === "number")
     return { name: "Supervised learning: regression", why: "Labeled examples with a continuous target. Start with linear or ridge regression as the baseline, then try gradient-boosted trees. Report MAE or RMSE in the target's units." + timeNote };
   return { name: "Supervised learning: classification", why: "Labeled examples with a categorical target. Start with logistic regression, then gradient boosting. Choose the decision threshold from the real cost of false positives versus false negatives." + timeNote };
@@ -63,7 +65,7 @@ export default function ParadigmGuideLab() {
   const pick = (i: number) => { setAnswers(SCENARIOS[i].answers); setScenario(i); };
   const signals = QUESTIONS[0].options.map((o) => o.value);
   const tour: TourStep[] = [
-    { id: "questions", caption: "Three questions about your data and your goal. The recommendation appears below once you answer the first.", apply: () => { setAnswers(blank); setScenario(null); } },
+    { id: "questions", caption: "Three questions about your data and your goal. The recommendation appears on the right, under the scenarios, once you answer the first.", apply: () => { setAnswers(blank); setScenario(null); } },
     { id: "signal", caption: "Watch the recommendation change as only the first answer changes: labels, a few labels, none, labels hidden in the data, a delayed reward. The kind of feedback picks the paradigm.", apply: () => { setAnswers(blank); setScenario(null); }, animate: (t) => { setAnswers({ ...blank, signal: signals[Math.round(t * (signals.length - 1))] }); setScenario(null); }, animMs: 3500 },
     { id: "regression", caption: "House prices: every past sale is a labeled example and the target is a number, so this is supervised regression.", apply: () => pick(0) },
     { id: "time-split", caption: "Fraud detection has labels and a yes/no target, but the third answer is yes: time matters, so validation must use a time split, never a random one.", apply: () => pick(1) },
@@ -108,6 +110,10 @@ export default function ParadigmGuideLab() {
               </button>
             ))}
           </div>
+          <p className="text-sm font-medium mt-5 mb-2">Recommendation</p>
+          <p className={`rounded-lg border px-3 py-2 text-sm ${rec ? "border-accent bg-accent-soft text-ink font-medium" : "border-dashed border-line text-faint"}`}>
+            {rec ? rec.name : "Answer question 1"}
+          </p>
         </div>
       </div>
     </LabFrame>

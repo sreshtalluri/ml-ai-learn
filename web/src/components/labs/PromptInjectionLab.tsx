@@ -25,7 +25,7 @@ type Controls = { delimit: boolean; allowlist: boolean; validate: boolean; appro
 export function evaluate(a: Attack, c: Controls): { outcome: "none" | "harm" | "blocked"; by?: string } {
   if (!a.proposal) return { outcome: "none" };
   if (c.delimit && !a.followsWithDelimiters) return { outcome: "blocked", by: "the model, which ignored the labeled untrusted text" };
-  if ("link" in a.proposal) return c.linkFilter ? { outcome: "blocked", by: "output filter stripped the external image link" } : { outcome: "harm", by: "the browser loaded the image, sending user data to the attacker" };
+  if ("link" in a.proposal) return c.linkFilter ? { outcome: "blocked", by: "the output filter, which stripped the external image link" } : { outcome: "harm", by: "the browser loaded the image, sending user data to the attacker" };
   if (c.allowlist && !ALLOWED_TOOLS_FOR_SUMMARY.has(a.proposal.tool)) return { outcome: "blocked", by: `tool allowlist: ${a.proposal.tool} isn't available for a summarization task` };
   if (c.validate && a.proposal.tool === "send_email" && !SAFE_DOMAINS.some((d) => a.proposal && "args" in a.proposal && a.proposal.args.includes(d))) return { outcome: "blocked", by: "argument validation: recipient domain not allowlisted" };
   if (c.approval) return { outcome: "blocked", by: "human approval: the user saw the action and declined" };
@@ -47,13 +47,15 @@ export default function PromptInjectionLab() {
   const LAYERS: (keyof Controls)[] = ["delimit", "allowlist", "validate", "approval", "linkFilter"];
   const attacks = ATTACKS.filter((x) => x.proposal).map((x) => x.id);
   const at = (id: string, on: (keyof Controls)[] = []) => { setSel(id); setC({ ...NONE, ...Object.fromEntries(on.map((k) => [k, true])) }); };
+  const harmWith = (on: (keyof Controls)[]) => ATTACKS.filter((x) => evaluate(x, { ...NONE, ...Object.fromEntries(on.map((l) => [l, true])) }).outcome === "harm").length;
+  const counts = LAYERS.map((_, i) => harmWith(LAYERS.slice(0, i))).concat(harmWith(LAYERS));
   const tour: TourStep[] = [
     { id: "attacks", caption: "The task is harmless: summarize the refund policy. But the retrieved document can contain instructions. With no defenses, every one of the four attacks succeeds.", apply: () => at("direct"), animate: (t) => setSel(attacks[Math.round(t * (attacks.length - 1))]), animMs: 3200 },
     { id: "label", caption: "First defense: tell the model which text is untrusted. It now ignores the crude hidden override, and the counter drops from 4 to 3.", apply: () => at("direct", ["delimit"]) },
     { id: "polite", caption: "But a polite, plausible instruction still works. The model can't reliably tell data from instructions, so a prompt is not a security boundary.", apply: () => at("polite", ["delimit"]) },
     { id: "allowlist", caption: "Enforce it in code instead. A summary task needs no tools, so the allowlist removes them: send_email and delete_account can't run however convincing the text is.", apply: () => at("delete", ["delimit", "allowlist"]) },
     { id: "exfil", caption: "One attack needs no tool at all: an image link that carries user data in its URL. Validation and approval don't see it. Only stripping external links from the output stops it.", apply: () => at("exfil", ["delimit", "allowlist", "validate", "approval"]) },
-    { id: "layers", caption: "Switch the defenses on one at a time and watch the harm counter fall to zero. Each layer catches what the others miss, and the strongest ones never trust the model.", apply: () => at("exfil"), animate: (t) => { const k = Math.round(t * LAYERS.length); setC({ ...NONE, ...Object.fromEntries(LAYERS.slice(0, k).map((l) => [l, true])) }); }, animMs: 3500 },
+    { id: "layers", caption: `Switch the defenses on one at a time and watch the harm counter: ${counts.join(" → ")}. Validation and approval add nothing here because the allowlist already removed every tool, but they matter for tasks that do need tools. No single layer catches everything.`, apply: () => at("exfil"), animate: (t) => { const k = Math.round(t * LAYERS.length); setC({ ...NONE, ...Object.fromEntries(LAYERS.slice(0, k).map((l) => [l, true])) }); }, animMs: 3500 },
   ];
 
   return (
@@ -97,7 +99,7 @@ export default function PromptInjectionLab() {
         <>
           <p className="text-ink">{r.outcome === "none" ? "No instructions in this document; the assistant just summarizes it." : r.outcome === "harm" ? `Harm: ${r.by}.` : `Blocked by ${r.by}.`}</p>
           <p className="mt-1">{c.delimit && !c.allowlist && !c.validate && !c.approval && !c.linkFilter
-            ? "Labeling untrusted text stopped the crude attack, but the polite and exfiltration variants still work: a prompt is not a security boundary."
+            ? `Labeling untrusted text stopped the crude attack, but ${harms} still work (${results.filter((x) => x.r.outcome === "harm").map((x) => x.x.title.toLowerCase()).join("; ")}): a prompt is not a security boundary.`
             : harms === 0 ? "Every attack is contained, and most are stopped by controls in code that don't depend on the model behaving. The strongest is the allowlist: a summary task never needed tools."
               : "Turn on defenses one at a time and watch which attacks each one stops. Controls enforced in code work even when the model is fooled."}</p>
         </>

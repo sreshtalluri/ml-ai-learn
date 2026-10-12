@@ -141,10 +141,12 @@ export default function AgentLoopLab() {
   // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then reveals turns one by one.
   const setup = (patch: Partial<Opts>, n = 0) => { setOpts({ ...DEFAULT, ...patch }); setDecision(undefined); setShown(n); setPlaying(false); };
   const revealAll = (t: number) => { const v = Math.round(t * trace.length); if (v > shown) setShown(v); };
+  const happy = buildTrace(DEFAULT), happyCtx = contextPerCall(happy);
+  const happyBilled = happyCtx.reduce((a, v) => a + v, 0), happyEnd = happy.reduce((a, t) => a + t.outTok + t.obsTok, BASE);
   const tour: TourStep[] = [
     { id: "context", caption: "Before the model does anything, the purple bar already holds 1,200 tokens: the system prompt, every tool schema, and the task.", apply: () => setup({}) },
     { id: "loop", caption: "Each step the model thinks, calls one tool, and the observation is appended to the context. Watch the bar grow as it searches, checks two fares, and holds AS330 at $214.", apply: () => setup({}), animate: revealAll, animMs: 3500 },
-    { id: "cost", caption: "Every model call rereads the whole context, so the blue bars climb. Five calls bill 8,360 input tokens for a context that ended at 2,060.", apply: () => setup({}, 5) },
+    { id: "cost", caption: `Every model call rereads the whole context, so the blue bars at the bottom climb. ${happyCtx.length} calls bill ${happyBilled.toLocaleString()} input tokens (the sum of the bars) for a context that ended at ${happyEnd.toLocaleString()}.`, apply: () => setup({}, happy.length) },
     { id: "flaky", caption: "Switch on the tool error. The search returns a retryable 503, the error goes back to the model as an observation, and it retries once instead of crashing.", apply: () => setup({ toolError: true }), animate: revealAll, animMs: 3500 },
     { id: "ambiguous", caption: "Give the tools vague names and the model picks a generic web search, trusts a stale blog, and reports DL1180 at $199, though its own hold result says $262.", apply: () => setup({ ambiguous: true }), animate: revealAll, animMs: 2600 },
     { id: "step-limit", caption: "Cap the loop at 3 model calls and the runtime stops it mid-task, returning partial progress. A step budget bounds cost and runaway loops.", apply: () => setup({ maxSteps: 3 }), animate: revealAll, animMs: 2600 },
@@ -234,7 +236,10 @@ export default function AgentLoopLab() {
         <div className="mt-4">
           <Plot title="Input tokens read by each model call" width={560} height={180} x={[0, Math.max(ctxAll.length, 4) + 1]} y={[0, maxCtx]} xLabel="model call" yLabel="input tokens" margin={{ t: 10, r: 10, b: 36, l: 56 }}>
             {({ sx, sy }) => ctxShown.map((v, i) => (
-              <rect key={i} x={sx(i + 1) - 12} width={24} y={sy(v)} height={sy(0) - sy(v)} fill="var(--c-blue)" opacity={0.8} />
+              <g key={i}>
+                <rect x={sx(i + 1) - 12} width={24} y={sy(v)} height={sy(0) - sy(v)} fill="var(--c-blue)" opacity={0.8} />
+                <text x={sx(i + 1)} y={sy(v) - 4} textAnchor="middle" fontSize="10" fill="var(--muted)">{v.toLocaleString()}</text>
+              </g>
             ))}
           </Plot>
         </div>

@@ -45,7 +45,7 @@ describe("k-means lab", () => {
     const update = screen.getByRole("button", { name: "Update" }) as HTMLButtonElement;
     expect(update.disabled).toBe(true);
     fireEvent.click(assign);
-    expect(screen.getByText(/Assignment step: 90 points joined/)).toBeTruthy();
+    expect(screen.getByText(/Assignment step: every point now belongs/)).toBeTruthy();
     expect(update.disabled).toBe(false);
     fireEvent.click(update);
     expect(screen.getByText(/Update step: each centroid moved/)).toBeTruthy();

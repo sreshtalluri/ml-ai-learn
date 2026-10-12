@@ -64,13 +64,21 @@ export default function BoostingLab() {
   // Guided tour (Watch mode + explainers). Each step sets η and the round, then advances rounds.
   const setup = (eta: number, rounds: number, sd = 0.35) => { setLr(eta); setM(rounds); setNoise(sd); };
   const roundsTo = (a: number, b: number) => (t: number) => setM(Math.round(a + t * (b - a)));
+  // Caption numbers come from the same boosting runs the steps show.
+  const T = useMemo(() => {
+    const at = (sd: number, eta: number) => boost(makeData(40, 3, sd), makeData(200, 77, sd), eta);
+    const base = at(0.35, 0.3), big = at(0.35, 1), noisy = at(0.6, 1);
+    const best = noisy.testMse.indexOf(Math.min(...noisy.testMse));
+    return { base, big, best, rise: Math.round((noisy.testMse[MAX_ROUNDS] / noisy.testMse[best] - 1) * 100) };
+  }, []);
+  const s1 = T.base.stumps[0];
   const tour: TourStep[] = [
-    { id: "start", caption: "Round 0: the teal model is just the mean of y, a flat line at 1.92. The gray bars are residuals, what the model still gets wrong.", apply: () => setup(0.3, 0) },
-    { id: "stump", caption: "Tree 1 is a one-split stump fitted to those residuals: below x = 6.04 push down, above push up. The purple dashed line adds 0.3 of it.", apply: () => setup(0.3, 0) },
-    { id: "rounds", caption: "Repeat: fit a stump to what is left, add a fraction. Over 30 rounds the teal curve bends into the wave and training error falls from 1.46 to 0.10.", apply: () => setup(0.3, 0), animate: roundsTo(0, 30), animMs: 3200 },
+    { id: "start", caption: `Round 0: the teal model is just the mean of y, a flat line at ${fmt(T.base.f0, 2)}. The gray bars are residuals, what the model still gets wrong.`, apply: () => setup(0.3, 0) },
+    { id: "stump", caption: `Tree 1 is a one-split stump fitted to those residuals: below x = ${fmt(s1.thr, 2)} push ${s1.left < 0 ? "down" : "up"}, above push ${s1.right < 0 ? "down" : "up"}. The purple dashed line is the model after adding 0.3 of it.`, apply: () => setup(0.3, 0) },
+    { id: "rounds", caption: `Repeat: fit a stump to what is left, add a fraction. Over 30 rounds the teal curve bends into the wave and training error falls from ${fmt(T.base.trainMse[0], 2)} to ${fmt(T.base.trainMse[30], 2)}.`, apply: () => setup(0.3, 0), animate: roundsTo(0, 30), animMs: 3200 },
     { id: "small-steps", caption: "With η = 0.05 each tree corrects only a little. After 100 rounds the fit is still catching up, but it moves smoothly.", apply: () => setup(0.05, 0), animate: roundsTo(0, 100), animMs: 3200 },
-    { id: "big-steps", caption: "With η = 1 each tree takes the full correction. Training error drops to 0.28 after a single round, and the fit turns jumpy.", apply: () => setup(1, 0), animate: roundsTo(0, 20), animMs: 2600 },
-    { id: "too-many", caption: "Now noisier data (σ = 0.6) and η = 1. Test error bottoms out by round 8, then climbs about 18% while training error keeps falling: later trees fit noise. Early stopping keeps the ringed round.", apply: () => setup(1, 0, 0.6), animate: roundsTo(0, MAX_ROUNDS), animMs: 3200 },
+    { id: "big-steps", caption: `With η = 1 each tree takes the full correction: one round cuts training error to ${fmt(T.big.trainMse[1], 2)}, and by round 20 it is ${fmt(T.big.trainMse[20], 2)}. The fit becomes a jumpy staircase.`, apply: () => setup(1, 0), animate: roundsTo(0, 20), animMs: 2600 },
+    { id: "too-many", caption: `Now noisier data (σ = 0.6) and η = 1. Test error bottoms out at round ${T.best}, then climbs about ${T.rise}% while training error keeps falling: later trees fit noise. Early stopping keeps the ringed round.`, apply: () => setup(1, 0, 0.6), animate: roundsTo(0, MAX_ROUNDS), animMs: 3200 },
   ];
 
   return (
@@ -108,7 +116,7 @@ export default function BoostingLab() {
           <p className="mt-1">{m > bestRound + 20
             ? `Training error keeps falling but test error has risen since round ${bestRound}: extra trees now fit noise. Early stopping on a validation set would stop near round ${bestRound}.`
             : lr >= 0.8 ? "With a large learning rate each tree overcorrects; error drops fast and the fit gets jumpy. Lower η needs more rounds but generalizes more smoothly."
-              : "Each round removes part of what's left. With a small learning rate, many rounds make small, careful corrections."}</p>
+              : "Each round removes part of what's left. The smaller η is, the smaller and more careful each correction, and the more rounds it takes."}</p>
         </>
       }
     >

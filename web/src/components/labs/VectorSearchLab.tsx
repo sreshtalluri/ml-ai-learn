@@ -48,6 +48,37 @@ const POINTS = makePoints();
 const EVAL_QUERIES = (() => { const r = rng(99); return Array.from({ length: 100 }, () => ({ x: 0.5 + r() * 9, y: 0.5 + r() * 9 })); })();
 const D: [number, number] = [0, 10];
 
+/** Average recall@k and distance computations over the fixed evaluation queries. */
+function evalAvg(index: IvfIndex, k: number, nprobe: number) {
+  let rs = 0, cs = 0;
+  for (const e of EVAL_QUERIES) { const s = ivfSearch(POINTS, index, e, k, nprobe); rs += recallAtK(s.top, bruteForce(POINTS, e, k)); cs += s.distances; }
+  return { recall: rs / EVAL_QUERIES.length, cost: cs / EVAL_QUERIES.length };
+}
+
+/** Colour cells so that cells sharing a border (some point's two nearest centroids) get different colours. */
+function cellColours(points: Point2[], index: IvfIndex): number[] {
+  const n = index.centroids.length;
+  const adj = Array.from({ length: n }, () => new Set<number>());
+  for (const p of points) {
+    const [a, b] = index.centroids.map((c, j) => [d2(c, p), j]).sort((x, y) => x[0] - y[0]);
+    if (b) { adj[a[1]].add(b[1]); adj[b[1]].add(a[1]); }
+  }
+  const col = new Array<number>(n).fill(-1);
+  for (const j of [...Array(n).keys()].sort((x, y) => adj[y].size - adj[x].size)) {
+    let c = 0;
+    while ([...adj[j]].some((o) => col[o] === c)) c++;
+    col[j] = c; // ponytail: greedy colouring, may need more than 6 colours (then wraps) on unusual layouts
+  }
+  return col;
+}
+
+// Tour numbers, computed from the real index so captions always match the screen.
+const CENTER = { x: 5, y: 5 };
+const IVF16 = buildIvf(POINTS, 16);
+const EDGE = boundaryQuery(IVF16, POINTS); // a query with low recall at nprobe 1
+const probeAt = (q: Point2, nprobe: number) => { const s = ivfSearch(POINTS, IVF16, q, 10, nprobe); return { hit: Math.round(recallAtK(s.top, bruteForce(POINTS, q, 10)) * 10), dist: s.distances }; };
+const T = { center: probeAt(CENTER, 1), edge1: probeAt(EDGE, 1), edge2: probeAt(EDGE, 2), avg1: evalAvg(IVF16, 10, 1).recall, avg2: evalAvg(IVF16, 10, 2).recall };
+
 export default function VectorSearchLab() {
   const [nlist, setNlist] = useState(16);
   const [nprobe, setNprobe] = useState(2);
@@ -62,11 +93,8 @@ export default function VectorSearchLab() {
   const res = ivfSearch(POINTS, index, q, k, probe);
   const exact = bruteForce(POINTS, q, k);
   const recall = recallAtK(res.top, exact);
-  const avg = useMemo(() => {
-    let rs = 0, cs = 0;
-    for (const e of EVAL_QUERIES) { const s = ivfSearch(POINTS, index, e, k, probe); rs += recallAtK(s.top, bruteForce(POINTS, e, k)); cs += s.distances; }
-    return { recall: rs / EVAL_QUERIES.length, cost: cs / EVAL_QUERIES.length };
-  }, [index, k, probe]);
+  const avg = useMemo(() => evalAvg(index, k, probe), [index, k, probe]);
+  const colours = useMemo(() => cellColours(POINTS, index), [index]);
 
   const cellOf = useMemo(() => { const m = new Array<number>(POINTS.length); index.lists.forEach((l, c) => l.forEach((i) => (m[i] = c))); return m; }, [index]);
   const probed = new Set(res.cells);
@@ -86,14 +114,13 @@ export default function VectorSearchLab() {
 
   // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then animates.
   const setup = (nl: number, np: number, query: Point2, v: "scan" | "cells" = "scan") => { setNlist(nl); setNprobe(np); setK(10); setQ(query); setView(v); };
-  const EDGE = { x: 8.5, y: 2.5 }; // = boundaryQuery(buildIvf(POINTS, 16), POINTS): recall 0.1 at nprobe 1
   const tour: TourStep[] = [
-    { id: "start", caption: "Each dot is a stored embedding and the purple star is the query. The rings mark its 10 true nearest neighbours; brute force finds them by measuring all 500 distances.", apply: () => setup(16, 16, { x: 5, y: 5 }) },
-    { id: "cells", caption: "IVF first clusters the vectors with k-means. Each colour is a cell and each × its centroid; watch the space split into more, smaller cells.", apply: () => setup(2, 1, { x: 5, y: 5 }, "cells"), animate: (t) => { const v = Math.round(2 + 14 * t); if (v !== nlist) setNlist(v); }, animMs: 2800 },
-    { id: "probe", caption: "At query time, compare the star with the 16 centroids and scan only the nearest cell. Blue dots were scanned, grey skipped: 63 distances instead of 500, and 6 of the 10 neighbours found.", apply: () => setup(16, 1, { x: 5, y: 5 }) },
-    { id: "sweep", caption: "Slide the query across the map with one cell probed. Rings turn orange whenever the star nears a cell border: true neighbours sit just across it, in a cell nobody scanned.", apply: () => setup(16, 1, { x: 1, y: 2.5 }), animate: (t) => setQ({ x: 1 + 7.5 * t, y: 2.5 }), animMs: 3400 },
-    { id: "boundary", caption: "Here, right on a border, IVF finds only 1 of the 10 true neighbours. The other 9 are close to the star but live in the next cell over.", apply: () => setup(16, 1, EDGE) },
-    { id: "nprobe", caption: "Raise nprobe and the neighbouring cell gets scanned: recall jumps to 1.0 at nprobe 2, for 85 distances. Averaged over 100 queries, recall climbs from 0.82 to 0.98 to 1.0.", apply: () => setup(16, 1, EDGE), animate: (t) => { const v = Math.round(1 + 3 * t); if (v !== nprobe) setNprobe(v); }, animMs: 2600 },
+    { id: "start", caption: "Each dot is a stored embedding and the purple star is the query. The rings mark its 10 true nearest neighbours; brute force finds them by measuring all 500 distances.", apply: () => setup(16, 16, CENTER) },
+    { id: "cells", caption: "IVF first clusters the vectors with k-means. Each colour is a cell and each × its centroid; watch the space split into more, smaller cells.", apply: () => setup(2, 40, CENTER, "cells"), animate: (t) => { const v = Math.round(2 + 14 * t); if (v !== nlist) setNlist(v); }, animMs: 2800 },
+    { id: "probe", caption: `At query time, compare the star with the 16 centroids and scan only the nearest cell. Blue dots were scanned, grey skipped: ${T.center.dist} distances instead of ${POINTS.length}, and ${T.center.hit} of the 10 neighbours found (teal rings; orange were missed).`, apply: () => setup(16, 1, CENTER) },
+    { id: "sweep", caption: "Slide the query across the map with one cell probed. Rings turn orange whenever the star nears a cell border: true neighbours sit just across it, in a cell nobody scanned.", apply: () => setup(16, 1, { x: 1, y: EDGE.y }), animate: (t) => setQ({ x: 1 + (EDGE.x - 1) * t, y: EDGE.y }), animMs: 3400 },
+    { id: "boundary", caption: `Here, near a border, IVF finds only ${T.edge1.hit} of the 10 true neighbours. The other ${10 - T.edge1.hit} (orange) are close to the star but live in a cell nobody scanned.`, apply: () => setup(16, 1, EDGE) },
+    { id: "nprobe", caption: `Raise nprobe to 2 and the neighbouring cell gets scanned too: ${T.edge2.hit} of 10 found, for ${T.edge2.dist} distances instead of ${T.edge1.dist}. Averaged over 100 queries, recall climbs from ${fmt(T.avg1, 2)} to ${fmt(T.avg2, 2)}.`, apply: () => setup(16, 1, EDGE), animate: (t) => { const v = t < 0.5 ? 1 : 2; if (v !== nprobe) setNprobe(v); }, animMs: 1600 },
     { id: "exact", caption: "Probe all 16 cells and the search is exact again, but it now costs slightly more than brute force. The useful settings live in between: high recall for a fraction of the work.", apply: () => setup(16, 16, EDGE) },
   ];
 
@@ -105,7 +132,7 @@ export default function VectorSearchLab() {
       subtitle={`${N} synthetic 2D vectors. Click or drag to move the query. IVF clusters them into cells and scans only the nprobe cells nearest the query.`}
       onReset={reset}
       presets={[
-        { label: "Boundary miss", apply: () => { setNlist(16); setNprobe(1); setK(10); setQ(boundaryQuery(buildIvf(POINTS, 16), POINTS)); } },
+        { label: "Boundary miss", apply: () => { setNlist(16); setNprobe(1); setK(10); setQ(EDGE); } },
         { label: "Probe everything", apply: () => setNprobe(nlist) },
         { label: "Many small cells", apply: () => { setNlist(40); setNprobe(2); } },
       ]}
@@ -154,21 +181,25 @@ export default function VectorSearchLab() {
           <>
             {POINTS.map((p, i) => (
               <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={2.6}
-                fill={view === "cells" ? PAL[cellOf[i] % PAL.length] : probed.has(cellOf[i]) ? "var(--c-blue)" : "var(--faint)"}
+                fill={view === "cells" ? PAL[colours[cellOf[i]] % PAL.length] : probed.has(cellOf[i]) ? "var(--c-blue)" : "var(--faint)"}
                 opacity={view === "cells" ? (probed.has(cellOf[i]) ? 0.9 : 0.35) : probed.has(cellOf[i]) ? 0.85 : 0.35} />
             ))}
             {index.centroids.map((c, j) => (
               <path key={`c${j}`} d={`M${sx(c.x) - 5},${sy(c.y) - 5} L${sx(c.x) + 5},${sy(c.y) + 5} M${sx(c.x) + 5},${sy(c.y) - 5} L${sx(c.x) - 5},${sy(c.y) + 5}`}
                 stroke="var(--text)" strokeWidth={probed.has(j) ? 2.4 : 1.2} opacity={probed.has(j) ? 1 : 0.5} />
             ))}
-            {exact.map((i) => (
+            {view === "scan" && exact.map((i) => (
               <circle key={`e${i}`} cx={sx(POINTS[i].x)} cy={sy(POINTS[i].y)} r={6} fill="none" strokeWidth={2} stroke={found.has(i) ? "var(--c-teal)" : "var(--c-orange)"} />
             ))}
             <path d={star(sx(q.x), sy(q.y), 10)} fill="var(--c-purple)" stroke="var(--surface)" strokeWidth={1.5} />
           </>
         )}
       </Plot>
-      <Legend items={[
+      <Legend items={view === "cells" ? [
+        { label: "query", color: "var(--c-purple)" },
+        { label: "dot colour = IVF cell (neighbouring cells differ; faded = not probed)", color: "var(--faint)" },
+        { label: "× centroids (bold = probed)", color: "var(--text)" },
+      ] : [
         { label: "query", color: "var(--c-purple)" },
         { label: "true top-k, found", color: "var(--c-teal)" },
         { label: "true top-k, missed", color: "var(--c-orange)" },

@@ -47,7 +47,7 @@ As an application engineer you usually start from a model that has already been 
 <!-- /lab -->
 
 **Try it** (predict first, then check):
-1. On the 7B preset, switch from full fine-tuning to LoRA. Predict which segment of the bar shrinks most. Then check whether it was weights, gradients, or optimizer states.
+1. On the 7B preset, compare the full fine-tune bar with the LoRA bar below it. Predict which segment shrinks most. Then check whether it was weights, gradients, or optimizer states.
 2. Double the LoRA rank from 16 to 32. Predict the change in trainable parameters and in total memory. Why does total memory barely move?
 3. Pick the 70B preset with the 48 GB GPU line. Predict which of the three methods fits. Then turn off gradient checkpointing and raise the tokens per micro-batch.
 4. Change the targets from "all linear" to "q, v only". Predict the drop in trainable parameters for the 7B preset before you look.

@@ -17,6 +17,7 @@ function makeData(): Pt[] {
   });
 }
 const NAMES: Record<Feat, string> = { x: "age", y: "income ($k)" };
+const SHORT: Record<Feat, string> = { x: "age", y: "income" };
 const DOM = { x: [20, 70] as [number, number], y: [20, 120] as [number, number] };
 const counts = (pts: Pt[], idx: number[]) => [idx.filter((i) => pts[i].label === 0).length, idx.filter((i) => pts[i].label === 1).length];
 
@@ -55,6 +56,14 @@ function grow(pts: Pt[], k: number): Node[] {
   return nodes;
 }
 
+const leafOf = (nodes: Node[], p: Pt) => {
+  let n = nodes[0];
+  while (n.split) n = nodes.find((m) => m.id === (p[n.split!.feat] < n.split!.thr ? n.split!.left : n.split!.right))!;
+  return n;
+};
+const majority = (pts: Pt[], n: Node) => { const c = counts(pts, n.idx); return c[1] > c[0] ? 1 : 0; };
+const accuracy = (pts: Pt[], nodes: Node[]) => pts.filter((p) => majority(pts, leafOf(nodes, p)) === p.label).length / pts.length;
+
 export default function DecisionTreeLab() {
   const pts = useMemo(() => makeData(), []);
   const root: Node = { id: 0, idx: pts.map((_, i) => i), box: [DOM.x[0], DOM.x[1], DOM.y[0], DOM.y[1]], depth: 0 };
@@ -64,17 +73,13 @@ export default function DecisionTreeLab() {
   const [thr, setThr] = useState(45);
 
   const node = nodes.find((n) => n.id === sel)!;
-  const L = node.idx.filter((i) => pts[i][feat] < thr), R = node.idx.filter((i) => pts[i][feat] >= thr);
+  // An already-split node shows its real split, not the stale candidate from the controls.
+  const cf = node.split?.feat ?? feat, ct = node.split?.thr ?? thr;
+  const L = node.idx.filter((i) => pts[i][cf] < ct), R = node.idx.filter((i) => pts[i][cf] >= ct);
   const gP = gini(counts(pts, node.idx)), gL = gini(counts(pts, L)), gR = gini(counts(pts, R));
   const weighted = node.idx.length ? (L.length * gL + R.length * gR) / node.idx.length : 0;
   const leaves = nodes.filter((n) => !n.split);
-  const leafOf = (p: Pt) => {
-    let n = nodes[0];
-    while (n.split) n = nodes.find((m) => m.id === (p[n.split!.feat] < n.split!.thr ? n.split!.left : n.split!.right))!;
-    return n;
-  };
-  const majority = (n: Node) => { const c = counts(pts, n.idx); return c[1] > c[0] ? 1 : 0; };
-  const acc = pts.filter((p) => majority(leafOf(p)) === p.label).length / pts.length;
+  const acc = accuracy(pts, nodes);
   const [lo, hi] = feat === "x" ? [node.box[0], node.box[1]] : [node.box[2], node.box[3]];
   const canSplit = !node.split && L.length > 0 && R.length > 0 && node.depth < 4;
 
@@ -98,15 +103,21 @@ export default function DecisionTreeLab() {
   };
 
   // Guided tour (Watch mode + explainers). Each step rebuilds the tree from scratch, then moves one thing.
+  // Numbers in captions are computed from the same data and tree-growing code the screen uses.
   const setup = (k: number, s = 0, f: Feat = "x", t = 45) => { setNodes(grow(pts, k)); setSel(s); setFeat(f); setThr(t); };
   const bestAt = (k: number, s: number) => { const ns = grow(pts, k), b = bestSplit(pts, ns[s].idx); setup(k, s, b.feat, b.thr); };
+  const all = pts.map((_, i) => i);
+  const rootBest = bestSplit(pts, all), childBest = bestSplit(pts, grow(pts, 1)[2].idx);
+  const pct = (k: number) => `${fmt(accuracy(pts, grow(pts, k)) * 100, 1)}%`;
+  const full = grow(pts, 100), fullLeaves = full.filter((n) => !n.split && n.idx.length);
+  const tiny = fullLeaves.filter((n) => n.idx.length <= 2).length;
   const tour: TourStep[] = [
-    { id: "data", caption: "60 customers by age and income: orange squares bought, blue circles didn't. Right now the whole plane is one leaf, with Gini impurity 0.495.", apply: () => setup(0) },
+    { id: "data", caption: `${pts.length} customers by age and income: orange squares bought, blue circles didn't. Right now the whole plane is one leaf, with Gini impurity ${fmt(gini(counts(pts, all)), 3)}.`, apply: () => setup(0) },
     { id: "sweep", caption: "Slide a candidate age split, the purple line, across the plane. Watch the decrease readout: it rises, peaks, then falls as the children get mixed again.", apply: () => setup(0, 0, "x", 20), animate: (t) => setThr(Math.round(40 + t * 100) / 2), animMs: 3200 },
-    { id: "best-split", caption: "The peak is at age 41.5, a Gini decrease of 0.213. Growing a tree just means trying every feature and threshold and keeping the biggest decrease.", apply: () => bestAt(0, 0) },
-    { id: "recurse", caption: "Split at age 41.5, then repeat inside each child. In the older group, the best candidate is income 62.7, which separates most of the buyers.", apply: () => bestAt(1, 2) },
-    { id: "grow", caption: "Keep splitting the best leaf, one region at a time. Training accuracy climbs from 82% to 95% as the rectangles get smaller.", apply: () => setup(1), animate: (t) => setNodes(grow(pts, 1 + Math.round(t * 7))), animMs: 3000 },
-    { id: "overfit", caption: "Grown to depth 4, the tree carves out leaves holding one or two points to reach 96.7%. That is memorization, which is why max_depth and min_samples_leaf exist.", apply: () => setup(100) },
+    { id: "best-split", caption: `The peak is at ${SHORT[rootBest.feat]} ${rootBest.thr}, a Gini decrease of ${fmt(rootBest.dec, 3)}. Growing a tree just means trying every feature and threshold and keeping the biggest decrease.`, apply: () => bestAt(0, 0) },
+    { id: "recurse", caption: `Split at ${SHORT[rootBest.feat]} ${rootBest.thr}, then repeat inside each child. In the ${rootBest.feat === "x" ? "older" : "higher-income"} group, the best candidate is ${SHORT[childBest.feat]} ${childBest.thr}, which separates most of the buyers.`, apply: () => bestAt(1, 2) },
+    { id: "grow", caption: `Keep splitting the best leaf, one region at a time. Training accuracy climbs from ${pct(1)} to ${pct(8)} as the rectangles get smaller.`, apply: () => setup(1), animate: (t) => setNodes(grow(pts, 1 + Math.round(t * 7))), animMs: 3000 },
+    { id: "overfit", caption: `Grown until every leaf is pure or 4 levels deep, the tree reaches ${pct(100)} with ${tiny} of its ${fullLeaves.length} leaves holding one or two points. That is memorization, which is why max_depth and min_samples_leaf exist.`, apply: () => setup(100), animate: (t) => setNodes(grow(pts, 8 + Math.round(t * 92))), animMs: 1600 },
   ];
 
   return (
@@ -132,8 +143,8 @@ export default function DecisionTreeLab() {
       readout={
         <>
           <Stat label="parent Gini" value={fmt(gP, 3)} />
-          <Stat label={`left (${counts(pts, L).join("/")})`} value={fmt(gL, 3)} />
-          <Stat label={`right (${counts(pts, R).join("/")})`} value={fmt(gR, 3)} />
+          <Stat label={`left (${counts(pts, L)[0]} no / ${counts(pts, L)[1]} yes)`} value={fmt(gL, 3)} />
+          <Stat label={`right (${counts(pts, R)[0]} no / ${counts(pts, R)[1]} yes)`} value={fmt(gR, 3)} />
           <Stat label="weighted children" value={fmt(weighted, 3)} />
           <Stat label="decrease" value={fmt(gP - weighted, 3)} color="var(--c-teal)" />
           <Stat label="leaves · accuracy" value={`${leaves.length} · ${fmt(acc * 100, 1)}%`} />
@@ -141,7 +152,7 @@ export default function DecisionTreeLab() {
       }
       interpretation={
         <>
-          <p className="text-ink">Weighted child Gini <span className="font-mono">({L.length}×{fmt(gL, 3)} + {R.length}×{fmt(gR, 3)}) / {node.idx.length} = {fmt(weighted, 3)}</span>, a decrease of {fmt(gP - weighted, 3)} from the parent.</p>
+          <p className="text-ink">{node.split && <>This node is split at {SHORT[cf]} {ct}. </>}Weighted child Gini <span className="font-mono">({L.length}×{fmt(gL, 3)} + {R.length}×{fmt(gR, 3)}) / {node.idx.length} = {fmt(weighted, 3)}</span>, a decrease of {fmt(gP - weighted, 3)} from the parent.</p>
           <p className="mt-1">{leaves.length >= 6 ? "Many small leaves fit the training points ever more tightly. On new data, past a few splits, that is memorization: this is why max_depth and min_samples_leaf exist." : "A split is good when its children are purer than the parent. Try the threshold slider and watch the decrease peak; that peak is what the tree-growing algorithm searches for."}</p>
         </>
       }
@@ -151,7 +162,7 @@ export default function DecisionTreeLab() {
           <>
             {leaves.map((n) => {
               const [x0, x1, y0, y1] = n.box;
-              const m = majority(n);
+              const m = majority(pts, n);
               return (
                 <rect key={n.id} x={sx(x0)} y={sy(y1)} width={sx(x1) - sx(x0)} height={sy(y0) - sy(y1)} onClick={() => setSel(n.id)} className="cursor-pointer"
                   fill={m ? "var(--c-orange)" : "var(--c-blue)"} opacity={n.idx.length ? 0.1 : 0.03} stroke={n.id === sel ? "var(--text)" : "none"} strokeWidth={2} />

@@ -71,15 +71,25 @@ export default function KvCacheLab() {
   // Guided tour: the 8B shape with full multi-head attention first (to show the problem), then GQA and FP8 KV.
   const setup = (p: Partial<typeof DEFAULT>) => setS({ ...DEFAULT, attn: "mha", batch: 1, exp: 9, ...p });
   const sweep = (key: "exp" | "batch", a: number, b: number) => (t: number) => set({ [key]: Math.round(a + t * (b - a)) });
+  // Caption numbers come from the same formula as the readouts, so they always match the screen.
+  const at = (p: Partial<typeof DEFAULT>) => {
+    const q = { ...DEFAULT, attn: "mha" as Attn, batch: 1, exp: 9, ...p };
+    const m = MODELS.find((x) => x.id === q.modelId)!, g = GPUS.find((x) => x.id === q.gpuId)!;
+    return inferenceBudget({ model: m, nKv: kvHeadsFor(m, q.attn), ctx: 2 ** q.exp, batch: q.batch, weightBytes: BYTES[q.wBits], kvBytes: BYTES[q.kvBits], memGB: g.memGB, bwTBs: g.bwTBs, gpus: q.gpus });
+  };
+  const gb = (v: number) => fmt(v, 0);
+  const one = at({ exp: 13 }), long = at({ exp: 16 }), eight = at({ exp: 13, batch: 8 }), over = at({ exp: 13, batch: 16 });
+  const gqa = at({ attn: "gqa", exp: 13, batch: 16 }), fp16 = at({ attn: "gqa", exp: 15, batch: 16 }), fp8 = at({ attn: "gqa", exp: 15, batch: 16, kvBits: "8" });
+  const b1 = at({ attn: "gqa", exp: 13 }), b48 = at({ attn: "gqa", exp: 13, batch: 48 });
   const tour: TourStep[] = [
-    { id: "weights", caption: "An 8-billion-parameter model in 16-bit takes 16 GB: the purple band. The red dashed line is the GPU's 80 GB. The weights are a fixed cost, the same for every request.", apply: () => setup({}) },
-    { id: "per-token", caption: "Every token the model has seen leaves a key and a value in every layer. With 32 KV heads that is 512 KiB per token, so one 8k-token conversation holds 4.3 GB.", apply: () => setup({ exp: 13 }) },
-    { id: "context", caption: "Watch the orange marker slide right as the context grows. The blue line rises in a straight line: twice the tokens, twice the cache. At 64k tokens one user needs 34 GB.", apply: () => setup({}), animate: sweep("exp", 9, 16), animMs: 3000 },
-    { id: "batch", caption: "Every user in the batch has their own cache. Going from 1 to 8 users at 8k tokens multiplies the blue line's slope by 8, to 34 GB of cache.", apply: () => setup({ exp: 13 }), animate: sweep("batch", 1, 8), animMs: 2400 },
-    { id: "overflow", caption: "Keep adding users and the total crosses the red line around 15 users. At 16 it needs 85 GB on an 80 GB GPU: the cache, not the model, is what runs out.", apply: () => setup({ exp: 13, batch: 8 }), animate: sweep("batch", 8, 16), animMs: 2400 },
-    { id: "gqa", caption: "Grouped-query attention lets 4 query heads share each key-value head, so only 8 are stored. Same 16 users, a quarter of the cache: 17 GB, 33 GB total.", apply: () => setup({ attn: "gqa", exp: 13, batch: 16 }) },
-    { id: "fp8-kv", caption: "Storing the cache in 8 bits halves it again. Now stretch the context to 32k: in 16 bits this would need 85 GB, in FP8 it is 50 GB and still fits.", apply: () => setup({ attn: "gqa", exp: 13, batch: 16, kvBits: "8" }), animate: sweep("exp", 13, 15), animMs: 2200 },
-    { id: "bandwidth", caption: "Every new token reads all weights and all cache once, so memory bandwidth caps speed. As users grow from 1 to 48, total tokens per second climbs while each user slows from 176 to 44.", apply: () => setup({ attn: "gqa", exp: 13 }), animate: sweep("batch", 1, 48), animMs: 3200 },
+    { id: "weights", caption: `An 8-billion-parameter model in 16-bit takes ${gb(one.weightsGB)} GB: the purple band. The red dashed line is the GPU's ${gb(one.capacityGB)} GB. The weights are a fixed cost, the same for every request.`, apply: () => setup({}) },
+    { id: "per-token", caption: `Every token the model has seen leaves a key and a value in every layer. With full multi-head attention (32 KV heads, MHA on the right) that is ${one.perTokBytes / 1024} KiB per token, so one 8k-token conversation holds ${fmt(one.kvGB, 1)} GB.`, apply: () => setup({ exp: 13 }) },
+    { id: "context", caption: `Watch the orange marker slide right as the context grows. The blue line rises in a straight line: twice the tokens, twice the cache. At 64k tokens one user needs ${gb(long.kvGB)} GB.`, apply: () => setup({}), animate: sweep("exp", 9, 16), animMs: 3000 },
+    { id: "batch", caption: `Every user in the batch has their own cache. Going from 1 to 8 users at 8k tokens multiplies the blue line's slope by 8, to ${gb(eight.kvGB)} GB of cache.`, apply: () => setup({ exp: 13 }), animate: sweep("batch", 1, 8), animMs: 2400 },
+    { id: "overflow", caption: `Keep adding users: only ${over.maxBatch} fit under the red line. At 16 the total needs ${gb(over.totalGB)} GB on an ${gb(over.capacityGB)} GB GPU and the marker turns red: the cache, not the model, is what runs out.`, apply: () => setup({ exp: 13, batch: 8 }), animate: sweep("batch", 8, 16), animMs: 2400 },
+    { id: "gqa", caption: `Grouped-query attention lets 4 query heads share each key-value head, so only 8 are stored. Same 16 users, a quarter of the cache: ${gb(gqa.kvGB)} GB, ${gb(gqa.totalGB)} GB total.`, apply: () => setup({ attn: "gqa", exp: 13, batch: 16 }) },
+    { id: "fp8-kv", caption: `Storing the cache in 8 bits halves it again. Now stretch the context to 32k: in 16 bits this would need ${gb(fp16.totalGB)} GB, in FP8 it is ${gb(fp8.totalGB)} GB and still fits.`, apply: () => setup({ attn: "gqa", exp: 13, batch: 16, kvBits: "8" }), animate: sweep("exp", 13, 15), animMs: 2200 },
+    { id: "bandwidth", caption: `Every new token reads all weights and all cache once, so memory bandwidth caps speed. As users grow from 1 to 48, total tokens per second (readout) climbs to ${Math.round(b48.aggTps).toLocaleString()} while each user slows from ${gb(b1.perSeqTps)} to ${gb(b48.perSeqTps)}.`, apply: () => setup({ attn: "gqa", exp: 13 }), animate: sweep("batch", 1, 48), animMs: 3200 },
   ];
 
   const kvShare = r.kvGB / r.totalGB;
@@ -129,7 +139,7 @@ export default function KvCacheLab() {
       interpretation={
         <>
           <p className="text-ink">
-            KV cache = 2 · {model.layers} layers · {nKv} KV heads · {model.dHead} dims · {BYTES[s.kvBits]} bytes · {ctx.toLocaleString()} tokens · {s.batch} sequences = {fmt(r.kvGB, 2)} GB.{" "}
+            KV cache = 2 · {model.layers} layers · {nKv} KV heads · {model.dHead} dims · {BYTES[s.kvBits]} bytes · {ctx.toLocaleString()} tokens · {s.batch} sequence{s.batch === 1 ? "" : "s"} = {fmt(r.kvGB, 2)} GB.{" "}
             {r.fits
               ? `It fits with ${fmt(r.capacityGB - r.totalGB, 1)} GB to spare (minus activations and overhead), and the KV cache is ${Math.round(kvShare * 100)}% of the memory used.`
               : `It does not fit: ${fmt(r.totalGB - r.capacityGB, 1)} GB over. ${r.weightsGB > r.capacityGB ? "Even the weights alone are too big; quantize them or shard across more GPUs." : `At this context only ${r.maxBatch} sequence${r.maxBatch === 1 ? "" : "s"} fit; lower the batch, quantize the KV cache, or add GPUs.`}`}

@@ -45,13 +45,15 @@ export default function BackpropLab() {
   const at = (o: Partial<typeof DEFAULTS> = {}) => setV({ ...DEFAULTS, ...o });
   const swing = (k: Key, amp: number, half = false) => (t: number) =>
     at({ [k]: +(DEFAULTS[k] + amp * Math.sin((half ? 1 : 2) * Math.PI * t)).toFixed(2) });
+  const d = DEFAULTS, d0 = backpropSteps(DEFAULTS), flip = backpropSteps({ ...DEFAULTS, y: 0 });
+  const g = (n: number) => String(+n.toFixed(3)).replace("-", "−"); // 0.5, −1, 0.574
   const tour: TourStep[] = [
-    { id: "forward", caption: "Rows 1 and 2 are the forward pass. Inputs 2 and 1 times weights 0.5 and −1 give z = 0, and the sigmoid turns that into a prediction ŷ = 0.5.", apply: () => at() },
-    { id: "loss", caption: "Row 3 scores the guess: L = 0.693 for ŷ = 0.5 when the label is 1. Watch w₁ swing: as ŷ climbs toward 1 the loss shrinks, as ŷ falls it grows.", apply: () => at(), animate: swing("w1", 1.5), animMs: 3200 },
-    { id: "chain", caption: "Row 4 starts the backward pass. The chain rule multiplies the loss's slope by the sigmoid's slope, they cancel, and what's left is ŷ − y = −0.5.", apply: () => at() },
-    { id: "gradients", caption: "Each weight's gradient is that −0.5 times its own input: −1 for w₁, −0.5 for w₂ and b. Watch x₁ swing and the w₁ gradient follow it.", apply: () => at(), animate: swing("x1", 1), animMs: 3000 },
-    { id: "update", caption: "Row 8 moves each weight against its gradient, scaled by η. Row 9 reruns the forward pass: ŷ rises from 0.5 to 0.574. Watch a bigger η take a bigger step.", apply: () => at(), animate: swing("lr", 0.9, true), animMs: 3000 },
-    { id: "flip", caption: "Flip the label to y = 0. The forward pass is identical, but the error signal becomes +0.5, so every gradient and every update changes sign.", apply: () => at({ y: 0 }) },
+    { id: "forward", caption: `Rows 1 and 2 are the forward pass. Inputs ${g(d.x1)} and ${g(d.x2)} times weights ${g(d.w1)} and ${g(d.w2)} give z = ${g(d0.z)}, and the sigmoid turns that into a prediction ŷ = ${g(d0.p)}.`, apply: () => at() },
+    { id: "loss", caption: `Row 3 scores the guess: L = ${g(d0.L)} for ŷ = ${g(d0.p)} when the label is ${d.y}. Watch w₁ swing: as ŷ climbs toward 1 the loss shrinks, as ŷ falls it grows.`, apply: () => at(), animate: swing("w1", 1.5), animMs: 3200 },
+    { id: "chain", caption: `Row 4 starts the backward pass. The chain rule multiplies the loss's slope by the sigmoid's slope, they cancel, and what's left is ŷ − y = ${g(d0.dz)}.`, apply: () => at() },
+    { id: "gradients", caption: `Each weight's gradient is that ${g(d0.dz)} times its own input: ${g(d0.dw1)} for w₁, ${g(d0.dw2)} for w₂ and ${g(d0.db)} for b. Watch x₁ swing and the w₁ gradient in row 5 follow it.`, apply: () => at(), animate: swing("x1", 1), animMs: 3000 },
+    { id: "update", caption: `Row 8 moves each weight against its gradient, scaled by η = ${d.lr}. Row 9 reruns the forward pass: ŷ rises from ${g(d0.p)} to ${g(d0.p2)}. Watch η swing up and back: a bigger η takes a bigger step.`, apply: () => at(), animate: swing("lr", 0.9, true), animMs: 3000 },
+    { id: "flip", caption: `Flip the label to y = 0. The forward pass and the loss are identical, but the error signal becomes ${flip.dz > 0 ? "+" : ""}${g(flip.dz)}, so every gradient and every update changes sign: ŷ now falls to ${g(flip.p2)}.`, apply: () => at({ y: 0 }) },
     { id: "cost", caption: "One subtraction in row 4 fed all three gradients. That reuse is why one backward pass costs about as much as a forward pass, however many weights there are.", apply: () => at() },
   ];
   return (

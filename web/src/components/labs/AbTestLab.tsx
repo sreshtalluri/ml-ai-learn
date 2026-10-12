@@ -43,14 +43,13 @@ export function powerAt(p1: number, relLift: number, n: number, alpha = 0.05): n
 /**
  * Seeded A/A tests (no true effect). Daily conversions per arm are drawn from the normal approximation to the
  * binomial. Returns the false-positive rate with one look at the end, and the rate when you stop at the first
- * daily look with p < alpha (curve[d] = rate if you peek on days 1..d+1).
+ * daily look with p < alpha (curve[d] = rate if you peek on days 1..d+1). finalCurve[d] = rate with one look on day d+1 only.
  */
 export function simulateAA({ p, perArmPerDay, days, sims, alpha = 0.05, seed = 7 }: { p: number; perArmPerDay: number; days: number; sims: number; alpha?: number; seed?: number }) {
   const rand = rng(seed);
   const zCrit = normalQuantile(1 - alpha / 2);
   const mu = perArmPerDay * p, sd = Math.sqrt(perArmPerDay * p * (1 - p));
-  const everSig = new Array(days).fill(0);
-  let finalSig = 0;
+  const everSig = new Array(days).fill(0), sigOn = new Array(days).fill(0);
   for (let s = 0; s < sims; s++) {
     let c = 0, t = 0, seen = false;
     for (let d = 0; d < days; d++) {
@@ -61,14 +60,16 @@ export function simulateAA({ p, perArmPerDay, days, sims, alpha = 0.05, seed = 7
       const sig = Math.abs(z) > zCrit;
       seen ||= sig;
       if (seen) everSig[d]++;
-      if (d === days - 1 && sig) finalSig++;
+      if (sig) sigOn[d]++;
     }
   }
-  return { fprFinal: finalSig / sims, fprPeek: everSig[days - 1] / sims, curve: everSig.map((v) => v / sims) };
+  return { fprFinal: sigOn[days - 1] / sims, fprPeek: everSig[days - 1] / sims, curve: everSig.map((v) => v / sims), finalCurve: sigOn.map((v) => v / sims) };
 }
 
 const DEFAULTS = { base: 10, mde: 10, alpha: 0.05, power: 0.8, traffic: 3000, days: 14, seed: 7 };
-const SIMS = 2000;
+const SIMS = 2000, MAX_DAYS = 30;
+// The default A/A run, for the tour captions (same seed and settings as the default lab state).
+const AA = simulateAA({ p: DEFAULTS.base / 100, perArmPerDay: DEFAULTS.traffic / 2, days: MAX_DAYS, sims: SIMS, alpha: DEFAULTS.alpha, seed: DEFAULTS.seed });
 
 export default function AbTestLab() {
   const [st, setSt] = useState(DEFAULTS);
@@ -77,22 +78,29 @@ export default function AbTestLab() {
   const n = sampleSize(p1, mde, st.alpha, st.power);
   const perArm = st.traffic / 2;
   const days = Math.ceil(n / perArm);
-  const maxLift = Math.min(mde * 2.5, 1);
+  const maxLift = Math.min(Math.max(mde * 2.5, 0.25), 1); // at least 0+25%, so small MDEs visibly move the line
   const curve = useMemo(() => Array.from({ length: 81 }, (_, i) => {
     const l = (i / 80) * maxLift;
     return [l * 100, powerAt(p1, l, n, st.alpha)] as const;
   }), [p1, n, st.alpha, maxLift]);
-  const sim = useMemo(() => simulateAA({ p: p1, perArmPerDay: perArm, days: st.days, sims: SIMS, alpha: st.alpha, seed: st.seed }), [p1, perArm, st.days, st.alpha, st.seed]);
+  // Always simulate the longest test and cut it to the chosen length, so changing the length never redraws the noise.
+  const full = useMemo(() => simulateAA({ p: p1, perArmPerDay: perArm, days: MAX_DAYS, sims: SIMS, alpha: st.alpha, seed: st.seed }), [p1, perArm, st.alpha, st.seed]);
+  const sim = { fprFinal: full.finalCurve[st.days - 1], fprPeek: full.curve[st.days - 1], curve: full.curve.slice(0, st.days) };
+  // Caption numbers, from the same functions as the readouts.
+  const nAt = (base: number, rel: number) => sampleSize(base / 100, rel / 100, DEFAULTS.alpha, DEFAULTS.power);
+  const n0 = nAt(DEFAULTS.base, DEFAULTS.mde), nSmall = nAt(DEFAULTS.base, 3), nHalf = nAt(DEFAULTS.base, DEFAULTS.mde / 2), nRare = nAt(1, DEFAULTS.mde);
+  const days0 = Math.ceil(n0 / (DEFAULTS.traffic / 2));
+  const pc = (v: number) => `${fmt(v * 100, 1)}%`, num = (v: number) => v.toLocaleString("en-US");
   // Guided tour: sizing the test (top plot), then peeking (bottom plot).
   const setup = (p: Partial<typeof DEFAULTS> = {}) => setSt({ ...DEFAULTS, ...p });
   const sweep = (key: "mde" | "base" | "days", a: number, b: number) => (t: number) => set({ [key]: Math.round(a + t * (b - a)) });
   const tour: TourStep[] = [
-    { id: "sample-size", caption: "A 10% conversion rate, and we want to detect a 10% relative lift, to 11%. The blue curve is the chance of detecting each true lift with 14,749 users per arm. At the orange line it reaches 80%.", apply: () => setup() },
-    { id: "mde", caption: "Shrink the effect you want to detect from 20% to 5% and watch users per arm explode. Halving the effect roughly quadruples the sample: 5% needs 57,760 per arm.", apply: () => setup({ mde: 20 }), animate: sweep("mde", 20, 5), animMs: 3000 },
-    { id: "baseline", caption: "Rarer events are harder too. Slide the baseline from 10% down to 1% with the same 10% lift, and the users needed grow about tenfold.", apply: () => setup(), animate: sweep("base", 10, 1), animMs: 2600 },
-    { id: "one-look", caption: "The bottom plot runs 2,000 A/A tests where nothing changed. Looking once at the end flags about 5% as significant, matching α, the teal dashed line.", apply: () => setup() },
-    { id: "peeking", caption: "Now check the p-value every day and stop at the first significant result. As the test runs longer, the orange curve climbs far above 5%: every look is another chance for noise to cross the line.", apply: () => setup({ days: 2 }), animate: sweep("days", 2, 30), animMs: 3200 },
-    { id: "takeaway", caption: "So fix the sample size before you start, run the full 10 days it implies here, and look once. If you must monitor, use a sequential test built for repeated looks.", apply: () => setup({ days: 10 }) },
+    { id: "sample-size", caption: `A ${DEFAULTS.base}% conversion rate, and we want to detect a ${DEFAULTS.mde}% relative lift, to ${fmt(DEFAULTS.base * (1 + DEFAULTS.mde / 100), 0)}%. The blue curve is the chance of detecting each true lift with ${num(n0)} users per arm. At the orange line it reaches 80%.`, apply: () => setup() },
+    { id: "mde", caption: `Shrink the effect you want to detect from 10% to 3%. The orange line slides left, and reaching 80% power that close to zero takes far more users: ${num(n0)} → ${num(nSmall)} per arm. Halving the effect roughly quadruples the sample (5% needs ${num(nHalf)}).`, apply: () => setup(), animate: sweep("mde", 10, 3), animMs: 3000 },
+    { id: "baseline", caption: `Rarer events are harder too. Slide the baseline from 10% down to 1% with the same 10% lift: users per arm (readout) grow from ${num(n0)} to ${num(nRare)}. The curve stays put because the bigger sample exactly makes up for it.`, apply: () => setup(), animate: sweep("base", 10, 1), animMs: 2600 },
+    { id: "one-look", caption: `The bottom plot runs ${num(SIMS)} A/A tests where nothing changed. Look at the p-value just once, the first orange dot, and ${pc(AA.curve[0])} come out "significant": right on α, the teal dashed line.`, apply: () => setup() },
+    { id: "peeking", caption: `Now check the p-value every day and stop at the first significant result. Each extra look is another chance for noise to cross the line, so the orange curve keeps climbing: ${pc(AA.curve[13])} after 14 looks, ${pc(AA.curve[MAX_DAYS - 1])} after ${MAX_DAYS}.`, apply: () => setup({ days: 2 }), animate: sweep("days", 2, MAX_DAYS), animMs: 3200 },
+    { id: "takeaway", caption: `So fix the sample size before you start, run the full ${days0} days it implies here, and look once. If you must monitor, use a sequential test built for repeated looks.`, apply: () => setup({ days: days0 }) },
   ];
 
   const path = (pts: readonly (readonly [number, number])[], sx: (v: number) => number, sy: (v: number) => number) =>
@@ -118,7 +126,7 @@ export default function AbTestLab() {
           <Slider label="α (two-sided)" value={st.alpha} min={0.01} max={0.1} step={0.01} format={(v) => fmt(v, 2)} onChange={(v) => set({ alpha: v })} />
           <Slider label="power (1 − β)" value={st.power} min={0.5} max={0.95} step={0.05} format={(v) => fmt(v, 2)} onChange={(v) => set({ power: v })} />
           <Slider label="eligible users / day" value={st.traffic} min={500} max={100000} step={500} format={(v) => v.toLocaleString("en-US")} onChange={(v) => set({ traffic: v })} />
-          <Slider label="test length for simulation (days)" value={st.days} min={2} max={30} onChange={(v) => set({ days: v })} />
+          <Slider label="test length for simulation (days)" value={st.days} min={2} max={MAX_DAYS} onChange={(v) => set({ days: v })} />
         </>
       }
       readout={
@@ -128,8 +136,8 @@ export default function AbTestLab() {
           <Stat label="days needed" value={days} />
           <Stat label="z(1−α/2)" value={fmt(normalQuantile(1 - st.alpha / 2), 4)} />
           <Stat label="z(power)" value={fmt(normalQuantile(st.power), 4)} />
-          <Stat label="FPR, one final look" value={fmt(sim.fprFinal, 3)} color="var(--c-teal)" />
-          <Stat label="FPR, peek daily" value={fmt(sim.fprPeek, 3)} color="var(--c-orange)" />
+          <Stat label="FPR, one final look" value={pc(sim.fprFinal)} color="var(--c-teal)" />
+          <Stat label="FPR, peek daily" value={pc(sim.fprPeek)} color="var(--c-orange)" />
         </>
       }
       interpretation={
@@ -138,7 +146,7 @@ export default function AbTestLab() {
             To detect a {st.mde}% relative lift on a {fmt(st.base, 1)}% baseline with α = {fmt(st.alpha, 2)} and power {fmt(st.power, 2)}, you need {n.toLocaleString("en-US")} users per arm: {days} day{days === 1 ? "" : "s"} at {perArm.toLocaleString("en-US")} per arm per day{days < 7 ? ", but run at least one full week to cover weekday effects" : ""}. Halving the MDE roughly quadruples n.
           </p>
           <p className="mt-1">
-            In {SIMS.toLocaleString("en-US")} A/A tests, one look at the end flags {fmt(sim.fprFinal * 100, 1)}% as significant (close to α). Stopping at the first daily p &lt; {fmt(st.alpha, 2)} over {st.days} days flags {fmt(sim.fprPeek * 100, 1)}%: every extra look is another chance for noise to cross the line.
+            In {SIMS.toLocaleString("en-US")} A/A tests, one look at the end flags {pc(sim.fprFinal)} as significant (close to α). Stopping at the first daily p &lt; {fmt(st.alpha, 2)} over {st.days} days flags {pc(sim.fprPeek)}: every extra look is another chance for noise to cross the line.
           </p>
         </>
       }

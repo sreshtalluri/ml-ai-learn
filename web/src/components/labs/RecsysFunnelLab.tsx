@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { fmt } from "@/lib/ml";
-import { LabFrame, Slider, Stat, type TourStep } from "./ui";
+import { LabFrame, Legend, Slider, Stat, type TourStep } from "./ui";
 
 // Synthetic cost model, identical to guide/code/22-ml-system-design/recsys_funnel.py:
 //   latency = fixed + itemsScored * perItemMs   (one worker, no sharding)
@@ -52,13 +52,17 @@ export default function RecsysFunnelLab() {
   const setup = (p: Partial<typeof DEFAULTS> = {}) => setSt({ ...DEFAULTS, ...p });
   const sweep = (key: "k1" | "p2" | "budget", a: number, b: number, round: (v: number) => number) => (t: number) => set({ [key]: round(a + t * (b - a)) });
   const by100 = (v: number) => Math.round(v / 100) * 100, by10 = (v: number) => Math.round(v / 10) * 10, cents = (v: number) => Math.round(v * 100) / 100;
+  // Caption numbers come from the same funnel() the readouts use.
+  const at = (p: Partial<typeof DEFAULTS> = {}) => { const q = { ...DEFAULTS, ...p }; return funnel({ k1: q.k1, k2: q.k2, k3: q.k3, perItem: [q.p1, q.p2, q.p3] }); };
+  const base = at(), wide = at({ k1: 5000 }), narrow = at({ k1: 200 });
+  const ms = (v: number) => fmt(v, 0), rc = (v: number) => fmt(v, 3);
   const tour: TourStep[] = [
     { id: "funnel", caption: "Ten million items go in, twenty come out. Each bar is one stage: a cheap retriever keeps 1,000, a ranker keeps 100, a re-ranker picks the 20 shown.", apply: () => setup() },
-    { id: "latency", caption: "The bottom bar is where the time goes: 125 ms against a 150 ms budget. The teal ranking stage is 75 ms of it, because it scores all 1,000 candidates with a heavy model.", apply: () => setup() },
-    { id: "rank-more", caption: "Pass more candidates to the ranker, from 1,000 to 5,000. Latency shoots past the dashed budget line, while recall barely moves: the retriever had already found most of the good items.", apply: () => setup(), animate: sweep("k1", 1000, 5000, by100), animMs: 3000 },
-    { id: "starved", caption: "Go the other way, down to 200 candidates. Now everything is fast, but recall falls to about 0.41: good items are dropped before the ranker ever sees them.", apply: () => setup(), animate: sweep("k1", 1000, 200, by100), animMs: 2600 },
+    { id: "latency", caption: `The bottom bar is where the time goes: ${ms(base.total)} ms against a ${DEFAULTS.budget} ms budget. The teal ranking stage is ${ms(base.stages[1].latency)} ms of it, because it scores all ${DEFAULTS.k1.toLocaleString("en-US")} candidates with a heavy model.`, apply: () => setup() },
+    { id: "rank-more", caption: `Pass more candidates to the ranker, from 1,000 to 5,000. Latency shoots past the dashed budget line to ${ms(wide.total)} ms, while recall barely moves (${rc(base.recall)} → ${rc(wide.recall)}): the retriever had already found most of the good items.`, apply: () => setup(), animate: sweep("k1", 1000, 5000, by100), animMs: 3000 },
+    { id: "starved", caption: `Go the other way, down to 200 candidates. Now everything is fast (${ms(narrow.total)} ms), but recall falls to ${rc(narrow.recall)}: good items are dropped before the ranker ever sees them.`, apply: () => setup(), animate: sweep("k1", 1000, 200, by100), animMs: 2600 },
     { id: "heavy-ranker", caption: "Keep 1,000 candidates but make the ranker more expensive per item. The teal segment stretches until the request blows the budget: model cost times items scored is the whole story.", apply: () => setup(), animate: sweep("p2", 0.06, 0.2, cents), animMs: 2800 },
-    { id: "budget", caption: "Squeeze the budget from 150 to 100 ms and the same funnel no longer fits. Every funnel is sized backwards from the latency budget: decide how many items each stage can afford.", apply: () => setup(), animate: sweep("budget", 150, 100, by10), animMs: 2400 },
+    { id: "budget", caption: `Squeeze the budget from 150 to 100 ms and the same ${ms(base.total)} ms funnel no longer fits. Every funnel is sized backwards from the latency budget: decide how many items each stage can afford.`, apply: () => setup(), animate: sweep("budget", 150, 100, by10), animMs: 2400 },
   ];
 
   // Funnel: bar width proportional to log10(items), so 10M and 20 both stay visible.
@@ -141,6 +145,7 @@ export default function RecsysFunnelLab() {
         <line x1={10 + px(st.budget)} x2={10 + px(st.budget)} y1={14} y2={50} stroke={over > 0 ? "var(--c-red)" : "var(--c-orange)"} strokeWidth={2} strokeDasharray="5 3" />
         <text x={10 + px(st.budget)} y={64} textAnchor="middle" fontSize="11" fill="var(--muted)">budget {st.budget} ms</text>
       </svg>
+      <Legend items={segs.map((s) => ({ label: s.name, color: s.color }))} />
     </LabFrame>
   );
 }

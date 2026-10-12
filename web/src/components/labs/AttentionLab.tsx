@@ -23,6 +23,10 @@ function weights(seed: number): Mat {
 }
 const WQ = weights(101), WK = weights(202), WV = weights(303);
 
+// The course's hand-worked example: one query, two keys.
+const EX = { Q: [[1, 0]], K: [[1, 0], [0, 1]], V: [[10, 0], [0, 6]] };
+const EX_R = attention(EX.Q, EX.K, EX.V, false);
+
 function MatrixView({ m, rows, cols, title, shape, heat, focusRow, digits = 2 }: {
   m: Mat; rows: string[]; cols: string[]; title: string; shape: string; heat?: boolean; focusRow?: number; digits?: number;
 }) {
@@ -79,9 +83,7 @@ export default function AttentionLab() {
 
   const data = useMemo(() => {
     if (mode === "example") {
-      // The course's hand-worked example: one query, two keys.
-      const Q = [[1, 0]], K = [[1, 0], [0, 1]], V = [[10, 0], [0, 6]];
-      return { X: null as Mat | null, Q, K, V, r: attention(Q, K, V, false), qLabels: ["q"], kLabels: ["k₁", "k₂"] };
+      return { X: null as Mat | null, ...EX, r: EX_R, qLabels: ["q"], kLabels: ["k₁", "k₂"] };
     }
     if (!n) return null;
     const X = tokens.map((t, i) => embed(t).map((v, j) => +(v + (positions ? posEnc(i)[j] : 0)).toFixed(2)));
@@ -143,9 +145,9 @@ export default function AttentionLab() {
     { id: "qkv", caption: "Three weight matrices turn every row into a query, a key and a value, two numbers each. The query asks, the key advertises, the value is what gets passed on.", apply: () => setup(1) },
     { id: "scores", caption: "Each cell of S is one query dotted with one key: large when the two point the same way. Watch the outline walk down the rows as every token scores every other token.", apply: () => setup(2, 0), animate: sweep, animMs: 2600 },
     { id: "scale", caption: "Every score is divided by √2, the square root of the key width. With 64-wide keys raw scores get large, and this keeps softmax from locking onto one word.", apply: () => setup(3) },
-    { id: "softmax", caption: "Softmax turns each row into weights that sum to 1. Darker blue cells are the words a token pays most attention to; follow the outline row by row.", apply: () => setup(5, 0), animate: sweep, animMs: 2600 },
+    { id: "softmax", caption: "Softmax turns each row into weights that sum to 1. Darker blue cells (columns are the words being looked at) show where each token pays most attention; follow the outline row by row.", apply: () => setup(5, 0), animate: sweep, animMs: 2600 },
     { id: "output", caption: "Each output row is a blend of the value rows, mixed in exactly those proportions. The new vector for “cat” now carries a little of every word it attended to.", apply: () => setup(6) },
-    { id: "referent", caption: "The course example: the query matches key 1, so it gets weight 0.67 and the output is mostly value 1. Training tunes the projections so “it” matches “animal” the same way.", apply: () => setup(6, 0, "example") },
+    { id: "referent", caption: `The course example: the query matches key 1, so it gets weight ${fmt(EX_R.weights[0][0], 2)} and the output, [${EX_R.output[0].map((v) => fmt(v, 2)).join(", ")}], is mostly value 1. Training tunes the projections so “it” matches “animal” the same way.`, apply: () => setup(6, 0, "example") },
   ];
 
   return (
@@ -218,11 +220,11 @@ export default function AttentionLab() {
         {cur === 1 && <MatrixView m={K} rows={kLabels} cols={dims(D_K)} title="K = X W_K" shape={`[${nk}, ${D_K}]`} />}
         {cur === 1 && <MatrixView m={V} rows={kLabels} cols={dims(D_K)} title="V = X W_V" shape={`[${nk}, ${D_K}]`} />}
         {cur >= 2 && cur <= 3 && <MatrixView m={Q} rows={qLabels} cols={dims(D_K)} title="Q" shape={`[${nq}, ${D_K}]`} focusRow={fi} />}
-        {cur >= 2 && cur <= 3 && <MatrixView m={transpose(K)} rows={dims(D_K)} cols={kLabels.map((_, j) => `k${j + 1}`)} title="Kᵀ" shape={`[${D_K}, ${nk}]`} />}
-        {cur === 2 && <MatrixView m={r.scores} rows={qLabels} cols={kLabels.map((_, j) => `k${j + 1}`)} title="S = QKᵀ" shape={`[${nq}, ${nk}]`} focusRow={fi} digits={3} />}
-        {cur === 3 && <MatrixView m={r.scaled} rows={qLabels} cols={kLabels.map((_, j) => `k${j + 1}`)} title="S / √d_k" shape={`[${nq}, ${nk}]`} focusRow={fi} digits={3} />}
-        {cur === 4 && <MatrixView m={r.masked} rows={qLabels} cols={kLabels.map((_, j) => `k${j + 1}`)} title="masked scores" shape={`[${nq}, ${nk}]`} focusRow={fi} digits={3} />}
-        {cur >= 5 && <MatrixView m={r.weights} rows={qLabels} cols={kLabels.map((_, j) => `k${j + 1}`)} title="A = softmax(S′): attention heatmap" shape={`[${nq}, ${nk}]`} heat focusRow={fi} digits={2} />}
+        {cur >= 2 && cur <= 3 && <MatrixView m={transpose(K)} rows={dims(D_K)} cols={kLabels} title="Kᵀ" shape={`[${D_K}, ${nk}]`} />}
+        {cur === 2 && <MatrixView m={r.scores} rows={qLabels} cols={kLabels} title="S = QKᵀ" shape={`[${nq}, ${nk}]`} focusRow={fi} digits={3} />}
+        {cur === 3 && <MatrixView m={r.scaled} rows={qLabels} cols={kLabels} title="S / √d_k" shape={`[${nq}, ${nk}]`} focusRow={fi} digits={3} />}
+        {cur === 4 && <MatrixView m={r.masked} rows={qLabels} cols={kLabels} title="masked scores" shape={`[${nq}, ${nk}]`} focusRow={fi} digits={3} />}
+        {cur >= 5 && <MatrixView m={r.weights} rows={qLabels} cols={kLabels} title="A = softmax(S′): attention heatmap" shape={`[${nq}, ${nk}]`} heat focusRow={fi} digits={2} />}
         {cur === 6 && <MatrixView m={V} rows={kLabels} cols={dims(D_K)} title="V" shape={`[${nk}, ${D_K}]`} />}
         {cur === 6 && <MatrixView m={r.output} rows={qLabels} cols={dims(D_K)} title="output = A V" shape={`[${nq}, ${D_K}]`} focusRow={fi} digits={3} />}
       </div>

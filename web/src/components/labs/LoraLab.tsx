@@ -92,16 +92,25 @@ export default function LoraLab() {
   const optShare = full.mem.optimizer / full.sum;
 
   // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then animates.
+  // Caption numbers are computed with the same functions as the bars, so they always match the screen.
   const setup = (o: { model?: string; ri?: number; tokens?: number; ckpt?: boolean; gpu?: "24" | "48" | "80" } = {}) => {
     pick(o.model ?? "7b"); setRi(o.ri ?? 4); setTargets("all"); setOptim("adamw"); setTokens(o.tokens ?? 2048); setCkpt(o.ckpt ?? true); setGpu(o.gpu ?? "24");
   };
+  const at = (model: string, rank: number, tokens = 2048, checkpointing = true) => {
+    const c = PRESETS[model], t = loraParams(c, rank, "all"), o = { tokens, checkpointing, optim: "adamw" as const };
+    const m = (k: Method) => memory(c, k, t, o);
+    const gb = (k: Method) => Object.values(m(k)).reduce((a, b) => a + b, 0) / GB;
+    return { total: paramCounts(c).total, m, gb };
+  };
+  const g = (v: number, d = 1) => fmt(v, d);
+  const s7 = at("7b", 16), r1 = at("7b", 1), r64 = at("7b", 64), act = at("7b", 16, 8192, false), s70 = at("70b", 16);
   const tour: TourStep[] = [
     { id: "bars", caption: "Three ways to fine-tune a 7B-style model. Each bar stacks weights in blue, gradients in orange, optimizer states in purple and activations in teal; the dashed red line is a 24 GB GPU.", apply: () => setup() },
-    { id: "full", caption: "Full fine-tuning trains all 6.7 billion weights. Every one needs a gradient and fp32 AdamW state, so purple alone is about 81 GB and the bar reaches 108.6 GB.", apply: () => setup() },
-    { id: "rank", caption: "LoRA freezes the base and trains two thin matrices per layer. Sweep the rank from 1 to 256: trainable parameters grow 256×, yet the LoRA bar barely moves, because the frozen blue base dominates.", apply: () => setup({ ri: 0 }), animate: (t) => { const v = Math.round(8 * t); if (v !== ri) setRi(v); }, animMs: 3000 },
-    { id: "qlora", caption: "QLoRA stores that frozen base in 4-bit NF4. The blue segment shrinks from 13.5 GB to 3.9 GB, and the whole job fits in about 5 GB.", apply: () => setup() },
-    { id: "activations", caption: "Turn off gradient checkpointing and grow the micro-batch from 2,048 to 8,192 tokens. The teal activations swell to over 36 GB and push even QLoRA past the 24 GB line.", apply: () => setup({ ckpt: false }), animate: (t) => { const v = 2048 + Math.round((6144 * t) / 512) * 512; if (v !== tokens) setTokens(v); }, animMs: 2800 },
-    { id: "big-model", caption: "Scale up to a 70B-style model on a 48 GB GPU. Full fine-tuning needs over a terabyte and LoRA about 145 GB, but QLoRA fits in about 43 GB.", apply: () => setup({ model: "70b", gpu: "48" }) },
+    { id: "full", caption: `Full fine-tuning trains all ${g(s7.total / 1e9)} billion weights. Every one needs a gradient and fp32 AdamW state, so purple alone is about ${g(s7.m("full").optimizer / GB, 0)} GB and the bar reaches ${g(s7.gb("full"))} GB.`, apply: () => setup() },
+    { id: "rank", caption: `LoRA freezes the base and trains two thin matrices per layer. Sweep the rank from 1 to 64: trainable parameters grow 64×, yet the LoRA bar only goes from ${g(r1.gb("lora"))} to ${g(r64.gb("lora"))} GB, because the frozen blue base dominates.`, apply: () => setup({ ri: 0 }), animate: (t) => { const v = Math.round(6 * t); if (v !== ri) setRi(v); }, animMs: 3000 },
+    { id: "qlora", caption: `QLoRA stores that frozen base in 4-bit NF4. The blue segment shrinks from ${g(s7.m("lora").weights / GB)} GB to ${g(s7.m("qlora").weights / GB)} GB, and the whole job fits in about ${g(s7.gb("qlora"), 0)} GB.`, apply: () => setup() },
+    { id: "activations", caption: `Turn off gradient checkpointing and grow the micro-batch from 2,048 to 8,192 tokens. The teal activations swell to ${g(act.m("qlora").activations / GB)} GB and push even QLoRA to ${g(act.gb("qlora"))} GB, past the 24 GB line.`, apply: () => setup({ ckpt: false }), animate: (t) => { const v = 2048 + Math.round((6144 * t) / 512) * 512; if (v !== tokens) setTokens(v); }, animMs: 2800 },
+    { id: "big-model", caption: `Scale up to a 70B-style model on a 48 GB GPU. Full fine-tuning needs ${g(s70.gb("full") / 1000, 2)} TB and LoRA ${g(s70.gb("lora"), 0)} GB, but QLoRA fits in ${g(s70.gb("qlora"))} GB.`, apply: () => setup({ model: "70b", gpu: "48" }) },
   ];
 
   return (
@@ -148,7 +157,7 @@ export default function LoraLab() {
             {" "}On a {gpu} GB GPU, {fits.length ? <>{fits.join(" and ")} fit{fits.length === 1 ? "s" : ""}.</> : "nothing fits: shard across GPUs or pick a smaller model."}
           </p>
           <p className="mt-1">
-            In full fine-tuning, optimizer states are {fmt(100 * optShare, 0)}% of the bill. LoRA removes almost all gradients and optimizer state, so the frozen bf16 base ({fmt(lora.mem.weights / GB, 1)} GB) dominates; that is why changing the rank barely moves the LoRA bar.
+            In full fine-tuning, optimizer states are {fmt(100 * optShare, 0)}% of the bill. LoRA trains only the adapter, so its gradients and optimizer states total {fmt((lora.mem.grads + lora.mem.optimizer) / GB, 2)} GB beside a frozen bf16 base of {fmt((lora.mem.weights - 2 * T) / GB, 1)} GB; that is why small changes in rank barely move the LoRA bar.
             {" "}QLoRA stores that base in 4-bit NF4, cutting weights to {fmt(q.mem.weights / GB, 1)} GB.
             {!ckpt && " Without gradient checkpointing, activations grow with every layer and every token: watch the teal segment."}
           </p>

@@ -66,7 +66,7 @@ Lexical matching nails exact identifiers like error codes and product names, and
 
 Only the top $k$ chunks are pasted into the prompt. Ask *"How many days do I have to ask for my money back?"* with lexical retrieval and two shipping chunks (which also mention *days*) plus a different refunds chunk all outrank the refund-window chunk. The evidence is at **rank 4**.
 
-Sweep $k$ from 1 to 6. The evidence enters the context exactly at $k = 4$. Meanwhile the "context sent" counter climbs with every chunk, and each extra chunk adds tokens, latency, and text the model can be distracted by. Raising $k$ until the answer shows up works, but you pay for it on every request.
+Sweep $k$ from 1 to 4. The evidence enters the context exactly at $k = 4$. Meanwhile the "context sent" counter climbs with every chunk, and each extra chunk adds tokens, latency, and text the model can be distracted by. Raising $k$ until the answer shows up works, but you pay for it on every request.
 
 <!-- step:rerank -->
 ## Reranking

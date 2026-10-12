@@ -70,28 +70,47 @@ export function TourPlayer({ tour, onExit }: { tour: TourStep[]; onExit: () => v
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [voice, setVoice] = useState(false);
+  // Index of the step whose animation / narration has finished (so pause, play, and the voice
+  // toggle never restart a step: only changing the step does).
+  const [animatedFor, setAnimatedFor] = useState(-1);
+  const [spokenFor, setSpokenFor] = useState(-1);
   const { run, cancel } = useStepRunner(tour);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const s = tour[i];
+  const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
 
+  // 1. Apply and animate a step exactly once, when it becomes current.
   useEffect(() => {
-    clearTimeout(timer.current);
-    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-    synth?.cancel();
-    let spoken = !voice || !synth, animated = false;
-    const next = () => { if (spoken && animated && playing) timer.current = setTimeout(() => (i + 1 < tour.length ? setI(i + 1) : setPlaying(false)), voice ? 700 : (s.holdMs ?? readMs(s.caption))); };
-    run(i, () => { animated = true; next(); });
-    if (voice && synth) {
-      const u = new SpeechSynthesisUtterance(s.caption);
-      u.rate = 1.02;
-      u.onend = () => { spoken = true; next(); };
-      synth.speak(u);
-    }
-    return () => { clearTimeout(timer.current); cancel(); synth?.cancel(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only when the step, play state, or voice changes
-  }, [i, playing, voice]);
+    run(i, () => setAnimatedFor(i));
+    return cancel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new step re-runs its animation
+  }, [i]);
+
+  // 2. Narration: speaks the current caption once while playing with voice on. Pause, voice off,
+  //    exit, or a new step all silence it immediately.
+  useEffect(() => {
+    if (!synth) return;
+    synth.cancel();
+    if (!voice || !playing || spokenFor === i) return;
+    let live = true; // cancel() fires "end" on the old utterance; ignore it
+    const u = new SpeechSynthesisUtterance(s.caption);
+    u.rate = 1.02;
+    u.onend = () => { if (live) setSpokenFor(i); };
+    synth.speak(u);
+    return () => { live = false; synth.cancel(); };
+  }, [i, voice, playing, spokenFor, s.caption, synth]);
+
+  // 3. Auto-advance once the step has finished animating (and speaking), unless paused.
+  useEffect(() => {
+    if (!playing || animatedFor !== i || (voice && synth && spokenFor !== i)) return;
+    const t = setTimeout(() => (i + 1 < tour.length ? setI(i + 1) : setPlaying(false)), voice ? 700 : (s.holdMs ?? readMs(s.caption)));
+    return () => clearTimeout(t);
+  }, [i, playing, voice, animatedFor, spokenFor, synth, tour.length, s]);
 
   const go = (n: number) => { setI(Math.max(0, Math.min(tour.length - 1, n))); };
+  const togglePlay = () => {
+    if (!playing && i === tour.length - 1 && animatedFor === i) setI(0); // replay from the start
+    setPlaying(!playing);
+  };
 
   return (
     <div className="border-b border-line bg-accent-soft/50 px-4 py-3 sm:px-5" role="region" aria-label="Guided tour" aria-live="polite">
@@ -100,7 +119,7 @@ export function TourPlayer({ tour, onExit }: { tour: TourStep[]; onExit: () => v
         <p className="flex-1 text-[0.95rem] leading-relaxed text-ink">{s.caption}</p>
         <div className="flex shrink-0 items-center gap-0.5">
           <button type="button" className={iconBtn} onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous step"><CaretLeft size={16} /></button>
-          <button type="button" className={iconBtn} onClick={() => setPlaying(!playing)} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause size={16} /> : <Play size={16} />}</button>
+          <button type="button" className={iconBtn} onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause size={16} /> : <Play size={16} />}</button>
           <button type="button" className={iconBtn} onClick={() => go(i + 1)} disabled={i === tour.length - 1} aria-label="Next step"><CaretRight size={16} /></button>
           <button type="button" className={iconBtn} onClick={() => setVoice(!voice)} aria-pressed={voice} aria-label={voice ? "Turn narration off" : "Turn narration on"}>{voice ? <SpeakerHigh size={16} /> : <SpeakerSlash size={16} />}</button>
           <button type="button" className={iconBtn} onClick={onExit} aria-label="Exit tour"><X size={16} /></button>

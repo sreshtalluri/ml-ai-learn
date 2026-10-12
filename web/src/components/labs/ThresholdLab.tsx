@@ -26,15 +26,22 @@ export default function ThresholdLab() {
   const [overconfident, setOverconfident] = useState(false);
   const base = useMemo(() => makeData(0.2), []);
   // An overconfident model pushes scores toward 0 and 1 without changing their ranking.
-  const scores = useMemo(() => (overconfident ? base.scores.map((s) => sigmoid(3 * Math.log(s / (1 - s)))) : base.scores), [base, overconfident]);
+  const squash = useMemo(() => (overconfident ? (s: number) => sigmoid(3 * Math.log(s / (1 - s))) : (s: number) => s), [overconfident]);
+  const scores = useMemo(() => base.scores.map(squash), [base, squash]);
   const labels = base.labels;
+  // Thresholds are swept on the calibrated scores and mapped through the same squash. The ranking is identical, so this is
+  // the same as sweeping the current scores, except a fixed 0.01 grid can't resolve overconfident scores bunched near 0 and 1.
+  const costAt = (cc: { fp: number; fn: number }, fp: number, fn: number) => cc.fp * fp + cc.fn * fn;
+  const bestFor = (fp: number, fn: number) => Array.from({ length: 101 }, (_, i) => i / 100)
+    .reduce((a, th) => (costAt(confusionAt(base.scores, labels, th), fp, fn) < costAt(confusionAt(base.scores, labels, a), fp, fn) ? th : a));
 
   const c = confusionAt(scores, labels, t);
   const cost = c.fp * costFP + c.fn * costFN;
   const sweep = useMemo(() => Array.from({ length: 101 }, (_, i) => {
-    const th = i / 100, cc = confusionAt(scores, labels, th);
-    return { th, tpr: recall(cc), fpr: 1 - specificity(cc), cost: cc.fp * costFP + cc.fn * costFN };
-  }), [scores, labels, costFP, costFN]);
+    const cc = confusionAt(base.scores, labels, i / 100);
+    return { th: squash(i / 100), tpr: recall(cc), fpr: 1 - specificity(cc), cost: cc.fp * costFP + cc.fn * costFN };
+  }), [base, labels, squash, costFP, costFN]);
+  const fmtT = (v: number) => fmt(v, v > 0 && v < 0.01 ? 3 : 2);
   const best = sweep.reduce((a, b) => (b.cost < a.cost ? b : a));
 
   const hist = useMemo(() => {
@@ -60,13 +67,18 @@ export default function ThresholdLab() {
 
   // Guided tour (Watch mode + explainers). Each step sets threshold, costs, and model, then moves one.
   const setup = (th: number, fp = 1, fn = 10, over = false) => { setT(th); setCostFP(fp); setCostFN(fn); setOverconfident(over); };
-  const toBest = (t0: number) => (u: number) => setT(+(t0 + u * (best.th - t0)).toFixed(2)); // best is re-read each frame
+  // Tour captions quote the calibrated model's real numbers.
+  const at = (th: number) => confusionAt(base.scores, labels, th);
+  const pos = labels.filter((l) => l === 1).length, n = labels.length;
+  const half = at(0.5), lowBest = bestFor(1, 10), highBest = bestFor(10, 1);
+  const pct = (v: number) => `${fmt(v * 100, 1)}%`;
+  const toBest = (t0: number, target: number) => (u: number) => setT(+(t0 + u * (target - t0)).toFixed(2));
   const tour: TourStep[] = [
     { id: "scores", caption: "Each bar counts transactions by model score: blue are legitimate, orange are fraud. The vertical line is the threshold; everything to its right gets flagged.", apply: () => setup(0.5) },
     { id: "sweep", caption: "Slide the threshold from high to low. More fraud moves into TP, but false alarms pile up in FP, and the orange dot climbs the ROC curve.", apply: () => setup(0.9), animate: (u) => setT(+(0.9 - u * 0.85).toFixed(2)), animMs: 3200 },
-    { id: "accuracy", caption: "At 0.5, accuracy is 77.5% yet the model misses 66 of 124 frauds. Always saying legitimate would already score 69%, so accuracy hides the misses.", apply: () => setup(0.5) },
-    { id: "cost", caption: "Now price the mistakes: a missed fraud costs 10, a false alarm 1. The cheapest threshold drops to 0.09, catching 118 of 124 frauds.", apply: () => setup(0.5), animate: toBest(0.5), animMs: 2600 },
-    { id: "flip-costs", caption: "Flip the prices, false alarms now cost 10. The cheapest threshold jumps to 0.9 and the model flags only cases it is sure of.", apply: () => setup(0.5, 10, 1), animate: toBest(0.5), animMs: 2600 },
+    { id: "accuracy", caption: `At 0.5, accuracy is ${pct(accuracy(half))} yet the model misses ${half.fn} of ${pos} frauds. Always saying legitimate would already score ${Math.round((100 * (n - pos)) / n)}%, so accuracy hides the misses.`, apply: () => setup(0.5) },
+    { id: "cost", caption: `Now price the mistakes: a missed fraud costs 10, a false alarm 1. The cheapest threshold drops to ${fmt(lowBest, 2)}, catching ${at(lowBest).tp} of ${pos} frauds.`, apply: () => setup(0.5), animate: toBest(0.5, lowBest), animMs: 2600 },
+    { id: "flip-costs", caption: `Flip the prices: false alarms now cost 10, a miss 1. The cheapest threshold jumps to ${fmt(highBest, 2)} and the model flags only the ${at(highBest).tp + at(highBest).fp} cases it is surest of.`, apply: () => setup(0.5, 10, 1), animate: toBest(0.5, highBest), animMs: 2600 },
     { id: "calibration", caption: "An overconfident model pushes scores toward 0 and 1 without changing their order. The ROC curve stays put, but the teal calibration curve leaves the diagonal.", apply: () => setup(0.5, 1, 10, true) },
   ];
 
@@ -98,10 +110,10 @@ export default function ThresholdLab() {
           <Stat label="specificity" value={fmt(specificity(c), 3)} />
           <Stat label="F1" value={fmt(f1(c), 3)} />
           <Stat label="total cost" value={cost} color="var(--c-red)" />
-          <Stat label="min-cost t" value={fmt(best.th, 2)} />
+          <Stat label="min-cost t" value={fmtT(best.th)} />
         </>
       }
-      interpretation={`At threshold ${fmt(t, 2)} the model flags ${c.tp + c.fp} transactions: ${c.tp} real fraud and ${c.fp} false alarms, and misses ${c.fn} fraud cases. With a false negative costing ${costFN} and a false positive ${costFP}, the cheapest threshold is ${fmt(best.th, 2)}. ${costFN > costFP ? "Missed fraud is expensive, so the best threshold sits below 0.5." : "False alarms are expensive here, so the best threshold moves up."} Note that accuracy (${fmt(accuracy(c) * 100, 1)}%) barely reflects any of this: always predicting "not fraud" would score ${Math.round((100 * (c.tn + c.fp)) / (c.tp + c.fp + c.tn + c.fn))}%.`}
+      interpretation={`At threshold ${fmt(t, 2)} the model flags ${c.tp + c.fp} transactions: ${c.tp} real fraud and ${c.fp} false alarms, and misses ${c.fn} fraud cases. With a false negative costing ${costFN} and a false positive ${costFP}, the cheapest threshold is ${fmtT(best.th)}${overconfident ? ", far from the calibrated model's, because overconfident scores are no longer probabilities" : ""}. ${costFN > costFP ? "Missed fraud is the expensive error, so the best threshold sits low." : costFP > costFN ? "False alarms are the expensive error here, so the best threshold moves up." : "The two errors cost the same, so the best threshold is roughly where fraud becomes the likelier label."} Note that accuracy (${fmt(accuracy(c) * 100, 1)}%) barely reflects any of this: always predicting "not fraud" would score ${Math.round((100 * (c.tn + c.fp)) / (c.tp + c.fp + c.tn + c.fn))}%.`}
     >
       <div className="grid gap-5 @2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div>

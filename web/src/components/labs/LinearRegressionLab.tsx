@@ -15,6 +15,9 @@ function makeData(): Pt[] {
   });
 }
 
+// One colour per penalty, used for its fit line, its readout, and its weight path.
+const PEN_COLOR = { l2: "var(--c-purple)", l1: "var(--c-green)" } as const;
+
 const X_DOM: [number, number] = [0, 11];
 const Y_DOM: [number, number] = [-2, 30];
 
@@ -80,26 +83,38 @@ export default function LinearRegressionLab() {
 
   // Guided tour (Watch mode + explainers). Each step resets the data and line, then moves one thing.
   const setup = (nw: number, nb: number, pen: Penalty = "none", lam = 2, data = initial) => {
-    setPts(data); setW(nw); setB(nb); setPenalty(pen); setLambda(lam); setLr(0.01); setChanged("Guided tour step.");
+    setPts(data); setW(nw); setB(nb); setPenalty(pen); setLambda(lam); setLr(0.01); setChanged("");
   };
   const fitOf = (p: Pt[]) => linearFit(p.map((q) => q.x), p.map((q) => q.y));
   const best0 = fitOf(initial);
   const ix = initial.map((p) => p.x), iy = initial.map((p) => p.y);
   // n gradient steps from (1, 4) with η = 0.01, recomputed from scratch so the step is absolute
-  const gdTo = (k: number) => { let cw = 1, cb = 4; for (let i = 0; i < k; i++) { const gg = linearGrad(ix, iy, cw, cb); cw -= 0.01 * gg.dw; cb -= 0.01 * gg.db; } setW(+cw.toFixed(4)); setB(+cb.toFixed(4)); };
-  const withOutlier = (y: number) => [...initial.slice(0, 9), { x: 9.5, y }];
+  const gdAt = (k: number) => { let cw = 1, cb = 4; for (let i = 0; i < k; i++) { const gg = linearGrad(ix, iy, cw, cb); cw -= 0.01 * gg.dw; cb -= 0.01 * gg.db; } return { w: +cw.toFixed(4), b: +cb.toFixed(4) }; };
+  const gdTo = (k: number) => { const p = gdAt(k); setW(p.w); setB(p.b); };
+  const GD_STEPS = 80;
+  const gdEnd = gdAt(GD_STEPS);
+  const mseAt = (p: { w: number; b: number }) => linearGrad(ix, iy, p.w, p.b).mse;
+  const last = initial[initial.length - 1];
+  const withOutlier = (y: number) => [...initial.slice(0, -1), { x: last.x, y }];
+  const outFit = fitOf(withOutlier(2));
+  const l1Zero = 2 * Math.abs(sum(ix.map((v, i) => (v - mean(ix)) * (iy[i] - mean(iy)))) / ix.length);
   const lamSweep = (t: number) => setLambda(+(t * lamMax).toFixed(1));
   const tour: TourStep[] = [
     { id: "residuals", caption: "Ten noisy points and a guessed teal line. Each orange segment is a residual: how far the line misses that point. MSE averages their squares.", apply: () => setup(1, 4) },
     { id: "slope", caption: "Tilt the line by raising the slope. The residuals shrink, then grow again on the other side; MSE has a single lowest point.", apply: () => setup(0.5, 4), animate: (t) => setW(+(0.5 + t * 3).toFixed(2)), animMs: 3000 },
-    { id: "descend", caption: "Gradient descent does the tilting for us: each step nudges w and b against the gradient. MSE falls from 20.8 toward the best line.", apply: () => setup(1, 4), animate: (t) => gdTo(Math.round(t * 80)), animMs: 3000 },
-    { id: "best-fit", caption: "Gradient descent has arrived. Least squares gets the same line in one calculation, no steps: w ≈ 2.18, b ≈ 1.04, MSE 1.61, both gradients zero.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4)) },
-    { id: "outlier", caption: "Drag the last point down to y = 2. Because errors are squared, that one point drags the whole best-fit line toward it; the slope halves to about 1.06.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4)), animate: (t) => { const d = withOutlier(20.79 - t * 18.79), f = fitOf(d); setPts(d); setW(+f.w.toFixed(4)); setB(+f.b.toFixed(4)); }, animMs: 2800 },
-    { id: "ridge", caption: "L2 ridge adds λw² to the loss. As λ grows, the purple fit flattens and the blue path below shrinks toward zero, but never reaches it.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4), "l2", 0), animate: lamSweep, animMs: 3000 },
-    { id: "lasso", caption: "L1 lasso adds λ|w| instead. Its purple path drops in a straight line and hits exactly zero once λ passes 32.6: the feature is switched off.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4), "l1", 0), animate: lamSweep, animMs: 3000 },
+    { id: "descend", caption: `Gradient descent does the tilting for us: each step nudges w and b against the gradient. In ${GD_STEPS} steps MSE falls from ${fmt(mseAt({ w: 1, b: 4 }), 1)} to ${fmt(mseAt(gdEnd), 2)}.`, apply: () => setup(1, 4), animate: (t) => gdTo(Math.round(t * GD_STEPS)), animMs: 3000 },
+    { id: "best-fit", caption: `Gradient descent was still creeping (the bias moves slowly). Least squares solves for the best line in one calculation: w = ${fmt(best0.w, 2)}, b = ${fmt(best0.b, 2)}, MSE ${fmt(mseAt(best0), 2)}, both gradients zero.`, apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4)) },
+    { id: "outlier", caption: `Drag the last point down to y = 2. Because errors are squared, that one point drags the whole best-fit line toward it: the slope falls from ${fmt(best0.w, 2)} to ${fmt(outFit.w, 2)}.`, apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4)), animate: (t) => { const d = withOutlier(last.y - t * (last.y - 2)), f = fitOf(d); setPts(d); setW(+f.w.toFixed(4)); setB(+f.b.toFixed(4)); }, animMs: 2800 },
+    { id: "ridge", caption: "L2 ridge adds λw² to the loss. As λ grows, the dashed purple fit flattens, and in the chart below the purple path of its slope shrinks toward zero but never reaches it.", apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4), "l2", 0), animate: lamSweep, animMs: 3000 },
+    { id: "lasso", caption: `L1 lasso adds λ|w| instead. Its green path below drops in a straight line and hits exactly zero once λ passes ${fmt(l1Zero, 1)}: the dashed green fit goes flat and the feature is switched off.`, apply: () => setup(+best0.w.toFixed(4), +best0.b.toFixed(4), "l1", 0), animate: lamSweep, animMs: 3000 },
   ];
 
   const interpretation = (() => {
+    if (penalty !== "none") {
+      const name = penalty === "l2" ? "Ridge" : "Lasso";
+      if (penalty === "l1" && reg.w === 0) return `${name} at λ = ${fmt(lambda, 1)}: the penalized best slope is exactly 0, so this feature is dropped. The dashed fit is a flat line at the mean of y.`;
+      return `${name} at λ = ${fmt(lambda, 1)}: the penalized best slope is ${fmt(reg.w, 2)}, versus ${fmt(ols.w, 2)} with no penalty. The penalty trades a little MSE for a smaller weight.`;
+    }
     const gap = g.mse - linearGrad(xs, ys, ols.w, ols.b).mse;
     if (gap < 1e-3) return "You are at the least-squares optimum: both gradients are zero, so any change to w or b raises MSE.";
     const dir = g.dw < 0 ? "increase" : "decrease";
@@ -114,7 +129,7 @@ export default function LinearRegressionLab() {
       subtitle="Synthetic data: y = 2x + 3 + noise. Drag any point."
       onReset={reset}
       presets={[
-        { label: "Add outlier", apply: () => { setPts((p) => [...p.slice(0, 9), { x: 9.5, y: 2 }]); setChanged("Point 10 is now an outlier. Press Best fit and watch the line tilt toward it."); } },
+        { label: "Add outlier", apply: () => { setPts((p) => [...p.slice(0, 9), { x: p[p.length - 1].x, y: 2 }]); setChanged("Point 10 is now an outlier. Press Best fit and watch the line tilt toward it."); } },
         { label: "Best fit", apply: bestFit },
         { label: "Flat line", apply: () => { setW(0); setB(+mean(ys).toFixed(2)); setChanged("A flat line at the mean of y is the baseline that R² compares against."); } },
       ]}
@@ -134,13 +149,13 @@ export default function LinearRegressionLab() {
           <Stat label="ŷ =" value={`${fmt(w, 2)}x + ${fmt(b, 2)}`} />
           <Stat label="MSE" value={fmt(g.mse, 3)} color="var(--c-orange)" />
           <Stat label="MAE" value={fmt(maeV, 3)} />
-          {penalty !== "none" && <Stat label={penalty === "l2" ? "λw²" : "λ|w|"} value={fmt(pen, 3)} color="var(--c-purple)" />}
+          {penalty !== "none" && <Stat label={penalty === "l2" ? "λw²" : "λ|w|"} value={fmt(pen, 3)} color={PEN_COLOR[penalty]} />}
           {penalty !== "none" && <Stat label="loss" value={fmt(g.mse + pen, 3)} />}
           <Stat label="∂MSE/∂w" value={fmt(g.dw, 3)} />
           <Stat label="∂MSE/∂b" value={fmt(g.db, 3)} />
         </>
       }
-      interpretation={<><p className="text-ink">{changed}</p><p className="mt-1">{interpretation}</p></>}
+      interpretation={<>{changed && <p className="text-ink mb-1">{changed}</p>}<p>{interpretation}</p></>}
     >
       <Plot
         title="Scatterplot with prediction line and residuals"
@@ -150,7 +165,7 @@ export default function LinearRegressionLab() {
         {({ sx, sy }) => (
           <>
             {penalty !== "none" && (
-              <line x1={sx(X_DOM[0])} x2={sx(X_DOM[1])} y1={sy(reg.w * X_DOM[0] + reg.b)} y2={sy(reg.w * X_DOM[1] + reg.b)} stroke="var(--c-purple)" strokeWidth={2} strokeDasharray="6 4" />
+              <line x1={sx(X_DOM[0])} x2={sx(X_DOM[1])} y1={sy(reg.w * X_DOM[0] + reg.b)} y2={sy(reg.w * X_DOM[1] + reg.b)} stroke={PEN_COLOR[penalty]} strokeWidth={2} strokeDasharray="6 4" />
             )}
             <line x1={sx(X_DOM[0])} x2={sx(X_DOM[1])} y1={sy(ols.w * X_DOM[0] + ols.b)} y2={sy(ols.w * X_DOM[1] + ols.b)} stroke="var(--faint)" strokeWidth={1.5} strokeDasharray="3 4" />
             {pts.map((p, i) => (
@@ -180,7 +195,7 @@ export default function LinearRegressionLab() {
       <Legend items={[
         { label: "your line", color: "var(--c-teal)" },
         { label: "least-squares fit", color: "var(--faint)", dashed: true },
-        ...(penalty !== "none" ? [{ label: `${penalty.toUpperCase()} fit`, color: "var(--c-purple)", dashed: true }] : []),
+        ...(penalty !== "none" ? [{ label: `${penalty.toUpperCase()} fit`, color: PEN_COLOR[penalty], dashed: true }] : []),
         { label: "residuals", color: "var(--c-orange)" },
       ]} />
 
@@ -193,13 +208,13 @@ export default function LinearRegressionLab() {
           <Plot title="Optimal slope as a function of regularization strength" width={560} height={200} x={[0, lamMax]} y={[Math.min(0, ols.w) - 0.2, Math.max(0, ols.w) + 0.3]} xLabel="λ" yLabel="optimal w" margin={{ t: 10, r: 12, b: 36, l: 48 }}>
             {({ sx, sy }) => (
               <>
-                <polyline fill="none" stroke="var(--c-blue)" strokeWidth={2} points={path.map((p) => `${sx(p.l)},${sy(p.l2)}`).join(" ")} />
-                <polyline fill="none" stroke="var(--c-purple)" strokeWidth={2} points={path.map((p) => `${sx(p.l)},${sy(p.l1)}`).join(" ")} />
+                <polyline fill="none" stroke={PEN_COLOR.l2} strokeWidth={2} points={path.map((p) => `${sx(p.l)},${sy(p.l2)}`).join(" ")} />
+                <polyline fill="none" stroke={PEN_COLOR.l1} strokeWidth={2} points={path.map((p) => `${sx(p.l)},${sy(p.l1)}`).join(" ")} />
                 <line x1={sx(lambda)} x2={sx(lambda)} y1={10} y2={164} stroke="var(--c-orange)" strokeDasharray="4 3" />
               </>
             )}
           </Plot>
-          <Legend items={[{ label: "L2 (ridge)", color: "var(--c-blue)" }, { label: "L1 (lasso)", color: "var(--c-purple)" }, { label: "current λ", color: "var(--c-orange)", dashed: true }]} />
+          <Legend items={[{ label: "L2 (ridge)", color: PEN_COLOR.l2 }, { label: "L1 (lasso)", color: PEN_COLOR.l1 }, { label: "current λ", color: "var(--c-orange)", dashed: true }]} />
         </div>
       )}
     </LabFrame>

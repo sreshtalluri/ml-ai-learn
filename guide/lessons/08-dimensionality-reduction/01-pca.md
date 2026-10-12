@@ -42,7 +42,7 @@ High variance is not the same as usefulness. The direction that varies most migh
 
 1. Guess the angle of PC1 by eye before pressing **Snap to PC1**.
 2. Rotate the axis 90° away from PC1. What share of variance is kept now, and which eigenvalue is it?
-3. Set the correlation to 0. Why does every angle keep about the same variance, and what does that mean for compression?
+3. Set the correlation to 0. Where does PC1 point now, why does it keep only about 61% of the variance, and what does that mean for compression?
 
 ## 3. The math
 

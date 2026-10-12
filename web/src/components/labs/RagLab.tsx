@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { fmt } from "@/lib/ml";
-import { chunkDocs, QUERIES, rerankScore, retrieve } from "@/lib/rag";
+import { chunkDocs, expand, QUERIES, rerankScore, retrieve, terms } from "@/lib/rag";
 import { LabFrame, Slider, Stat, Toggle, type TourStep } from "./ui";
 
 const DOC_COLOR: Record<string, string> = { refunds: "var(--c-blue)", shipping: "var(--c-teal)", accounts: "var(--c-purple)", warranty: "var(--c-orange)" };
@@ -29,19 +29,26 @@ export default function RagLab() {
   const evidenceRank = evidence ? ranked.findIndex((r) => r.chunk.text.includes(evidence)) + 1 : 0;
   const contextWords = top.reduce((s, r) => s + r.chunk.text.split(/\s+/).length, 0);
   const citation = evidence ? top.findIndex((r) => r.chunk.text.includes(evidence)) + 1 : 0;
+  const qTerms = terms(query);
+  const added = semantic ? [...new Set(expand(query))].filter((t) => !qTerms.includes(t) && terms(t).length) : []; // synonyms that are stop words never match
+
+  // Tour numbers computed from the real retrieval, so captions match the screen.
+  const evRank = (qq: number) => retrieve(chunkDocs(20, 5), QUERIES[qq].q, false).findIndex((r) => r.chunk.text.includes(QUERIES[qq].evidence)) + 1;
+  const rankWord = ["", "first", "second", "third", "fourth", "fifth", "sixth"];
+  const r0 = evRank(0);
 
   // Guided tour (Watch mode + explainers). Each step sets the full state it needs, then animates.
   const setup = (o: { qi: number; size?: number; k?: number; semantic?: boolean; rerank?: boolean }) => {
     setQi(o.qi); setCustom(""); setSize(o.size ?? 20); setOverlap(5); setK(o.k ?? 3); setSemantic(!!o.semantic); setRerank(!!o.rerank);
   };
   const tour: TourStep[] = [
-    { id: "chunks", caption: "Four policy documents are cut into overlapping chunks. Shrink the chunk size from 60 words to 20 and the index grows from 4 chunks to 10; each card below is one chunk.", apply: () => setup({ qi: 3, size: 60 }), animate: (t) => { const v = Math.round(60 - 40 * t); if (v !== size) setSize(v); }, animMs: 2600 },
-    { id: "question", caption: "The question: are shipping costs refunded if my item was broken on arrival? Common words are dropped, and the remaining query terms are scored against every chunk.", apply: () => setup({ qi: 3 }) },
+    { id: "chunks", caption: `Four policy documents are cut into overlapping chunks. Shrink the chunk size from 60 words to 20 and the “chunks indexed” grows from ${chunkDocs(60, 5).length} to ${chunkDocs(20, 5).length}. The cards below are the chunks that match the question, best first.`, apply: () => setup({ qi: 3, size: 60 }), animate: (t) => { const v = Math.round(60 - 40 * t); if (v !== size) setSize(v); }, animMs: 2600 },
+    { id: "question", caption: `The question: are shipping costs refunded if my item was broken on arrival? Common words like “are”, “if” and “my” are dropped; the ${terms(QUERIES[3].q).length} remaining query terms are scored against every chunk.`, apply: () => setup({ qi: 3 }) },
     { id: "lexical", caption: "Lexical retrieval rewards shared words, weighted by how rare they are. The refunds chunk with the underlined evidence ranks first; shipping chunks follow because they also say shipping.", apply: () => setup({ qi: 3 }) },
     { id: "miss", caption: "Now ask: can I get reimbursed for a game I never opened? The answer is in the refunds document, but no chunk shares a single word with the question, so nothing comes back.", apply: () => setup({ qi: 4 }) },
-    { id: "semantic", caption: "Semantic matching knows reimbursed means refund, game means digital download, and opened means accessed. The same evidence now ranks first.", apply: () => setup({ qi: 4, semantic: true }) },
-    { id: "topk", caption: "Ask about getting money back and the refund chunk only ranks fourth. Grow top-k and it enters the context at k = 4, but the words sent to the model keep climbing.", apply: () => setup({ qi: 0, k: 1 }), animate: (t) => { const v = Math.round(1 + 5 * t); if (v !== k) setK(v); }, animMs: 2600 },
-    { id: "rerank", caption: "Back to k = 1 with the reranker on. It rescores the top 10 by how closely the query terms sit together and lifts the refund chunk from fourth to first.", apply: () => setup({ qi: 0, k: 1, rerank: true }) },
+    { id: "semantic", caption: "Semantic matching knows reimbursed means refund, game means digital download, and opened means accessed (the added terms are shown dashed). The same evidence now ranks first.", apply: () => setup({ qi: 4, semantic: true }) },
+    { id: "topk", caption: `Ask about getting money back and the refund chunk only ranks ${rankWord[r0]}. Grow top-k and it enters the context at k = ${r0}, but every extra chunk adds to the words sent to the model.`, apply: () => setup({ qi: 0, k: 1 }), animate: (t) => { const v = Math.round(1 + (r0 - 1) * t); if (v !== k) setK(v); }, animMs: 2600 },
+    { id: "rerank", caption: `Back to k = 1 with the reranker on. Like a cross-encoder, it reads the query with each of the top 10 chunks (so it knows “money back” means refund) and lifts the refund chunk from ${rankWord[r0]} to first.`, apply: () => setup({ qi: 0, k: 1, rerank: true }) },
     { id: "no-prompt-fix", caption: "If the evidence never reaches the context, no prompt can fix it: the model can only say it doesn't know, or make something up. Fix retrieval first.", apply: () => setup({ qi: 4 }) },
   ];
 
@@ -90,7 +97,12 @@ export default function RagLab() {
             : <><p className="text-ink">The evidence is not in the context. A well-instructed model should answer “I don&apos;t know”; a poorly instructed one will make something up.</p><p className="mt-1">{evidenceRank === 0 ? "Lexical retrieval found no chunk containing the evidence: the question uses different words (vocabulary mismatch). Turn on semantic matching." : `The evidence is at rank ${evidenceRank}, outside the top ${k}. Raise k, enable reranking, or change the chunk size.`} No prompt change fixes a retrieval miss.</p></>
       }
     >
-      <p className="text-sm"><span className="text-muted">Query terms:</span> <span className="font-mono">{query}</span></p>
+      <p className="text-sm"><span className="text-muted">Question:</span> {query}</p>
+      <p className="mt-1 flex flex-wrap items-center gap-1 text-sm">
+        <span className="text-muted">Query terms (common words dropped):</span>
+        {qTerms.map((t, i) => <span key={i} className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-xs">{t}</span>)}
+        {added.map((t, i) => <span key={"s" + i} className="rounded border border-dashed border-[var(--c-teal)] px-1.5 py-0.5 font-mono text-xs text-teal" title="added by semantic matching">+{t}</span>)}
+      </p>
       <ol className="mt-3 space-y-2">
         {ranked.slice(0, 6).map((r, i) => {
           const inCtx = i < k;

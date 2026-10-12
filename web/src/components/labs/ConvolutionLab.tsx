@@ -31,7 +31,7 @@ export function maxPool(m: Mat): Mat {
 
 const r1 = (v: number) => String(+v.toFixed(2));
 
-function Grid({ m, hl, onPick, title, shape, tone }: { m: Mat; hl?: (i: number, j: number) => boolean; onPick?: (i: number, j: number) => void; title: string; shape: string; tone: "image" | "signed" }) {
+function Grid({ m, hl, ghost, onPick, title, shape, tone }: { m: Mat; hl?: (i: number, j: number) => boolean; ghost?: (i: number, j: number) => boolean; onPick?: (i: number, j: number) => void; title: string; shape: string; tone: "image" | "signed" }) {
   const max = Math.max(1e-9, ...m.flat().map(Math.abs));
   return (
     <figure>
@@ -44,7 +44,7 @@ function Grid({ m, hl, onPick, title, shape, tone }: { m: Mat; hl?: (i: number, 
           const on = hl?.(i, j);
           return (
             <button key={`${i}-${j}`} type="button" onClick={() => onPick?.(i, j)} disabled={!onPick} aria-label={`row ${i + 1} column ${j + 1}: ${r1(v)}`}
-              className={`h-8 rounded text-[0.68rem] font-mono ${on ? "ring-2 ring-[var(--c-purple)]" : ""} ${onPick ? "cursor-pointer" : "cursor-default"}`}
+              className={`h-8 rounded text-[0.68rem] font-mono ${on ? "ring-2 ring-[var(--c-purple)]" : ""} ${onPick ? "cursor-pointer" : "cursor-default"} ${ghost?.(i, j) ? "border border-dashed border-line text-faint" : ""}`}
               style={{ background: bg, color: tone === "image" && v > 5 ? "var(--surface)" : "var(--text)" }}>{r1(v)}</button>
           );
         }))}
@@ -67,6 +67,7 @@ export default function ConvolutionLab() {
   const r0 = oi * stride - pad, c0 = oj * stride - pad;
   const terms = K.flatMap((row, u) => row.map((w, v) => ({ w, x: X[r0 + u]?.[c0 + v] ?? 0 })));
   const pooled = n >= 2 ? maxPool(Y) : [];
+  const Xp = Array.from({ length: 7 + 2 * pad }, (_, i) => Array.from({ length: 7 + 2 * pad }, (_, j) => X[i - pad]?.[j - pad] ?? 0));
 
   // Guided tour: each step sets image, kernel, stride, padding and window position.
   const setup = (image: string, kernel: string, st = 1, pd = 0, at = 0) => { setImg(image); setKer(kernel); setStride(st); setPad(pd); setPos(at); };
@@ -79,7 +80,7 @@ export default function ConvolutionLab() {
     { id: "mismatch", caption: "Same kernel, horizontal edge. Left and right columns of every window are equal, so every output is 0. This kernel only sees vertical edges.", apply: () => setup(H, V, 1, 0, 7) },
     { id: "stride", caption: "Stride 2 moves the window two pixels at a time, so the feature map shrinks to 3×3 while the 9 weights stay the same.", apply: () => setup(V, V, 2), animate: slide, animMs: 2400 },
     { id: "padding", caption: "Padding 1 adds a ring of zeros around the image. Windows can now centre on border pixels, so the output stays 7×7. The orange cells on the right border are fake edges made by those zeros.", apply: () => setup(V, V, 1, 1), animate: slide, animMs: 3400 },
-    { id: "pool", caption: "Max pooling keeps the largest value in each 2×2 block of the feature map. The 27s survive, so the edge is still found even if it shifts a pixel.", apply: () => setup(V, V, 1, 0, 1) },
+    { id: "pool", caption: "Max pooling keeps the largest value in each 2×2 block of the feature map, so 5×5 becomes 2×2 (the leftover last row and column are dropped). The 27s survive, so the edge is still found even if it shifts a pixel.", apply: () => setup(V, V, 1, 0, 1) },
   ];
 
   return (
@@ -129,13 +130,14 @@ export default function ConvolutionLab() {
       }
     >
       <div className="flex flex-wrap gap-6 items-start">
-        <Grid m={X} title="input image" shape="[7, 7]" tone="image"
-          hl={(i, j) => i >= r0 && i < r0 + 3 && j >= c0 && j < c0 + 3} />
+        <Grid m={Xp} title={pad ? "input image + zero padding" : "input image"} shape={pad ? `[7, 7] → [${7 + 2 * pad}, ${7 + 2 * pad}]` : "[7, 7]"} tone="image"
+          hl={(i, j) => i >= r0 + pad && i < r0 + pad + 3 && j >= c0 + pad && j < c0 + pad + 3}
+          ghost={(i, j) => i < pad || j < pad || i >= 7 + pad || j >= 7 + pad} />
         <Grid m={K} title="kernel" shape="[3, 3]" tone="signed" />
         <Grid m={Y} title="feature map" shape={`[${n}, ${n}]`} tone="signed" hl={(i, j) => i === oi && j === oj} onPick={(i, j) => setPos(i * n + j)} />
         {pooled.length > 0 && <Grid m={pooled} title="2×2 max pool" shape={`[${pooled.length}, ${pooled.length}]`} tone="signed" />}
       </div>
-      {pad > 0 && <p className="text-xs text-muted mt-3">With padding, windows near the border include zeros outside the image, so the output keeps the input size.</p>}
+      <p className="text-xs text-muted mt-3">Kernel, feature map and pool: teal is positive, orange is negative, stronger colour means a larger magnitude. The purple outline is the current window and the output cell it produces.{pad > 0 && " Dashed cells are the zero padding added around the image, so the output keeps the input size."}</p>
     </LabFrame>
   );
 }
