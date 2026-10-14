@@ -41,6 +41,11 @@ export const LABS: LabMeta[] = [
   { id: "agent-loop", title: "Agent loop", area: "engineering", lesson: "tool-use-and-agents", description: "Step through an agent's think, call tool, observe loop with mocked tools; inject failures and step limits." },
   { id: "recsys-funnel", title: "Recommendation funnel", area: "engineering", lesson: "ml-system-design", description: "Size candidate generation, ranking, and re-ranking stages against a latency budget and watch recall and cost move." },
   { id: "ab-test", title: "A/B test power and peeking", area: "engineering", lesson: "experimentation-and-ab-testing", description: "Compute sample size from baseline, effect, and power, then simulate how peeking inflates false positives." },
+  { id: "moe-routing", title: "Mixture-of-experts routing", area: "transformers", lesson: "mixture-of-experts", description: "Route tokens to experts with a learned gate; change top-k and capacity and watch load balance, dropped tokens, and active parameters." },
+  { id: "attention-masks", title: "Attention masks and variants", area: "transformers", lesson: "attention-variants", description: "Compare full, causal, sliding-window, and sparse attention masks; see which tokens each query can reach and how cost grows with length." },
+  { id: "clip-similarity", title: "Contrastive image-text matching", area: "transformers", lesson: "clip-contrastive-pretraining", description: "Build the image-text similarity matrix, apply temperature and softmax, and see how the contrastive loss pulls matching pairs together." },
+  { id: "q-learning", title: "Q-learning on a grid world", area: "foundations", lesson: "q-learning-sarsa", description: "Step an agent through a small grid world, watch the Q-table and greedy policy update, and tune learning rate, discount, and exploration." },
+  { id: "zero-sharding", title: "Data parallelism and ZeRO memory", area: "llm", lesson: "zero-parameter-sharding", description: "Split weights, gradients, and optimizer state across GPUs with DDP, ZeRO-1/2/3, and FSDP; compare memory per GPU and communication." },
 ];
 
 export const getLab = (id: string) => LABS.find((l) => l.id === id);

@@ -5,6 +5,7 @@ skill: math
 minutes: 35
 prerequisites: []
 related: [naive-bayes, logistic-regression, classification-metrics]
+adapted_from: [phases/01-math-foundations/06-probability-and-distributions, phases/01-math-foundations/15-statistics-for-ml]
 ---
 
 # Probability and statistics
@@ -92,22 +93,108 @@ A classifier gets 870 of 1,000 test examples right: accuracy $\hat{p} = 0.87$. T
 
 ## 4. Implementation
 
+You will build the statistics that ML evaluation leans on, using only the Python standard library: variance, correlation, Bayes' rule, a bootstrap confidence interval, and a permutation test for "is model A really better than model B?". Each one reproduces a worked example above.
+
+### Build it from scratch
+
+Mean and variance first. The `sample=True` branch divides by n − 1 (Bessel's correction): a sample's points sit closer to their own mean than to the true mean, so dividing by n underestimates the spread.
+
 ```python
-import numpy as np
-rng = np.random.default_rng(0)
+def mean(xs):
+    return sum(xs) / len(xs)
 
-# Bayes by simulation: 1,000,000 people
-sick = rng.random(1_000_000) < 0.01
-positive = np.where(sick, rng.random(sick.size) < 0.95, rng.random(sick.size) < 0.05)
-print(sick[positive].mean())          # ≈ 0.161
-
-# Bootstrap confidence interval for accuracy
-correct = rng.random(1000) < 0.87
-boot = [rng.choice(correct, correct.size).mean() for _ in range(2000)]
-print(np.percentile(boot, [2.5, 97.5]))
+def variance(xs, sample=True):
+    m = mean(xs)
+    ss = sum((x - m) ** 2 for x in xs)
+    return ss / (len(xs) - 1 if sample else len(xs))   # n - 1: Bessel's correction
 ```
 
-Runnable script: [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py).
+**Predict:** for `[2, 4, 4, 4, 5, 5, 7, 9]` (mean 5, squared deviations summing to 32), what are the population and sample variances?
+
+Pearson correlation is covariance divided by both spreads, so it lands in [−1, 1] whatever the units.
+
+```python
+def pearson(x, y):
+    mx, my = mean(x), mean(y)
+    cov = sum((a - mx) * (b - my) for a, b in zip(x, y))
+    return cov / (sum((a - mx) ** 2 for a in x) * sum((b - my) ** 2 for b in y)) ** 0.5
+```
+
+Bayes' rule is worked example 1 as a function. The denominator is the total probability of a positive test, from both sick and healthy people.
+
+```python
+def bayes(prior, sensitivity, false_positive_rate):
+    evidence = sensitivity * prior + false_positive_rate * (1 - prior)   # P(positive)
+    return sensitivity * prior / evidence
+```
+
+**Predict:** raise the prior from 1% to 10% and keep the test the same. Does P(disease | positive) roughly double, or more?
+
+The bootstrap estimates uncertainty without a formula: resample the data with replacement many times, recompute the statistic each time, and read off the middle 95% of the results.
+
+```python
+def bootstrap_ci(xs, stat=mean, n_boot=2000, alpha=0.05, rng=random):
+    boots = sorted(stat(rng.choices(xs, k=len(xs))) for _ in range(n_boot))
+    return boots[int(n_boot * alpha / 2)], boots[int(n_boot * (1 - alpha / 2)) - 1]
+```
+
+A permutation test asks: if the labels "A" and "B" meant nothing, how often would shuffling them produce a gap at least this large? That fraction is the p-value. The +1 on top and bottom keeps it from ever being exactly 0.
+
+```python
+def permutation_test(a, b, n_perm=5000, rng=random):
+    """Two-sided p-value for 'mean(a) - mean(b) is zero': shuffle the labels and count."""
+    observed = abs(mean(a) - mean(b))
+    pooled = a + b
+    hits = 0
+    for _ in range(n_perm):
+        rng.shuffle(pooled)
+        if abs(mean(pooled[:len(a)]) - mean(pooled[len(a):])) >= observed:
+            hits += 1
+    return (hits + 1) / (n_perm + 1)
+```
+
+**Predict:** you run the bootstrap on 870 correct out of 1,000. Should the interval match worked example 3's [0.849, 0.891]? Would it get narrower with 10,000 resamples, or with 10,000 test examples?
+
+<details>
+<summary>Answers</summary>
+
+Population variance 32/8 = 4.0; sample variance 32/7 = 4.571. With a 10% prior: 0.95 × 0.1 / (0.095 + 0.045) = 0.679, about four times 0.161, not double, because false positives from the healthy group shrink in relative terms. The bootstrap gives about [0.850, 0.890], matching the formula. More resamples only make the estimate of the interval less noisy; more test examples make the interval itself narrower (by √n).
+
+</details>
+
+### Use the library
+
+The standard library already has these: `statistics.mean`, `statistics.variance` (sample, n − 1), `statistics.pvariance` (population), and `statistics.correlation`. For tests and intervals, SciPy is the usual tool:
+
+```python
+from scipy import stats
+
+stats.ttest_ind(a, b, equal_var=False)                      # Welch's t-test
+stats.permutation_test((a, b), lambda x, y: x.mean() - y.mean(), n_resamples=5000)
+stats.bootstrap((correct,), np.mean, confidence_level=0.95)
+```
+
+In NumPy, watch the default: `np.var` and `np.std` divide by n (`ddof=0`), while pandas `.var()` and `.std()` divide by n − 1. The scratch code made that choice explicit; libraries make it silently. (SciPy is not in this repo's dependencies; the script uses only the standard library.)
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/00-foundations/stats_scratch.py
+```
+
+```text
+mean 5.0, population var 4.0, sample var 4.5714
+P(disease | positive) = 0.1610
+CLT: std of 5000 sample means 0.3096, predicted σ/√30 = 0.3118
+accuracy 0.870, bootstrap 95% CI [0.850, 0.890]
+mean A 0.810, mean B 0.753, permutation p = 0.0040
+r(ice cream, incidents) = 0.552  (confounder: temperature)
+all checks match the statistics module
+```
+
+The CLT line checks worked example 2: a die has σ = 1.708, so the mean of 30 rolls should have spread 1.708/√30 = 0.312. All data is synthetic and seeded. Full script: [`code/00-foundations/stats_scratch.py`](../../code/00-foundations/stats_scratch.py). Figures: [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py).
 
 ## 5. Engineering
 
@@ -155,6 +242,12 @@ $\frac{0.4 \times 0.3}{0.4 \times 0.3 + 0.02 \times 0.7} = \frac{0.12}{0.12 + 0.
 **Next:** [The Python toolkit](04-python-toolkit.md)
 
 **Related:** [Naive Bayes](../05-instance-and-probabilistic/02-naive-bayes.md) · [Classification metrics](../04-classification/02-classification-metrics.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Sampling Methods](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/16-sampling-methods) · [Stochastic Processes](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/22-stochastic-processes)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Probability and Distributions](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/06-probability-and-distributions), [Statistics for Machine Learning](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/15-statistics-for-ml).*
+<!-- /deeper -->
 
 ## Interview angle
 

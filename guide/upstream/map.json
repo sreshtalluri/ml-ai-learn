@@ -1,0 +1,4039 @@
+[
+ {
+  "upstream": "phases/00-setup-and-tooling/01-dev-environment",
+  "title": "Dev Environment",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/02-git-and-collaboration",
+  "title": "Git & Collaboration",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/03-gpu-setup-and-cloud",
+  "title": "GPU Setup & Cloud",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/04-apis-and-keys",
+  "title": "APIs & Keys",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/05-jupyter-notebooks",
+  "title": "Jupyter Notebooks",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/06-python-environments",
+  "title": "Python Environments",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/07-docker-for-ai",
+  "title": "Docker for AI",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/08-editor-setup",
+  "title": "Editor Setup",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/09-data-management",
+  "title": "Data Management",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/10-terminal-and-shell",
+  "title": "Terminal & Shell",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/11-linux-for-ai",
+  "title": "Linux for AI",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Setup/tooling trivia; not ML understanding."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/12-debugging-and-profiling",
+  "title": "Debugging and Profiling",
+  "mode": "link",
+  "target": "python-toolkit",
+  "priority": 3,
+  "reason": "Profiling and debugging habits; good Go-deeper for the toolkit lesson."
+ },
+ {
+  "upstream": "phases/00-setup-and-tooling/13-python-for-ai-engineering",
+  "title": "Python for AI Engineering",
+  "mode": "link",
+  "target": "python-toolkit",
+  "priority": 3,
+  "reason": "Python idioms for AI code; supplementary reading."
+ },
+ {
+  "upstream": "phases/01-math-foundations/01-linear-algebra-intuition",
+  "title": "Linear Algebra Intuition",
+  "mode": "enrich",
+  "target": "vectors-and-matrices",
+  "priority": 2,
+  "reason": "Geometric linear-algebra intuition with from-scratch code."
+ },
+ {
+  "upstream": "phases/01-math-foundations/02-vectors-matrices-operations",
+  "title": "Vectors, Matrices & Operations",
+  "mode": "enrich",
+  "target": "vectors-and-matrices",
+  "priority": 1,
+  "reason": "Core vector/matrix ops implemented from scratch."
+ },
+ {
+  "upstream": "phases/01-math-foundations/03-matrix-transformations",
+  "title": "Matrix Transformations",
+  "mode": "enrich",
+  "target": "vectors-and-matrices",
+  "priority": 2,
+  "reason": "Matrices as transformations; complements our visuals."
+ },
+ {
+  "upstream": "phases/01-math-foundations/04-calculus-for-ml",
+  "title": "Calculus for Machine Learning",
+  "mode": "enrich",
+  "target": "calculus-for-ml",
+  "priority": 1,
+  "reason": "Derivatives/gradients code walkthrough matches our calculus lesson."
+ },
+ {
+  "upstream": "phases/01-math-foundations/05-chain-rule-and-autodiff",
+  "title": "Chain Rule & Automatic Differentiation",
+  "mode": "enrich",
+  "target": "backpropagation",
+  "priority": 1,
+  "reason": "Autodiff from scratch is the code heart of backprop."
+ },
+ {
+  "upstream": "phases/01-math-foundations/06-probability-and-distributions",
+  "title": "Probability and Distributions",
+  "mode": "enrich",
+  "target": "probability-and-statistics",
+  "priority": 1,
+  "reason": "Distributions with sampling code."
+ },
+ {
+  "upstream": "phases/01-math-foundations/07-bayes-theorem",
+  "title": "Bayes' Theorem",
+  "mode": "enrich",
+  "target": "naive-bayes",
+  "priority": 2,
+  "reason": "Bayes theorem worked code feeds Naive Bayes directly."
+ },
+ {
+  "upstream": "phases/01-math-foundations/08-optimization",
+  "title": "Optimization",
+  "mode": "enrich",
+  "target": "gradient-descent",
+  "priority": 2,
+  "reason": "Optimization basics overlap gradient descent."
+ },
+ {
+  "upstream": "phases/01-math-foundations/09-information-theory",
+  "title": "Information Theory",
+  "mode": "import",
+  "target_module": "00-foundations",
+  "priority": 1,
+  "reason": "Entropy, cross-entropy, KL: constant interview topic, only passing coverage.",
+  "target": "information-theory"
+ },
+ {
+  "upstream": "phases/01-math-foundations/10-dimensionality-reduction",
+  "title": "Dimensionality Reduction",
+  "mode": "enrich",
+  "target": "pca",
+  "priority": 2,
+  "reason": "Dimensionality reduction code complements PCA lesson."
+ },
+ {
+  "upstream": "phases/01-math-foundations/11-singular-value-decomposition",
+  "title": "Singular Value Decomposition",
+  "mode": "enrich",
+  "target": "pca",
+  "priority": 1,
+  "reason": "SVD from scratch underpins PCA; frequent interview question."
+ },
+ {
+  "upstream": "phases/01-math-foundations/12-tensor-operations",
+  "title": "Tensor Operations",
+  "mode": "enrich",
+  "target": "python-toolkit",
+  "priority": 2,
+  "reason": "Tensor ops/broadcasting code fits the NumPy toolkit lesson."
+ },
+ {
+  "upstream": "phases/01-math-foundations/13-numerical-stability",
+  "title": "Numerical Stability",
+  "mode": "import",
+  "target_module": "00-foundations",
+  "priority": 2,
+  "reason": "Log-sum-exp, overflow, precision: practical and often asked.",
+  "target": "numerical-stability"
+ },
+ {
+  "upstream": "phases/01-math-foundations/14-norms-and-distances",
+  "title": "Norms and Distances",
+  "mode": "enrich",
+  "target": "k-nearest-neighbors",
+  "priority": 2,
+  "reason": "Distance metrics code powers KNN."
+ },
+ {
+  "upstream": "phases/01-math-foundations/15-statistics-for-ml",
+  "title": "Statistics for Machine Learning",
+  "mode": "enrich",
+  "target": "probability-and-statistics",
+  "priority": 1,
+  "reason": "Hypothesis tests, CIs, bootstrap in code."
+ },
+ {
+  "upstream": "phases/01-math-foundations/16-sampling-methods",
+  "title": "Sampling Methods",
+  "mode": "link",
+  "target": "probability-and-statistics",
+  "priority": 3,
+  "reason": "MCMC/importance sampling; deeper than interviews need."
+ },
+ {
+  "upstream": "phases/01-math-foundations/17-linear-systems",
+  "title": "Linear Systems",
+  "mode": "enrich",
+  "target": "linear-regression",
+  "priority": 3,
+  "reason": "Linear systems / normal equations behind least squares."
+ },
+ {
+  "upstream": "phases/01-math-foundations/18-convex-optimization",
+  "title": "Convex Optimization",
+  "mode": "link",
+  "target": "support-vector-machines",
+  "priority": 3,
+  "reason": "Convexity theory; optional depth for SVM/optimization."
+ },
+ {
+  "upstream": "phases/01-math-foundations/19-complex-numbers",
+  "title": "Complex Numbers for AI",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Complex numbers; tangential to ML interviews."
+ },
+ {
+  "upstream": "phases/01-math-foundations/20-fourier-transform",
+  "title": "The Fourier Transform",
+  "mode": "link",
+  "target": "spectrograms-mel-features",
+  "priority": 3,
+  "reason": "Fourier background for spectrogram lesson."
+ },
+ {
+  "upstream": "phases/01-math-foundations/21-graph-theory",
+  "title": "Graph Theory for Machine Learning",
+  "mode": "link",
+  "target": "ml-system-design",
+  "priority": 3,
+  "reason": "Graph basics; useful for graph-feature/GNN follow-ups."
+ },
+ {
+  "upstream": "phases/01-math-foundations/22-stochastic-processes",
+  "title": "Stochastic Processes",
+  "mode": "link",
+  "target": "probability-and-statistics",
+  "priority": 3,
+  "reason": "Markov chains/random walks; niche."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/01-what-is-machine-learning",
+  "title": "What Is Machine Learning",
+  "mode": "enrich",
+  "target": "ml-vocabulary",
+  "priority": 2,
+  "reason": "Intro framing overlaps our vocabulary lesson."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/02-linear-regression",
+  "title": "Linear Regression",
+  "mode": "enrich",
+  "target": "linear-regression",
+  "priority": 1,
+  "reason": "Linear regression from scratch with gradient descent."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/03-logistic-regression",
+  "title": "Logistic Regression",
+  "mode": "enrich",
+  "target": "logistic-regression",
+  "priority": 1,
+  "reason": "Logistic regression from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/04-decision-trees",
+  "title": "Decision Trees and Random Forests",
+  "mode": "enrich",
+  "target": "decision-trees",
+  "priority": 1,
+  "reason": "Tree + forest from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/05-support-vector-machines",
+  "title": "Support Vector Machines",
+  "mode": "enrich",
+  "target": "support-vector-machines",
+  "priority": 1,
+  "reason": "SVM from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/06-knn-and-distances",
+  "title": "K-Nearest Neighbors and Distances",
+  "mode": "enrich",
+  "target": "k-nearest-neighbors",
+  "priority": 1,
+  "reason": "KNN from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/07-unsupervised-learning",
+  "title": "Unsupervised Learning",
+  "mode": "enrich",
+  "target": "k-means",
+  "priority": 2,
+  "reason": "K-means and friends from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/08-feature-engineering",
+  "title": "Feature Engineering & Selection",
+  "mode": "import",
+  "target_module": "24-applied-ml",
+  "priority": 1,
+  "reason": "Feature engineering is core DS/MLE interview material; not covered.",
+  "target": "feature-engineering"
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/09-model-evaluation",
+  "title": "Model Evaluation",
+  "mode": "enrich",
+  "target": "classification-metrics",
+  "priority": 1,
+  "reason": "Cross-validation and metrics code."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/10-bias-variance",
+  "title": "Bias-Variance Tradeoff",
+  "mode": "enrich",
+  "target": "overfitting-and-bias-variance",
+  "priority": 1,
+  "reason": "Bias-variance simulation code."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/11-ensemble-methods",
+  "title": "Ensemble Methods",
+  "mode": "enrich",
+  "target": "random-forests-and-boosting",
+  "priority": 1,
+  "reason": "Bagging/boosting from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/12-hyperparameter-tuning",
+  "title": "Hyperparameter Tuning",
+  "mode": "import",
+  "target_module": "24-applied-ml",
+  "priority": 1,
+  "reason": "Grid/random/Bayesian search; standard interview question.",
+  "target": "hyperparameter-tuning"
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/13-ml-pipelines",
+  "title": "ML Pipelines",
+  "mode": "enrich",
+  "target": "ml-workflow",
+  "priority": 2,
+  "reason": "Pipelines prevent leakage; matches workflow lesson."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/14-naive-bayes",
+  "title": "Naive Bayes",
+  "mode": "enrich",
+  "target": "naive-bayes",
+  "priority": 1,
+  "reason": "Naive Bayes from scratch."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/15-time-series",
+  "title": "Time Series Fundamentals",
+  "mode": "import",
+  "target_module": "24-applied-ml",
+  "priority": 1,
+  "reason": "Time series validation and features; big DS interview gap.",
+  "target": "time-series"
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/16-anomaly-detection",
+  "title": "Anomaly Detection",
+  "mode": "import",
+  "target_module": "24-applied-ml",
+  "priority": 2,
+  "reason": "Anomaly detection methods; common applied problem.",
+  "target": "anomaly-detection"
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/17-imbalanced-data",
+  "title": "Handling Imbalanced Data",
+  "mode": "import",
+  "target_module": "24-applied-ml",
+  "priority": 1,
+  "reason": "Imbalanced data handling asked constantly; only passing coverage.",
+  "target": "imbalanced-data"
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/18-feature-selection",
+  "title": "Feature Selection",
+  "mode": "link",
+  "target": "feature-engineering",
+  "priority": 3,
+  "reason": "Overlaps feature engineering import; link as deeper reading."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/19-ml-system-design",
+  "title": "ML System Design — From Problem to Deployed Model",
+  "mode": "enrich",
+  "target": "ml-system-design",
+  "priority": 1,
+  "reason": "Problem-to-deployment framing for ML system design."
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/20-model-monitoring-and-drift",
+  "title": "Monitoring Models in Production — Data Drift and Concept Drift",
+  "mode": "import",
+  "target_module": "22-ml-system-design",
+  "priority": 1,
+  "reason": "Drift and monitoring: MLE interview staple, no dedicated lesson.",
+  "target": "model-monitoring-and-drift"
+ },
+ {
+  "upstream": "phases/02-ml-fundamentals/21-feature-stores-and-training-serving-skew",
+  "title": "Feature Stores and Training-Serving Skew",
+  "mode": "enrich",
+  "target": "ml-system-design",
+  "priority": 2,
+  "reason": "Feature stores and training-serving skew deepen design lesson."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/01-the-perceptron",
+  "title": "The Perceptron",
+  "mode": "enrich",
+  "target": "neural-network-forward-pass",
+  "priority": 2,
+  "reason": "Perceptron from scratch."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/02-multi-layer-networks",
+  "title": "Multi-Layer Networks and Forward Pass",
+  "mode": "enrich",
+  "target": "neural-network-forward-pass",
+  "priority": 1,
+  "reason": "MLP forward pass from scratch."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/03-backpropagation",
+  "title": "Backpropagation from Scratch",
+  "mode": "enrich",
+  "target": "backpropagation",
+  "priority": 1,
+  "reason": "Backprop from scratch."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/04-activation-functions",
+  "title": "Activation Functions",
+  "mode": "enrich",
+  "target": "neural-network-forward-pass",
+  "priority": 2,
+  "reason": "Activation functions code and comparison."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/05-loss-functions",
+  "title": "Loss Functions",
+  "mode": "import",
+  "target_module": "10-neural-networks",
+  "priority": 2,
+  "reason": "Loss function choice (CE vs MSE, focal) is frequently probed.",
+  "target": "loss-functions"
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/06-optimizers",
+  "title": "Optimizers",
+  "mode": "enrich",
+  "target": "gradient-descent",
+  "priority": 1,
+  "reason": "SGD/momentum/Adam from scratch."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/07-regularization",
+  "title": "Regularization",
+  "mode": "enrich",
+  "target": "training-and-regularization",
+  "priority": 1,
+  "reason": "Dropout, weight decay, etc. in code."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/08-weight-initialization",
+  "title": "Weight Initialization and Training Stability",
+  "mode": "enrich",
+  "target": "training-and-regularization",
+  "priority": 2,
+  "reason": "Xavier/He init and training stability."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/09-learning-rate-schedules",
+  "title": "Learning Rate Schedules and Warmup",
+  "mode": "enrich",
+  "target": "training-and-regularization",
+  "priority": 2,
+  "reason": "LR schedules and warmup."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/10-mini-framework",
+  "title": "Build Your Own Mini Framework",
+  "mode": "enrich",
+  "target": "backpropagation",
+  "priority": 1,
+  "reason": "Mini autograd framework; the best backprop code walkthrough."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/11-intro-to-pytorch",
+  "title": "Introduction to PyTorch",
+  "mode": "import",
+  "target_module": "10-neural-networks",
+  "priority": 2,
+  "reason": "PyTorch fluency needed for every coding round.",
+  "target": "intro-to-pytorch"
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/12-intro-to-jax",
+  "title": "Introduction to JAX",
+  "mode": "link",
+  "target": "neural-network-forward-pass",
+  "priority": 3,
+  "reason": "JAX alternative; optional."
+ },
+ {
+  "upstream": "phases/03-deep-learning-core/13-debugging-neural-networks",
+  "title": "Debugging Neural Networks",
+  "mode": "import",
+  "target_module": "12-training-regularization",
+  "priority": 1,
+  "reason": "\"Loss not decreasing\" debugging is a top practical interview question.",
+  "target": "debugging-neural-networks"
+ },
+ {
+  "upstream": "phases/04-computer-vision/01-image-fundamentals",
+  "title": "Image Fundamentals — Pixels, Channels, Color Spaces",
+  "mode": "link",
+  "target": "convolutional-networks",
+  "priority": 3,
+  "reason": "Pixel/color-space basics; background reading."
+ },
+ {
+  "upstream": "phases/04-computer-vision/02-convolutions-from-scratch",
+  "title": "Convolutions from Scratch",
+  "mode": "enrich",
+  "target": "convolutional-networks",
+  "priority": 1,
+  "reason": "Convolution from scratch."
+ },
+ {
+  "upstream": "phases/04-computer-vision/03-cnns-lenet-to-resnet",
+  "title": "CNNs — LeNet to ResNet",
+  "mode": "enrich",
+  "target": "convolutional-networks",
+  "priority": 1,
+  "reason": "LeNet to ResNet architecture history with code."
+ },
+ {
+  "upstream": "phases/04-computer-vision/04-image-classification",
+  "title": "Image Classification",
+  "mode": "enrich",
+  "target": "convolutional-networks",
+  "priority": 2,
+  "reason": "End-to-end image classification training."
+ },
+ {
+  "upstream": "phases/04-computer-vision/05-transfer-learning",
+  "title": "Transfer Learning & Fine-Tuning",
+  "mode": "enrich",
+  "target": "autoencoders-diffusion-and-transfer",
+  "priority": 2,
+  "reason": "Transfer learning code matches our transfer section."
+ },
+ {
+  "upstream": "phases/04-computer-vision/06-object-detection-yolo",
+  "title": "Object Detection — YOLO from Scratch",
+  "mode": "import",
+  "target_module": "25-computer-vision",
+  "priority": 2,
+  "reason": "Detection, IoU, NMS, mAP: classic CV interview set.",
+  "target": "object-detection-yolo"
+ },
+ {
+  "upstream": "phases/04-computer-vision/07-semantic-segmentation-unet",
+  "title": "Semantic Segmentation — U-Net",
+  "mode": "import",
+  "target_module": "25-computer-vision",
+  "priority": 2,
+  "reason": "Segmentation/U-Net; core CV task missing.",
+  "target": "semantic-segmentation-unet"
+ },
+ {
+  "upstream": "phases/04-computer-vision/08-instance-segmentation-mask-rcnn",
+  "title": "Instance Segmentation — Mask R-CNN",
+  "mode": "link",
+  "target": "object-detection-yolo",
+  "priority": 3,
+  "reason": "Mask R-CNN depth after detection."
+ },
+ {
+  "upstream": "phases/04-computer-vision/09-image-generation-gans",
+  "title": "Image Generation — GANs",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 08-generative-ai/03 GANs."
+ },
+ {
+  "upstream": "phases/04-computer-vision/10-image-generation-diffusion",
+  "title": "Image Generation — Diffusion Models",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 08-generative-ai/06 DDPM."
+ },
+ {
+  "upstream": "phases/04-computer-vision/11-stable-diffusion",
+  "title": "Stable Diffusion — Architecture & Fine-Tuning",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 08-generative-ai/07 latent diffusion."
+ },
+ {
+  "upstream": "phases/04-computer-vision/12-video-understanding",
+  "title": "Video Understanding — Temporal Modeling",
+  "mode": "link",
+  "target": "vision-transformers",
+  "priority": 3,
+  "reason": "Video modeling; niche for most roles."
+ },
+ {
+  "upstream": "phases/04-computer-vision/13-3d-vision-nerf",
+  "title": "3D Vision — Point Clouds & NeRFs",
+  "mode": "link",
+  "target": "vision-transformers",
+  "priority": 3,
+  "reason": "3D vision/NeRF; niche."
+ },
+ {
+  "upstream": "phases/04-computer-vision/14-vision-transformers",
+  "title": "Vision Transformers (ViT)",
+  "mode": "import",
+  "target_module": "25-computer-vision",
+  "priority": 2,
+  "reason": "ViT patch tokens bridge CNNs and transformers.",
+  "target": "vision-transformers"
+ },
+ {
+  "upstream": "phases/04-computer-vision/15-real-time-edge",
+  "title": "Real-Time Vision — Edge Deployment",
+  "mode": "link",
+  "target": "serving-llms",
+  "priority": 3,
+  "reason": "Edge deployment tips; optional."
+ },
+ {
+  "upstream": "phases/04-computer-vision/16-vision-pipeline-capstone",
+  "title": "Build a Complete Vision Pipeline — Capstone",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/04-computer-vision/17-self-supervised-vision",
+  "title": "Self-Supervised Vision — SimCLR, DINO, MAE",
+  "mode": "import",
+  "target_module": "25-computer-vision",
+  "priority": 3,
+  "reason": "SimCLR/DINO/MAE: self-supervised learning for applied scientists.",
+  "target": "self-supervised-vision"
+ },
+ {
+  "upstream": "phases/04-computer-vision/18-open-vocab-clip",
+  "title": "Open-Vocabulary Vision — CLIP",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 12-multimodal-ai/02 CLIP."
+ },
+ {
+  "upstream": "phases/04-computer-vision/19-ocr-document-understanding",
+  "title": "OCR & Document Understanding",
+  "mode": "link",
+  "target": "vision-language-models",
+  "priority": 3,
+  "reason": "OCR/doc understanding; useful applied reading."
+ },
+ {
+  "upstream": "phases/04-computer-vision/20-image-retrieval-metric",
+  "title": "Image Retrieval & Metric Learning",
+  "mode": "link",
+  "target": "vector-search",
+  "priority": 3,
+  "reason": "Metric learning/triplet loss behind embedding retrieval."
+ },
+ {
+  "upstream": "phases/04-computer-vision/21-keypoint-pose",
+  "title": "Keypoint Detection & Pose Estimation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Pose estimation; niche."
+ },
+ {
+  "upstream": "phases/04-computer-vision/22-3d-gaussian-splatting",
+  "title": "3D Gaussian Splatting from Scratch",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "3D Gaussian splatting; niche research."
+ },
+ {
+  "upstream": "phases/04-computer-vision/23-diffusion-transformers-rectified-flow",
+  "title": "Diffusion Transformers & Rectified Flow",
+  "mode": "link",
+  "target": "flow-matching-rectified-flows",
+  "priority": 3,
+  "reason": "DiT/rectified flow follow-up to flow matching."
+ },
+ {
+  "upstream": "phases/04-computer-vision/24-sam3-open-vocab-segmentation",
+  "title": "SAM 3 & Open-Vocabulary Segmentation",
+  "mode": "link",
+  "target": "semantic-segmentation-unet",
+  "priority": 3,
+  "reason": "SAM open-vocab segmentation; product-specific."
+ },
+ {
+  "upstream": "phases/04-computer-vision/25-vision-language-models",
+  "title": "Vision-Language Models — The ViT-MLP-LLM Pattern",
+  "mode": "import",
+  "target_module": "25-computer-vision",
+  "priority": 2,
+  "reason": "ViT-MLP-LLM VLM pattern; how multimodal LLMs work.",
+  "target": "vision-language-models"
+ },
+ {
+  "upstream": "phases/04-computer-vision/26-monocular-depth",
+  "title": "Monocular Depth & Geometry Estimation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Monocular depth; niche."
+ },
+ {
+  "upstream": "phases/04-computer-vision/27-multi-object-tracking",
+  "title": "Multi-Object Tracking & Video Memory",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Multi-object tracking; niche."
+ },
+ {
+  "upstream": "phases/04-computer-vision/28-world-models-video-diffusion",
+  "title": "World Models & Video Diffusion",
+  "mode": "link",
+  "target": "autoencoders-diffusion-and-transfer",
+  "priority": 3,
+  "reason": "World models/video diffusion; frontier reading."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/01-text-processing",
+  "title": "Text Processing — Tokenization, Stemming, Lemmatization",
+  "mode": "link",
+  "target": "text-to-vectors",
+  "priority": 2,
+  "reason": "Tokenize/stem/lemmatize code."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/02-bag-of-words-tfidf",
+  "title": "Bag of Words, TF-IDF, and Text Representation",
+  "mode": "enrich",
+  "target": "text-to-vectors",
+  "priority": 1,
+  "reason": "BoW/TF-IDF from scratch."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/03-word-embeddings-word2vec",
+  "title": "Word Embeddings — Word2Vec from Scratch",
+  "mode": "enrich",
+  "target": "word-embeddings",
+  "priority": 1,
+  "reason": "Word2Vec from scratch."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/04-glove-fasttext-subword",
+  "title": "GloVe, FastText, and Subword Embeddings",
+  "mode": "enrich",
+  "target": "word-embeddings",
+  "priority": 2,
+  "reason": "GloVe/fastText/subword embeddings."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/05-sentiment-analysis",
+  "title": "Sentiment Analysis",
+  "mode": "link",
+  "target": "text-to-vectors",
+  "priority": 3,
+  "reason": "Sentiment classification example project."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/06-named-entity-recognition",
+  "title": "Named Entity Recognition",
+  "mode": "import",
+  "target_module": "09-classical-nlp",
+  "priority": 3,
+  "reason": "NER/sequence labeling; classic applied-scientist NLP question.",
+  "target": "named-entity-recognition"
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/07-pos-tagging-parsing",
+  "title": "POS Tagging and Syntactic Parsing",
+  "mode": "link",
+  "target": "text-to-vectors",
+  "priority": 3,
+  "reason": "POS/parsing; dated for most interviews."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/08-cnns-rnns-for-text",
+  "title": "CNNs and RNNs for Text",
+  "mode": "enrich",
+  "target": "recurrent-networks",
+  "priority": 2,
+  "reason": "CNN/RNN text classifiers code."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/09-sequence-to-sequence",
+  "title": "Sequence-to-Sequence Models",
+  "mode": "enrich",
+  "target": "recurrent-networks",
+  "priority": 2,
+  "reason": "Seq2seq encoder-decoder code."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/10-attention-mechanism",
+  "title": "Attention Mechanism — The Breakthrough",
+  "mode": "enrich",
+  "target": "self-attention",
+  "priority": 1,
+  "reason": "Bahdanau-to-transformer attention motivation and code."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/11-machine-translation",
+  "title": "Machine Translation",
+  "mode": "link",
+  "target": "transformer-architecture",
+  "priority": 3,
+  "reason": "Machine translation application."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/12-text-summarization",
+  "title": "Text Summarization",
+  "mode": "link",
+  "target": "rag-pipeline",
+  "priority": 3,
+  "reason": "Summarization techniques."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/13-question-answering",
+  "title": "Question Answering Systems",
+  "mode": "link",
+  "target": "rag-pipeline",
+  "priority": 3,
+  "reason": "QA systems pre-LLM."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/14-information-retrieval-search",
+  "title": "Information Retrieval and Search",
+  "mode": "enrich",
+  "target": "vector-search",
+  "priority": 2,
+  "reason": "IR/BM25 fundamentals in code."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/15-topic-modeling",
+  "title": "Topic Modeling — LDA and BERTopic",
+  "mode": "import",
+  "target_module": "09-classical-nlp",
+  "priority": 3,
+  "reason": "LDA topic modeling still asked in DS interviews.",
+  "target": "topic-modeling"
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/16-text-generation-pre-transformer",
+  "title": "Text Generation Before Transformers — N-gram Language Models",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 2,
+  "reason": "N-gram LMs and perplexity ground language modeling."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/17-chatbots-rule-to-neural",
+  "title": "Chatbots — Rule-Based to Neural to LLM Agents",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Chatbot history; low value."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/18-multilingual-nlp",
+  "title": "Multilingual NLP",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 3,
+  "reason": "Multilingual NLP considerations."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/19-subword-tokenization",
+  "title": "Subword Tokenization — BPE, WordPiece, Unigram, SentencePiece",
+  "mode": "enrich",
+  "target": "tokenization-and-pretraining",
+  "priority": 1,
+  "reason": "BPE/WordPiece/Unigram compared."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/20-structured-outputs-constrained-decoding",
+  "title": "Structured Outputs & Constrained Decoding",
+  "mode": "enrich",
+  "target": "decoding",
+  "priority": 1,
+  "reason": "Constrained decoding mechanics."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/21-nli-textual-entailment",
+  "title": "Natural Language Inference — Textual Entailment",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 3,
+  "reason": "NLI; used in faithfulness checks."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/22-embedding-models-deep-dive",
+  "title": "Embedding Models — The 2026 Deep Dive",
+  "mode": "enrich",
+  "target": "vector-search",
+  "priority": 2,
+  "reason": "Modern embedding models deep dive."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/23-chunking-strategies-rag",
+  "title": "Chunking Strategies for RAG",
+  "mode": "enrich",
+  "target": "rag-pipeline",
+  "priority": 1,
+  "reason": "Chunking strategies for RAG."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/24-coreference-resolution",
+  "title": "Coreference Resolution",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Coreference; niche."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/25-entity-linking",
+  "title": "Entity Linking & Disambiguation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Entity linking; niche."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/26-relation-extraction-kg",
+  "title": "Relation Extraction & Knowledge Graph Construction",
+  "mode": "link",
+  "target": "rag-pipeline",
+  "priority": 3,
+  "reason": "KG construction for GraphRAG."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/27-llm-evaluation-frameworks",
+  "title": "LLM Evaluation — RAGAS, DeepEval, G-Eval",
+  "mode": "enrich",
+  "target": "llm-evaluation",
+  "priority": 1,
+  "reason": "RAGAS/G-Eval metric mechanics."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/28-long-context-evaluation",
+  "title": "Long-Context Evaluation — NIAH, RULER, LongBench, MRCR",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 3,
+  "reason": "Long-context benchmarks."
+ },
+ {
+  "upstream": "phases/05-nlp-foundations-to-advanced/29-dialogue-state-tracking",
+  "title": "Dialogue State Tracking",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Dialogue state tracking; dated."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/01-audio-fundamentals",
+  "title": "Audio Fundamentals — Waveforms, Sampling, Fourier Transform",
+  "mode": "link",
+  "target": "spectrograms-mel-features",
+  "priority": 3,
+  "reason": "Audio basics prerequisite reading."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/02-spectrograms-mel-features",
+  "title": "Spectrograms, Mel Scale & Audio Features",
+  "mode": "import",
+  "target_module": "29-speech-and-audio",
+  "priority": 3,
+  "reason": "Spectrograms/MFCCs: how audio becomes model input.",
+  "target": "spectrograms-mel-features"
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/03-audio-classification",
+  "title": "Audio Classification — From k-NN on MFCCs to AST and BEATs",
+  "mode": "link",
+  "target": "spectrograms-mel-features",
+  "priority": 3,
+  "reason": "Audio classification example."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/04-speech-recognition-asr",
+  "title": "Speech Recognition (ASR) — CTC, RNN-T, Attention",
+  "mode": "import",
+  "target_module": "29-speech-and-audio",
+  "priority": 3,
+  "reason": "CTC and ASR; durable sequence-alignment idea.",
+  "target": "speech-recognition-asr"
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/05-whisper-architecture-finetuning",
+  "title": "Whisper — Architecture & Fine-Tuning",
+  "mode": "link",
+  "target": "speech-recognition-asr",
+  "priority": 3,
+  "reason": "Whisper as the modern ASR example."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/06-speaker-recognition-verification",
+  "title": "Speaker Recognition & Verification",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Speaker verification; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/07-text-to-speech",
+  "title": "Text-to-Speech (TTS) — From Tacotron to F5 and Kokoro",
+  "mode": "link",
+  "target": "speech-recognition-asr",
+  "priority": 3,
+  "reason": "TTS overview."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/08-voice-cloning-conversion",
+  "title": "Voice Cloning & Voice Conversion",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Voice cloning; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/09-music-generation",
+  "title": "Music Generation — MusicGen, Stable Audio, Suno, and the Licensing Earthquake",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Music generation; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/10-audio-language-models",
+  "title": "Audio-Language Models — Qwen2.5-Omni, Audio Flamingo, GPT-4o Audio",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Audio-LMs; fast-moving product coverage."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/11-real-time-audio-processing",
+  "title": "Real-Time Audio Processing",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Real-time audio engineering; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/12-voice-assistant-pipeline",
+  "title": "Build a Voice Assistant Pipeline — The Phase 6 Capstone",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/13-neural-audio-codecs",
+  "title": "Neural Audio Codecs — EnCodec, SNAC, Mimi, DAC and the Semantic-Acoustic Split",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Neural codecs; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/14-voice-activity-detection-turn-taking",
+  "title": "Voice Activity Detection & Turn-Taking — Silero, Cobra, and the Flush Trick",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VAD; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/15-streaming-speech-to-speech-moshi-hibiki",
+  "title": "Streaming Speech-to-Speech — Moshi, Hibiki, and Full-Duplex Dialogue",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Moshi full-duplex; research niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/16-anti-spoofing-audio-watermarking",
+  "title": "Voice Anti-Spoofing & Audio Watermarking — ASVspoof 5, AudioSeal, WaveVerify",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Anti-spoofing; niche."
+ },
+ {
+  "upstream": "phases/06-speech-and-audio/17-audio-evaluation-metrics",
+  "title": "Audio Evaluation — WER, MOS, UTMOS, MMAU, FAD, and the Open Leaderboards",
+  "mode": "link",
+  "target": "speech-recognition-asr",
+  "priority": 3,
+  "reason": "WER/MOS audio evaluation metrics."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/01-why-transformers",
+  "title": "Why Transformers — The Problems with RNNs",
+  "mode": "enrich",
+  "target": "self-attention",
+  "priority": 2,
+  "reason": "Why RNNs fall short; motivation for attention."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/02-self-attention-from-scratch",
+  "title": "Self-Attention from Scratch",
+  "mode": "enrich",
+  "target": "self-attention",
+  "priority": 1,
+  "reason": "Self-attention from scratch."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/03-multi-head-attention",
+  "title": "Multi-Head Attention",
+  "mode": "enrich",
+  "target": "self-attention",
+  "priority": 1,
+  "reason": "Multi-head attention code."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/04-positional-encoding",
+  "title": "Positional Encoding — Sinusoidal, RoPE, ALiBi",
+  "mode": "enrich",
+  "target": "transformer-architecture",
+  "priority": 1,
+  "reason": "Sinusoidal/RoPE/ALiBi positional encodings."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/05-full-transformer",
+  "title": "The Full Transformer — Encoder + Decoder",
+  "mode": "enrich",
+  "target": "transformer-architecture",
+  "priority": 1,
+  "reason": "Full encoder-decoder transformer in code."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/06-bert-masked-language-modeling",
+  "title": "BERT — Masked Language Modeling",
+  "mode": "import",
+  "target_module": "14-transformers",
+  "priority": 1,
+  "reason": "Encoder-only/MLM and BERT vs GPT is a top interview question.",
+  "target": "bert-masked-language-modeling"
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/07-gpt-causal-language-modeling",
+  "title": "GPT — Causal Language Modeling",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 1,
+  "reason": "Causal LM objective and GPT in code."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/08-t5-bart-encoder-decoder",
+  "title": "T5, BART — Encoder-Decoder Models",
+  "mode": "link",
+  "target": "bert-masked-language-modeling",
+  "priority": 3,
+  "reason": "T5/BART encoder-decoder follow-up."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/09-vision-transformers",
+  "title": "Vision Transformers (ViT)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 04-computer-vision/14 ViT."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/10-audio-transformers-whisper",
+  "title": "Audio Transformers — Whisper Architecture",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of Whisper lesson."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/11-mixture-of-experts",
+  "title": "Mixture of Experts (MoE)",
+  "mode": "import",
+  "target_module": "15-llms",
+  "priority": 1,
+  "reason": "MoE routing powers frontier models; asked frequently.",
+  "target": "mixture-of-experts"
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/12-kv-cache-flash-attention",
+  "title": "KV Cache, Flash Attention & Inference Optimization",
+  "mode": "enrich",
+  "target": "llm-inference",
+  "priority": 1,
+  "reason": "KV cache and FlashAttention mechanics."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/13-scaling-laws",
+  "title": "Scaling Laws",
+  "mode": "import",
+  "target_module": "15-llms",
+  "priority": 2,
+  "reason": "Chinchilla scaling laws; compute-optimal training questions.",
+  "target": "scaling-laws"
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/14-build-a-transformer-capstone",
+  "title": "Build a Transformer from Scratch — The Capstone",
+  "mode": "enrich",
+  "target": "transformer-architecture",
+  "priority": 1,
+  "reason": "Build-a-transformer capstone code."
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/15-attention-variants",
+  "title": "Attention Variants — Sliding Window, Sparse, Differential",
+  "mode": "import",
+  "target_module": "14-transformers",
+  "priority": 1,
+  "reason": "MQA/GQA/sliding-window attention; common system-level question.",
+  "target": "attention-variants"
+ },
+ {
+  "upstream": "phases/07-transformers-deep-dive/16-speculative-decoding",
+  "title": "Speculative Decoding — Draft, Verify, Repeat",
+  "mode": "enrich",
+  "target": "llm-inference",
+  "priority": 2,
+  "reason": "Speculative decoding mechanics."
+ },
+ {
+  "upstream": "phases/08-generative-ai/01-generative-models-taxonomy-history",
+  "title": "Generative Models — Taxonomy & History",
+  "mode": "link",
+  "target": "autoencoders-diffusion-and-transfer",
+  "priority": 3,
+  "reason": "Generative model taxonomy overview."
+ },
+ {
+  "upstream": "phases/08-generative-ai/02-autoencoders-vae",
+  "title": "Autoencoders & Variational Autoencoders (VAE)",
+  "mode": "enrich",
+  "target": "autoencoders-diffusion-and-transfer",
+  "priority": 1,
+  "reason": "VAE from scratch."
+ },
+ {
+  "upstream": "phases/08-generative-ai/03-gans-generator-discriminator",
+  "title": "GANs — Generator vs Discriminator",
+  "mode": "import",
+  "target_module": "13-deep-architectures",
+  "priority": 2,
+  "reason": "GANs: adversarial training still a standard question.",
+  "target": "gans-generator-discriminator"
+ },
+ {
+  "upstream": "phases/08-generative-ai/04-conditional-gans-pix2pix",
+  "title": "Conditional GANs & Pix2Pix",
+  "mode": "link",
+  "target": "gans-generator-discriminator",
+  "priority": 3,
+  "reason": "Conditional GANs follow-up."
+ },
+ {
+  "upstream": "phases/08-generative-ai/05-stylegan",
+  "title": "StyleGAN",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "StyleGAN; dated niche."
+ },
+ {
+  "upstream": "phases/08-generative-ai/06-diffusion-ddpm-from-scratch",
+  "title": "Diffusion Models — DDPM from Scratch",
+  "mode": "enrich",
+  "target": "autoencoders-diffusion-and-transfer",
+  "priority": 1,
+  "reason": "DDPM from scratch."
+ },
+ {
+  "upstream": "phases/08-generative-ai/07-latent-diffusion-stable-diffusion",
+  "title": "Latent Diffusion & Stable Diffusion",
+  "mode": "import",
+  "target_module": "13-deep-architectures",
+  "priority": 2,
+  "reason": "Latent diffusion: how Stable Diffusion actually works.",
+  "target": "latent-diffusion-stable-diffusion"
+ },
+ {
+  "upstream": "phases/08-generative-ai/08-controlnet-lora-conditioning",
+  "title": "ControlNet, LoRA & Conditioning",
+  "mode": "link",
+  "target": "fine-tuning-in-practice",
+  "priority": 3,
+  "reason": "ControlNet/LoRA conditioning for image models."
+ },
+ {
+  "upstream": "phases/08-generative-ai/09-inpainting-outpainting-editing",
+  "title": "Inpainting, Outpainting & Image Editing",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Image editing; niche."
+ },
+ {
+  "upstream": "phases/08-generative-ai/10-video-generation",
+  "title": "Video Generation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Video generation; product-driven."
+ },
+ {
+  "upstream": "phases/08-generative-ai/11-audio-generation",
+  "title": "Audio Generation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Audio generation; niche."
+ },
+ {
+  "upstream": "phases/08-generative-ai/12-3d-generation",
+  "title": "3D Generation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "3D generation; niche."
+ },
+ {
+  "upstream": "phases/08-generative-ai/13-flow-matching-rectified-flows",
+  "title": "Flow Matching & Rectified Flows",
+  "mode": "import",
+  "target_module": "13-deep-architectures",
+  "priority": 3,
+  "reason": "Flow matching: modern generative training objective.",
+  "target": "flow-matching-rectified-flows"
+ },
+ {
+  "upstream": "phases/08-generative-ai/14-evaluation-fid-clip-score",
+  "title": "Evaluation — FID, CLIP Score, Human Preference",
+  "mode": "link",
+  "target": "autoencoders-diffusion-and-transfer",
+  "priority": 3,
+  "reason": "FID/CLIP score evaluation."
+ },
+ {
+  "upstream": "phases/08-generative-ai/19-visual-autoregressive-var",
+  "title": "Visual Autoregressive Modeling (VAR): Next-Scale Prediction",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VAR; research niche."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/01-mdps-states-actions-rewards",
+  "title": "MDPs, States, Actions & Rewards",
+  "mode": "import",
+  "target_module": "26-reinforcement-learning",
+  "priority": 2,
+  "reason": "MDPs: RL foundation needed before RLHF.",
+  "target": "mdps-states-actions-rewards"
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/02-dynamic-programming",
+  "title": "Dynamic Programming — Policy Iteration & Value Iteration",
+  "mode": "link",
+  "target": "mdps-states-actions-rewards",
+  "priority": 3,
+  "reason": "Policy/value iteration depth."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/03-monte-carlo-methods",
+  "title": "Monte Carlo Methods — Learning from Complete Episodes",
+  "mode": "link",
+  "target": "q-learning-sarsa",
+  "priority": 3,
+  "reason": "Monte Carlo methods depth."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/04-q-learning-sarsa",
+  "title": "Temporal Difference — Q-Learning & SARSA",
+  "mode": "import",
+  "target_module": "26-reinforcement-learning",
+  "priority": 2,
+  "reason": "TD learning, Q-learning vs SARSA: classic interview pair.",
+  "target": "q-learning-sarsa"
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/05-dqn",
+  "title": "Deep Q-Networks (DQN)",
+  "mode": "import",
+  "target_module": "26-reinforcement-learning",
+  "priority": 2,
+  "reason": "DQN: replay buffer and target networks.",
+  "target": "dqn"
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/06-policy-gradients-reinforce",
+  "title": "Policy Gradient — REINFORCE from Scratch",
+  "mode": "import",
+  "target_module": "26-reinforcement-learning",
+  "priority": 2,
+  "reason": "REINFORCE: policy gradients underpin RLHF.",
+  "target": "policy-gradients-reinforce"
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/07-actor-critic-a2c-a3c",
+  "title": "Actor-Critic — A2C and A3C",
+  "mode": "link",
+  "target": "ppo",
+  "priority": 3,
+  "reason": "Actor-critic bridge to PPO."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/08-ppo",
+  "title": "Proximal Policy Optimization (PPO)",
+  "mode": "import",
+  "target_module": "26-reinforcement-learning",
+  "priority": 2,
+  "reason": "PPO: the RLHF optimizer.",
+  "target": "ppo"
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/09-reward-modeling-rlhf",
+  "title": "Reward Modeling & RLHF",
+  "mode": "enrich",
+  "target": "adapting-llms",
+  "priority": 1,
+  "reason": "Reward modeling for RLHF."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/10-multi-agent-rl",
+  "title": "Multi-Agent RL",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Multi-agent RL; niche."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/11-sim-to-real-transfer",
+  "title": "Sim-to-Real Transfer",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Sim-to-real; robotics niche."
+ },
+ {
+  "upstream": "phases/09-reinforcement-learning/12-rl-for-games",
+  "title": "RL for Games — AlphaZero, MuZero, and the LLM-Reasoning Era",
+  "mode": "link",
+  "target": "ppo",
+  "priority": 3,
+  "reason": "AlphaZero to reasoning-era RL."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/01-tokenizers",
+  "title": "Tokenizers: BPE, WordPiece, SentencePiece",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 1,
+  "reason": "Tokenizer algorithms compared."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/02-building-a-tokenizer",
+  "title": "Building a Tokenizer from Scratch",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 1,
+  "reason": "Tokenizer built from scratch."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/03-data-pipelines",
+  "title": "Data Pipelines for Pre-Training",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 2,
+  "reason": "Pretraining data pipelines: dedup, filtering."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/04-pre-training-mini-gpt",
+  "title": "Pre-Training a Mini GPT (124M Parameters)",
+  "mode": "link",
+  "target": "tokenization-and-pretraining",
+  "priority": 1,
+  "reason": "Mini GPT pretraining loop."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/05-scaling-distributed",
+  "title": "Scaling: Distributed Training, FSDP, DeepSpeed",
+  "mode": "import",
+  "target_module": "27-training-at-scale",
+  "priority": 1,
+  "reason": "DDP/FSDP/ZeRO and memory math; key MLE/LLM interview topic.",
+  "target": "scaling-distributed"
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/06-instruction-tuning-sft",
+  "title": "Instruction Tuning (SFT)",
+  "mode": "enrich",
+  "target": "fine-tuning-in-practice",
+  "priority": 1,
+  "reason": "SFT walkthrough in code."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/07-rlhf",
+  "title": "RLHF: Reward Model + PPO",
+  "mode": "enrich",
+  "target": "adapting-llms",
+  "priority": 1,
+  "reason": "RLHF reward model + PPO."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/08-dpo",
+  "title": "DPO: Direct Preference Optimization",
+  "mode": "enrich",
+  "target": "adapting-llms",
+  "priority": 1,
+  "reason": "DPO derivation and code."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/09-constitutional-ai-self-improvement",
+  "title": "Constitutional AI and Self-Improvement",
+  "mode": "link",
+  "target": "adapting-llms",
+  "priority": 3,
+  "reason": "Constitutional AI / self-improvement."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/10-evaluation",
+  "title": "Evaluation: Benchmarks, Evals, LM Harness",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 2,
+  "reason": "Benchmarks and LM harness."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/11-quantization",
+  "title": "Quantization: Making Models Fit",
+  "mode": "enrich",
+  "target": "llm-inference",
+  "priority": 1,
+  "reason": "Quantization from scratch."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/12-inference-optimization",
+  "title": "Inference Optimization",
+  "mode": "link",
+  "target": "llm-inference",
+  "priority": 2,
+  "reason": "Inference optimization techniques."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/13-building-complete-llm-pipeline",
+  "title": "Building a Complete LLM Pipeline",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Pipeline capstone; duplicates other lessons."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/14-open-models-architecture-walkthroughs",
+  "title": "Open Models: Architecture Walkthroughs",
+  "mode": "import",
+  "target_module": "15-llms",
+  "priority": 1,
+  "reason": "Read model configs, compute params and KV memory: high-signal skill.",
+  "target": "open-models-architecture-walkthroughs"
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/15-speculative-decoding-eagle3",
+  "title": "Speculative Decoding and EAGLE-3",
+  "mode": "link",
+  "target": "llm-inference",
+  "priority": 3,
+  "reason": "EAGLE-3 speculative decoding depth."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/16-differential-attention-v2",
+  "title": "Differential Attention (V2)",
+  "mode": "link",
+  "target": "attention-variants",
+  "priority": 3,
+  "reason": "Differential attention research."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/17-native-sparse-attention",
+  "title": "Native Sparse Attention (DeepSeek NSA)",
+  "mode": "link",
+  "target": "attention-variants",
+  "priority": 3,
+  "reason": "Native sparse attention research."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/18-multi-token-prediction",
+  "title": "Multi-Token Prediction (MTP)",
+  "mode": "link",
+  "target": "open-models-architecture-walkthroughs",
+  "priority": 3,
+  "reason": "Multi-token prediction."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/19-dualpipe-parallelism",
+  "title": "DualPipe Parallelism",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "DualPipe; very specialized."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/20-deepseek-v3-walkthrough",
+  "title": "DeepSeek-V3 Architecture Walkthrough",
+  "mode": "link",
+  "target": "open-models-architecture-walkthroughs",
+  "priority": 3,
+  "reason": "DeepSeek-V3 walkthrough as case study."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/21-jamba-hybrid-ssm-transformer",
+  "title": "Jamba — Hybrid SSM-Transformer",
+  "mode": "link",
+  "target": "open-models-architecture-walkthroughs",
+  "priority": 3,
+  "reason": "Hybrid SSM-transformer."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/22-async-hogwild-inference",
+  "title": "Async and Hogwild! Inference",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Async inference research niche."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/25-speculative-decoding",
+  "title": "Speculative Decoding and EAGLE",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of speculative decoding lessons."
+ },
+ {
+  "upstream": "phases/10-llms-from-scratch/34-gradient-checkpointing",
+  "title": "Gradient Checkpointing and Activation Recomputation",
+  "mode": "import",
+  "target_module": "27-training-at-scale",
+  "priority": 2,
+  "reason": "Activation recomputation memory trade-off.",
+  "target": "gradient-checkpointing"
+ },
+ {
+  "upstream": "phases/11-llm-engineering/01-prompt-engineering",
+  "title": "Prompt Engineering: Techniques & Patterns",
+  "mode": "import",
+  "target_module": "28-prompting-and-context",
+  "priority": 1,
+  "reason": "Prompt engineering patterns; AI-engineer interview core.",
+  "target": "prompt-engineering"
+ },
+ {
+  "upstream": "phases/11-llm-engineering/02-few-shot-cot",
+  "title": "Few-Shot, Chain-of-Thought, Tree-of-Thought",
+  "mode": "import",
+  "target_module": "28-prompting-and-context",
+  "priority": 2,
+  "reason": "Few-shot, CoT, ToT reasoning prompts.",
+  "target": "few-shot-cot"
+ },
+ {
+  "upstream": "phases/11-llm-engineering/03-structured-outputs",
+  "title": "Structured Outputs: JSON, Schema Validation, Constrained Decoding",
+  "mode": "enrich",
+  "target": "decoding",
+  "priority": 2,
+  "reason": "Structured outputs and schema validation."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/04-embeddings",
+  "title": "Embeddings & Vector Representations",
+  "mode": "enrich",
+  "target": "vector-search",
+  "priority": 2,
+  "reason": "Embeddings code for vector search."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/05-context-engineering",
+  "title": "Context Engineering: Windows, Budgets, Memory, and Retrieval",
+  "mode": "import",
+  "target_module": "28-prompting-and-context",
+  "priority": 1,
+  "reason": "Context budgets/memory; core AI-engineer system skill.",
+  "target": "context-engineering"
+ },
+ {
+  "upstream": "phases/11-llm-engineering/06-rag",
+  "title": "RAG (Retrieval-Augmented Generation)",
+  "mode": "enrich",
+  "target": "rag-pipeline",
+  "priority": 1,
+  "reason": "Basic RAG built in code."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/07-advanced-rag",
+  "title": "Advanced RAG (Chunking, Reranking, Hybrid Search)",
+  "mode": "enrich",
+  "target": "rag-pipeline",
+  "priority": 1,
+  "reason": "Hybrid search, reranking, chunking in code."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/08-fine-tuning-lora",
+  "title": "Fine-Tuning with LoRA & QLoRA",
+  "mode": "enrich",
+  "target": "fine-tuning-in-practice",
+  "priority": 1,
+  "reason": "LoRA/QLoRA walkthrough."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/09-function-calling",
+  "title": "Function Calling & Tool Use",
+  "mode": "link",
+  "target": "tool-use-and-agents",
+  "priority": 1,
+  "reason": "Function calling code."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/10-evaluation",
+  "title": "Evaluation & Testing LLM Applications",
+  "mode": "enrich",
+  "target": "llm-evaluation",
+  "priority": 1,
+  "reason": "Testing LLM apps code."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/11-caching-cost",
+  "title": "Caching, Rate Limiting & Cost Optimization",
+  "mode": "enrich",
+  "target": "reliability-cost-and-observability",
+  "priority": 1,
+  "reason": "Caching, rate limits, cost control."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/12-guardrails",
+  "title": "Guardrails, Safety & Content Filtering",
+  "mode": "enrich",
+  "target": "ai-security",
+  "priority": 1,
+  "reason": "Guardrails and content filtering."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/13-production-app",
+  "title": "Building a Production LLM Application",
+  "mode": "enrich",
+  "target": "production-architecture",
+  "priority": 1,
+  "reason": "Production LLM app walkthrough."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/14-model-context-protocol",
+  "title": "Model Context Protocol (MCP)",
+  "mode": "import",
+  "target_module": "19-agents",
+  "priority": 2,
+  "reason": "MCP is now standard agent tooling vocabulary.",
+  "target": "model-context-protocol"
+ },
+ {
+  "upstream": "phases/11-llm-engineering/15-prompt-caching",
+  "title": "Prompt Caching and Context Caching",
+  "mode": "enrich",
+  "target": "reliability-cost-and-observability",
+  "priority": 2,
+  "reason": "Prompt caching economics."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/16-langgraph-state-machines",
+  "title": "Agent State Machines — Graphs, Nodes, Checkpoints",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Graph state machines for agents."
+ },
+ {
+  "upstream": "phases/11-llm-engineering/17-agent-framework-tradeoffs",
+  "title": "Agent Framework Tradeoffs — Graph, Role, and Actor Orchestration",
+  "mode": "link",
+  "target": "tool-use-and-agents",
+  "priority": 3,
+  "reason": "Framework trade-offs."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/01-vision-transformer-patch-tokens",
+  "title": "Vision Transformers and the Patch-Token Primitive",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of ViT import."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/02-clip-contrastive-pretraining",
+  "title": "CLIP and Contrastive Vision-Language Pretraining",
+  "mode": "import",
+  "target_module": "25-computer-vision",
+  "priority": 1,
+  "reason": "CLIP contrastive learning underlies multimodal and retrieval.",
+  "target": "clip-contrastive-pretraining"
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/03-blip2-qformer-bridge",
+  "title": "From CLIP to BLIP-2 — Q-Former as Modality Bridge",
+  "mode": "link",
+  "target": "vision-language-models",
+  "priority": 3,
+  "reason": "BLIP-2 Q-Former bridge."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/04-flamingo-gated-cross-attention",
+  "title": "Flamingo and Gated Cross-Attention for Few-Shot VLMs",
+  "mode": "link",
+  "target": "vision-language-models",
+  "priority": 3,
+  "reason": "Flamingo gated cross-attention."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/05-llava-visual-instruction-tuning",
+  "title": "LLaVA and Visual Instruction Tuning",
+  "mode": "link",
+  "target": "vision-language-models",
+  "priority": 3,
+  "reason": "LLaVA visual instruction tuning."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/06-any-resolution-patch-n-pack",
+  "title": "Any-Resolution Vision: Patch-n'-Pack and NaFlex",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Any-resolution vision; niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/07-open-weight-vlm-recipes",
+  "title": "Open-Weight VLM Recipes: What Actually Matters",
+  "mode": "link",
+  "target": "vision-language-models",
+  "priority": 3,
+  "reason": "VLM training recipes."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/08-llava-onevision-single-multi-video",
+  "title": "LLaVA-OneVision: Single-Image, Multi-Image, Video in One Model",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Model-family specific."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/09-qwen-vl-family-dynamic-fps",
+  "title": "Qwen-VL Family and Dynamic-FPS Video",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Model-family specific."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/10-internvl3-native-multimodal",
+  "title": "InternVL3: Native Multimodal Pretraining",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Model-family specific."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/11-chameleon-early-fusion-tokens",
+  "title": "Chameleon and Early-Fusion Token-Only Multimodal Models",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Early-fusion research niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/12-emu3-next-token-for-generation",
+  "title": "Emu3: Next-Token Prediction for Image and Video Generation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/13-transfusion-autoregressive-diffusion",
+  "title": "Transfusion: Autoregressive Text + Diffusion Image in One Transformer",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/14-show-o-discrete-diffusion-unified",
+  "title": "Show-o and Discrete-Diffusion Unified Models",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/15-janus-pro-decoupled-encoders",
+  "title": "Janus-Pro: Decoupled Encoders for Unified Multimodal Models",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/16-mio-any-to-any-streaming",
+  "title": "MIO and Any-to-Any Streaming Multimodal Models",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/17-video-language-temporal-grounding",
+  "title": "Video-Language Models: Temporal Tokens and Grounding",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Video-LM niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/18-long-video-million-token",
+  "title": "Long-Video Understanding at Million-Token Context",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Long-video niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/19-audio-language-whisper-to-af3",
+  "title": "Audio-Language Models: the Whisper to Audio Flamingo 3 Arc",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Audio-LM niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/20-omni-models-thinker-talker",
+  "title": "Omni Models: Qwen2.5-Omni and the Thinker-Talker Split",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Omni-model product coverage."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/21-embodied-vlas-openvla-pi0-groot",
+  "title": "Embodied VLAs: RT-2, OpenVLA, π0, GR00T",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Robotics VLAs; niche."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/22-document-diagram-understanding",
+  "title": "Document and Diagram Understanding",
+  "mode": "link",
+  "target": "rag-pipeline",
+  "priority": 3,
+  "reason": "Document/diagram understanding for doc RAG."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/23-colpali-vision-native-rag",
+  "title": "ColPali and Vision-Native Document RAG",
+  "mode": "link",
+  "target": "rag-pipeline",
+  "priority": 3,
+  "reason": "ColPali vision-native retrieval."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/24-multimodal-rag-cross-modal",
+  "title": "Multimodal RAG and Cross-Modal Retrieval",
+  "mode": "link",
+  "target": "rag-pipeline",
+  "priority": 3,
+  "reason": "Multimodal RAG."
+ },
+ {
+  "upstream": "phases/12-multimodal-ai/25-multimodal-agents-computer-use",
+  "title": "Multimodal Agents and Computer-Use (Capstone)",
+  "mode": "link",
+  "target": "tool-use-and-agents",
+  "priority": 3,
+  "reason": "Computer-use agents."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/01-the-tool-interface",
+  "title": "The Tool Interface — Why Agents Need Structured I/O",
+  "mode": "enrich",
+  "target": "tool-use-and-agents",
+  "priority": 1,
+  "reason": "Tool interface design with code."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/02-function-calling-deep-dive",
+  "title": "Function Calling Deep Dive — OpenAI, Anthropic, Gemini",
+  "mode": "enrich",
+  "target": "tool-use-and-agents",
+  "priority": 2,
+  "reason": "Provider function-calling comparison."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/03-parallel-and-streaming-tool-calls",
+  "title": "Parallel Tool Calls and Streaming with Tools",
+  "mode": "link",
+  "target": "tool-use-and-agents",
+  "priority": 3,
+  "reason": "Parallel/streaming tool calls."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/04-structured-output",
+  "title": "Structured Output — JSON Schema, Pydantic, Zod, Constrained Decoding",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 11-llm-engineering/03 structured outputs."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/05-tool-schema-design",
+  "title": "Tool Schema Design — Naming, Descriptions, Parameter Constraints",
+  "mode": "enrich",
+  "target": "tool-use-and-agents",
+  "priority": 2,
+  "reason": "Tool schema design guidance."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/06-mcp-fundamentals",
+  "title": "MCP Fundamentals: Stateless Requests and JSON-RPC",
+  "mode": "link",
+  "target": "model-context-protocol",
+  "priority": 3,
+  "reason": "MCP protocol details."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/07-building-an-mcp-server",
+  "title": "Building an MCP Server: Stateless Python and TypeScript",
+  "mode": "link",
+  "target": "model-context-protocol",
+  "priority": 3,
+  "reason": "Building an MCP server."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/08-building-an-mcp-client",
+  "title": "Building an MCP Client: Discovery, Routing, and Dual-Era Fallback",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP client internals; product depth."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/09-mcp-transports",
+  "title": "MCP Transports: stdio and Stateless Streamable HTTP",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP transports; product depth."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/10-mcp-resources-and-prompts",
+  "title": "MCP Resources and Prompts: Addressable Context for Stateless Servers",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/11-mcp-sampling",
+  "title": "MCP Model Input: Sampling Migration and Stateless MRTR",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/12-mcp-roots-and-elicitation",
+  "title": "Explicit Scope and Stateless Elicitation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/13-mcp-async-tasks",
+  "title": "MCP Tasks Extension: Durable Work on a Stateless Core",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/14-mcp-apps",
+  "title": "MCP Apps on the Stateless Protocol",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/15-mcp-security-tool-poisoning",
+  "title": "MCP Security: Poisoned Metadata, Routing, and MRTR State",
+  "mode": "enrich",
+  "target": "ai-security",
+  "priority": 2,
+  "reason": "Tool poisoning attacks on agents."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/16-mcp-security-oauth-2-1",
+  "title": "MCP Authorization: CIMD, Issuer Binding, PKCE, and Step-Up",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP auth spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/17-mcp-gateways-and-registries",
+  "title": "Stateless MCP Gateways and Registry Admission",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP gateway product detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/18-mcp-auth-production",
+  "title": "MCP Auth in Production: Issuer-Bound Enrollment and Tokens",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP auth spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/19-a2a-protocol",
+  "title": "A2A — Agent-to-Agent Protocol",
+  "mode": "link",
+  "target": "multi-agent-systems",
+  "priority": 3,
+  "reason": "A2A protocol."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/20-opentelemetry-genai",
+  "title": "OpenTelemetry GenAI — Tracing Tool Calls End-to-End",
+  "mode": "enrich",
+  "target": "reliability-cost-and-observability",
+  "priority": 2,
+  "reason": "OTel tracing for LLM calls."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/21-llm-routing-layer",
+  "title": "LLM Routing Layer — LiteLLM, OpenRouter, Portkey",
+  "mode": "link",
+  "target": "production-architecture",
+  "priority": 3,
+  "reason": "LLM routing layer products."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/22-skills-and-agent-sdks",
+  "title": "Agent Skills: Portable Contract and Runtime Boundary",
+  "mode": "link",
+  "target": "tool-use-and-agents",
+  "priority": 3,
+  "reason": "Agent skills concept."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/23-capstone-tool-ecosystem",
+  "title": "Capstone: Stateless Tool Ecosystem",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/24-skill-discovery-and-progressive-disclosure",
+  "title": "Skill Discovery and Progressive Disclosure",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Skills product detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/25-skill-invocation-and-routing",
+  "title": "Skill Invocation and Routing",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Skills product detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/26-skill-permissions-sandboxes-and-trust",
+  "title": "Skill Permissions, Sandboxes, and Trust",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Skills product detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/27-skill-evals-packaging-and-portability",
+  "title": "Skill Evals, Packaging, and Portability",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Skills product detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/28-mcp-tool-contracts-and-content",
+  "title": "MCP Tool Contracts and Content",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/29-mcp-reliability-cancellation-and-flow-control",
+  "title": "MCP Reliability, Cancellation, and Flow Control",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP spec detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/30-mcp-registry-supply-chain-and-drift",
+  "title": "MCP Registry Supply Chain: Admission, Drift, and Rollback",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP ops detail."
+ },
+ {
+  "upstream": "phases/13-tools-and-protocols/31-mcp-conformance-versioning-and-operations",
+  "title": "MCP Conformance Engineering: Versioning, Evidence, and Operations",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MCP ops detail."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/01-the-agent-loop",
+  "title": "The Agent Loop: Observe, Think, Act",
+  "mode": "enrich",
+  "target": "tool-use-and-agents",
+  "priority": 1,
+  "reason": "Agent loop from scratch."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/02-rewoo-plan-and-execute",
+  "title": "ReWOO and Plan-and-Execute: Decoupled Planning",
+  "mode": "link",
+  "target": "tool-use-and-agents",
+  "priority": 2,
+  "reason": "ReWOO/plan-and-execute pattern code."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/03-reflexion-verbal-rl",
+  "title": "Reflexion: Verbal Reinforcement Learning",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Reflexion research pattern."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/04-tree-of-thoughts-lats",
+  "title": "Tree of Thoughts and LATS: Deliberate Search",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Tree of Thoughts / LATS."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/05-self-refine-and-critic",
+  "title": "Self-Refine and CRITIC: Iterative Output Improvement",
+  "mode": "enrich",
+  "target": "reliable-agents",
+  "priority": 2,
+  "reason": "Self-refine/critic loops."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/06-tool-use-and-function-calling",
+  "title": "Tool Use and Function Calling",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of function calling lessons."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/07-memory-virtual-context-memgpt",
+  "title": "Agent Memory — Virtual Context and Memory Paging",
+  "mode": "import",
+  "target_module": "19-agents",
+  "priority": 1,
+  "reason": "Agent memory design asked in every AI-engineer loop.",
+  "target": "agent-memory"
+ },
+ {
+  "upstream": "phases/14-agent-engineering/08-memory-blocks-sleep-time-compute",
+  "title": "Memory Blocks and Sleep-Time Compute",
+  "mode": "link",
+  "target": "agent-memory",
+  "priority": 3,
+  "reason": "Memory blocks follow-up."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/09-hybrid-memory-mem0",
+  "title": "Hybrid Memory: Vector + Graph + KV",
+  "mode": "link",
+  "target": "agent-memory",
+  "priority": 3,
+  "reason": "Hybrid vector/graph memory."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/10-skill-libraries-voyager",
+  "title": "Skill Libraries and Lifelong Learning (Voyager)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Voyager research niche."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/11-planning-htn-and-evolutionary",
+  "title": "Planning with HTN and Evolutionary Search",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "HTN planning niche."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/12-anthropic-workflow-patterns",
+  "title": "Anthropic's Workflow Patterns: Simple Over Complex",
+  "mode": "enrich",
+  "target": "reliable-agents",
+  "priority": 1,
+  "reason": "Workflow patterns: simple over complex."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/13-langgraph-stateful-graphs",
+  "title": "Stateful Graph Orchestration — Durable Execution and Checkpoints",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of 11-llm-engineering/16."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/14-autogen-actor-model",
+  "title": "The Actor Model for Agents — Async Messages and Typed Runtimes",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Framework-specific."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/15-crewai-role-based-crews",
+  "title": "Role-Based Agent Teams — Roles, Tasks, Processes",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Framework-specific."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/16-openai-agents-sdk",
+  "title": "OpenAI Agents SDK: Handoffs, Guardrails, Tracing",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor SDK."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/17-claude-agent-sdk",
+  "title": "The Harness as a Library — Subagents and Session Store",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor SDK."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/18-agno-and-mastra-runtimes",
+  "title": "Production Agent Runtimes — Fast Instantiation and Typed Workflows",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor runtimes."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/19-benchmarks-swebench-gaia",
+  "title": "Benchmarks: SWE-bench, GAIA, AgentBench",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 3,
+  "reason": "SWE-bench/GAIA agent benchmarks."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/20-benchmarks-webarena-osworld",
+  "title": "Benchmarks: WebArena and OSWorld",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Benchmark detail."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/21-computer-use-agents",
+  "title": "Computer Use: Claude, OpenAI CUA, Gemini",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor computer-use comparison."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/22-voice-agents-pipecat-livekit",
+  "title": "Voice Agents: Pipecat and LiveKit",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor voice frameworks."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/23-otel-genai-conventions",
+  "title": "OpenTelemetry GenAI Semantic Conventions",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of OTel lesson."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/24-agent-observability-platforms",
+  "title": "Agent Observability: Langfuse, Phoenix, Opik",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor observability tools."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/25-multi-agent-debate",
+  "title": "Multi-Agent Debate and Collaboration",
+  "mode": "link",
+  "target": "multi-agent-systems",
+  "priority": 3,
+  "reason": "Multi-agent debate."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/26-failure-modes-agentic",
+  "title": "Failure Modes: Why Agents Break",
+  "mode": "enrich",
+  "target": "reliable-agents",
+  "priority": 1,
+  "reason": "Agent failure modes catalog."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/27-prompt-injection-defense",
+  "title": "Prompt Injection and the PVE Defense",
+  "mode": "enrich",
+  "target": "ai-security",
+  "priority": 1,
+  "reason": "Prompt injection defenses."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/28-orchestration-patterns",
+  "title": "Orchestration Patterns: Supervisor, Swarm, Hierarchical",
+  "mode": "link",
+  "target": "multi-agent-systems",
+  "priority": 3,
+  "reason": "Orchestration patterns summary."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/29-production-runtimes",
+  "title": "Production Runtimes: Queue, Event, Cron",
+  "mode": "link",
+  "target": "production-architecture",
+  "priority": 3,
+  "reason": "Queue/event/cron agent runtimes."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/30-eval-driven-agent-development",
+  "title": "Eval-Driven Agent Development",
+  "mode": "enrich",
+  "target": "llm-evaluation",
+  "priority": 1,
+  "reason": "Eval-driven agent development."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/31-agent-workbench-why-models-fail",
+  "title": "Agent Workbench Engineering: Why Capable Models Still Fail",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Coding-agent workbench; tooling-specific."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/32-minimal-agent-workbench",
+  "title": "The Minimal Agent Workbench",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/33-instructions-as-executable-constraints",
+  "title": "Agent Instructions as Executable Constraints",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/34-repo-memory-and-state",
+  "title": "Repo Memory and Durable State",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/35-initialization-scripts",
+  "title": "Initialization Scripts for Agents",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/36-scope-contracts",
+  "title": "Scope Contracts and Task Boundaries",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/37-runtime-feedback-loops",
+  "title": "Runtime Feedback Loops",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/38-verification-gates",
+  "title": "Verification Gates",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/39-reviewer-agent",
+  "title": "Reviewer Agent: Separate Builder from Marker",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/40-multi-session-handoff",
+  "title": "Multi-Session Handoff",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/41-workbench-for-real-repos",
+  "title": "The Workbench on a Real Repo",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Workbench tooling."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/42-agent-workbench-capstone",
+  "title": "Capstone: Ship a Reusable Agent Workbench Pack",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/43-frame-the-task-before-code",
+  "title": "Frame the Task Before the Agent Writes Code",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Agent-coding workflow; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/44-plan-from-evidence",
+  "title": "Build an Evidence-Backed Execution Plan",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Agent-coding workflow; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/45-delegate-with-isolation",
+  "title": "Delegate Agent Work with Isolation and Merge Contracts",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Agent-coding workflow; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/46-turn-feedback-into-system",
+  "title": "Turn Every Agent Correction into a System Improvement",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Agent-coding workflow; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/47-outcomes-before-output",
+  "title": "Define the Outcome Before You Choose the Output",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/48-discover-the-real-workflow",
+  "title": "Discover the Workflow People Actually Perform",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/49-map-assumptions-and-risk",
+  "title": "Map Assumptions and Resolve the Riskiest One First",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/50-choose-the-smallest-testable-slice",
+  "title": "Choose the Smallest Slice That Can Change the Decision",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/51-write-specifications-that-preserve-judgment",
+  "title": "Write Specifications That Preserve Judgment",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/52-design-success-metrics",
+  "title": "Design Success Metrics Before the Result Exists",
+  "mode": "link",
+  "target": "ml-system-design",
+  "priority": 3,
+  "reason": "Success metrics design before results."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/53-prototype-pilot-or-production",
+  "title": "Choose Prototype, Pilot, or Production Deliberately",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/14-agent-engineering/54-build-the-feedback-ratchet",
+  "title": "Build a Feedback Ratchet with Ownership and Retirement",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product practice; not ML."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/01-long-horizon-agents",
+  "title": "The Shift from Chatbots to Long-Horizon Agents",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Long-horizon agent overview."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/02-star-family-reasoning",
+  "title": "STaR, V-STaR, Quiet-STaR — Self-Taught Reasoning",
+  "mode": "link",
+  "target": "adapting-llms",
+  "priority": 3,
+  "reason": "STaR self-taught reasoning."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/03-alphaevolve-evolutionary-coding",
+  "title": "AlphaEvolve — Evolutionary Coding Agents",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research system."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/04-darwin-godel-machine",
+  "title": "Darwin Godel Machine — Open-Ended Self-Modifying Agents",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research system."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/05-ai-scientist-v2",
+  "title": "AI Scientist v2 — Workshop-Level Autonomous Research",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research system."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/06-automated-alignment-research",
+  "title": "Automated Alignment Research (Anthropic AAR)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research policy topic."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/07-recursive-self-improvement",
+  "title": "Recursive Self-Improvement — Capability vs Alignment",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Speculative safety topic."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/08-bounded-self-improvement",
+  "title": "Bounded Self-Improvement Designs",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Speculative safety topic."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/09-coding-agent-landscape",
+  "title": "The Autonomous Coding Agent Landscape (2026)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product landscape; dates fast."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/10-claude-code-permission-modes",
+  "title": "Permission Modes for Autonomous Agents",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Product-specific permission modes."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/11-browser-agents",
+  "title": "Browser Agents and Long-Horizon Web Tasks",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Browser agent products."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/12-durable-execution",
+  "title": "Long-Running Background Agents: Durable Execution",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Durable execution for long agents."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/13-cost-governors",
+  "title": "Action Budgets, Iteration Caps, and Cost Governors",
+  "mode": "enrich",
+  "target": "reliable-agents",
+  "priority": 2,
+  "reason": "Budgets, iteration caps, cost governors."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/14-kill-switches-canaries",
+  "title": "Kill Switches, Circuit Breakers, and Canary Tokens",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Kill switches and circuit breakers."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/15-propose-then-commit",
+  "title": "Human-in-the-Loop: Propose-Then-Commit",
+  "mode": "enrich",
+  "target": "reliable-agents",
+  "priority": 2,
+  "reason": "Human-in-the-loop propose-then-commit."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/16-checkpoints-rollback",
+  "title": "Checkpoints and Rollback",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Checkpoints and rollback."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/17-constitutional-ai",
+  "title": "Constitutional AI and Rule Overrides",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of constitutional AI."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/18-llama-guard",
+  "title": "Llama Guard and Input/Output Classification",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of moderation lesson."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/19-anthropic-rsp",
+  "title": "Anthropic Responsible Scaling Policy v3.0",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Policy document; not interview."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/20-openai-preparedness-deepmind-fsf",
+  "title": "OpenAI Preparedness Framework and DeepMind Frontier Safety Framework",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Policy document; not interview."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/21-metr-external-evaluation",
+  "title": "METR Time Horizons and External Capability Evaluation",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 3,
+  "reason": "METR time horizons evaluation."
+ },
+ {
+  "upstream": "phases/15-autonomous-systems/22-cais-caisi-societal-risk",
+  "title": "CAIS, CAISI, and Societal-Scale Risk",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Policy topic."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/01-why-multi-agent",
+  "title": "Why Multi-Agent?",
+  "mode": "import",
+  "target_module": "19-agents",
+  "priority": 2,
+  "reason": "When to go multi-agent and orchestration trade-offs.",
+  "target": "multi-agent-systems"
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/02-fipa-acl-heritage",
+  "title": "Heritage of FIPA-ACL and Speech Acts",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Historical protocols."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/03-communication-protocols",
+  "title": "Communication Protocols",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Protocol detail."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/04-primitive-model",
+  "title": "The Multi-Agent Primitive Model",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Abstract model; covered by import."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/05-supervisor-orchestrator-pattern",
+  "title": "Supervisor / Orchestrator-Worker Pattern",
+  "mode": "link",
+  "target": "multi-agent-systems",
+  "priority": 3,
+  "reason": "Supervisor pattern code."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/06-hierarchical-architecture",
+  "title": "Hierarchical Architecture and Its Failure Mode",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Covered by multi-agent import."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/07-society-of-mind-debate",
+  "title": "Society of Mind and Multi-Agent Debate",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of debate lesson."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/08-role-specialization",
+  "title": "Role Specialization — Planner, Critic, Executor, Verifier",
+  "mode": "link",
+  "target": "multi-agent-systems",
+  "priority": 3,
+  "reason": "Role specialization."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/09-parallel-swarm-networks",
+  "title": "Parallel / Swarm / Networked Architectures",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Covered by multi-agent import."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/10-group-chat-speaker-selection",
+  "title": "Group Chat and Speaker Selection",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Framework pattern detail."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/11-handoffs-and-routines",
+  "title": "Handoffs and Routines — Stateless Orchestration",
+  "mode": "link",
+  "target": "multi-agent-systems",
+  "priority": 3,
+  "reason": "Handoffs and routines."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/12-a2a-protocol",
+  "title": "A2A — The Agent-to-Agent Protocol",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of A2A lesson."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/13-shared-memory-blackboard",
+  "title": "Shared Memory and Blackboard Patterns",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Niche pattern."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/14-consensus-and-bft",
+  "title": "Consensus and Byzantine Fault Tolerance for Agents",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "BFT for agents; niche."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/15-voting-debate-topology",
+  "title": "Voting, Self-Consistency, and Debate Topology",
+  "mode": "link",
+  "target": "few-shot-cot",
+  "priority": 3,
+  "reason": "Self-consistency voting."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/16-negotiation-bargaining",
+  "title": "Negotiation and Bargaining",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Negotiation; niche."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/17-generative-agents-simulation",
+  "title": "Generative Agents and Emergent Simulation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Simulation research."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/18-theory-of-mind-coordination",
+  "title": "Theory of Mind and Emergent Coordination",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/19-swarm-optimization-pso-aco",
+  "title": "Swarm Optimization for LLMs (PSO, ACO)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research niche."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/20-marl-maddpg-qmix-mappo",
+  "title": "MARL — MADDPG, QMIX, MAPPO",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "MARL niche."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/21-agent-economies",
+  "title": "Agent Economies, Token Incentives, Reputation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Speculative economics."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/22-production-scaling-queues-checkpoints",
+  "title": "Production Scaling — Queues, Checkpoints, Durability",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Covered by production lessons."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/23-failure-modes-mast-groupthink",
+  "title": "Failure Modes — MAST, Groupthink, Monoculture, Cascading Errors",
+  "mode": "link",
+  "target": "reliable-agents",
+  "priority": 3,
+  "reason": "Multi-agent failure modes (MAST)."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/24-evaluation-coordination-benchmarks",
+  "title": "Evaluation and Coordination Benchmarks",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Benchmark detail."
+ },
+ {
+  "upstream": "phases/16-multi-agent-and-swarms/25-case-studies-2026-sota",
+  "title": "Case Studies and the 2026 State of the Art",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Dated case studies."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/01-managed-llm-platforms",
+  "title": "Managed LLM Platforms — Bedrock, Vertex AI, Azure OpenAI",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor platforms."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/02-inference-platform-economics",
+  "title": "Inference Platform Economics — Fireworks, Together, Baseten, Modal, Replicate, Anyscale",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor pricing comparison."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/03-gpu-autoscaling-kubernetes",
+  "title": "GPU Autoscaling on Kubernetes — Karpenter, KAI Scheduler, Gang Scheduling",
+  "mode": "link",
+  "target": "serving-llms",
+  "priority": 3,
+  "reason": "GPU autoscaling on Kubernetes."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/04-vllm-serving-internals",
+  "title": "Serving Engine Internals — PagedAttention, Continuous Batching, Chunked Prefill",
+  "mode": "enrich",
+  "target": "serving-llms",
+  "priority": 1,
+  "reason": "PagedAttention and continuous batching internals."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/05-eagle3-speculative-decoding",
+  "title": "EAGLE-3 Speculative Decoding in Production",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of speculative decoding."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/06-sglang-radixattention",
+  "title": "Prefix-Cache Serving — RadixAttention and KV Reuse",
+  "mode": "enrich",
+  "target": "serving-llms",
+  "priority": 2,
+  "reason": "Prefix caching / RadixAttention."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/07-tensorrt-llm-blackwell",
+  "title": "Hardware-Specialized Inference Compilation — FP8 and NVFP4 on Blackwell",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Hardware-vendor specific."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/08-inference-metrics-goodput",
+  "title": "Inference Metrics — TTFT, TPOT, ITL, Goodput, P99",
+  "mode": "enrich",
+  "target": "serving-llms",
+  "priority": 1,
+  "reason": "TTFT/TPOT/goodput metrics."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/09-production-quantization",
+  "title": "Production Quantization — AWQ, GPTQ, GGUF K-quants, FP8, MXFP4/NVFP4",
+  "mode": "enrich",
+  "target": "llm-inference",
+  "priority": 2,
+  "reason": "AWQ/GPTQ/GGUF production quantization."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/10-cold-start-mitigation",
+  "title": "Cold Start Mitigation for Serverless LLMs",
+  "mode": "link",
+  "target": "serving-llms",
+  "priority": 3,
+  "reason": "Cold-start mitigation."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/11-multi-region-kv-locality",
+  "title": "Multi-Region LLM Serving and KV Cache Locality",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Multi-region ops niche."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/12-edge-inference",
+  "title": "Edge Inference — Apple Neural Engine, Qualcomm Hexagon, WebGPU/WebLLM, Jetson",
+  "mode": "link",
+  "target": "llm-inference",
+  "priority": 3,
+  "reason": "Edge inference targets."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/13-llm-observability",
+  "title": "LLM Observability Stack Selection",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor tool selection."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/14-prompt-semantic-caching",
+  "title": "Prompt Caching and Semantic Caching Economics",
+  "mode": "enrich",
+  "target": "reliability-cost-and-observability",
+  "priority": 2,
+  "reason": "Semantic caching economics."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/15-batch-apis",
+  "title": "Batch APIs — the 50% Discount as Industry Standard",
+  "mode": "link",
+  "target": "reliability-cost-and-observability",
+  "priority": 3,
+  "reason": "Batch APIs for cost."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/16-model-routing",
+  "title": "Model Routing as a Cost-Reduction Primitive",
+  "mode": "enrich",
+  "target": "reliability-cost-and-observability",
+  "priority": 2,
+  "reason": "Model routing for cost."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/17-disaggregated-prefill-decode",
+  "title": "Disaggregated Prefill/Decode — NVIDIA Dynamo and llm-d",
+  "mode": "link",
+  "target": "serving-llms",
+  "priority": 3,
+  "reason": "Disaggregated prefill/decode."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/18-vllm-production-stack-lmcache",
+  "title": "Production Serving Stack — KV Offloading and Cache-Aware Routing",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Vendor stack detail."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/19-ai-gateways",
+  "title": "AI Gateways — LiteLLM, Portkey, Kong AI Gateway, Bifrost",
+  "mode": "link",
+  "target": "production-architecture",
+  "priority": 3,
+  "reason": "AI gateways."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/20-shadow-canary-progressive",
+  "title": "Shadow Traffic, Canary Rollout, and Progressive Deployment for LLMs",
+  "mode": "enrich",
+  "target": "production-architecture",
+  "priority": 2,
+  "reason": "Shadow/canary rollouts."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/21-ab-testing-llm-features",
+  "title": "A/B Testing LLM Features — GrowthBook, Statsig, and the Vibes Problem",
+  "mode": "enrich",
+  "target": "experimentation-and-ab-testing",
+  "priority": 1,
+  "reason": "A/B testing LLM features."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/22-load-testing-llm-apis",
+  "title": "Load Testing LLM APIs — Why k6 and Locust Lie",
+  "mode": "link",
+  "target": "serving-llms",
+  "priority": 3,
+  "reason": "Load testing LLM APIs."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/23-sre-for-ai",
+  "title": "SRE for AI — Multi-Agent Incident Response, Runbooks, Predictive Detection",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Ops niche."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/24-chaos-engineering-llm",
+  "title": "Chaos Engineering for LLM Production",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Ops niche."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/25-security-secrets-audit",
+  "title": "Security — Secrets, API Key Rotation, Audit Logs, Guardrails",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 3,
+  "reason": "Secrets and audit logs."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/26-compliance-frameworks",
+  "title": "Compliance — SOC 2, HIPAA, GDPR, PCI-DSS, EU AI Act, ISO 42001",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Compliance/certification specific."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/27-finops-llms",
+  "title": "FinOps for LLMs — Unit Economics and Multi-Tenant Attribution",
+  "mode": "link",
+  "target": "reliability-cost-and-observability",
+  "priority": 3,
+  "reason": "LLM unit economics."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/28-self-hosted-serving-selection",
+  "title": "Self-Hosted Serving Selection — Matching Engine to Hardware and Scale",
+  "mode": "link",
+  "target": "serving-llms",
+  "priority": 3,
+  "reason": "Choosing a serving engine."
+ },
+ {
+  "upstream": "phases/17-infrastructure-and-production/29-model-demo-interfaces",
+  "title": "Model Demo Interfaces — From a Function to a Shareable App",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Demo UI tooling."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/01-instruction-following-alignment-signal",
+  "title": "Instruction-Following as Alignment Signal",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment framing; low interview value."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/02-reward-hacking-goodhart",
+  "title": "Reward Hacking and Goodhart's Law",
+  "mode": "link",
+  "target": "adapting-llms",
+  "priority": 3,
+  "reason": "Reward hacking and Goodhart."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/03-direct-preference-optimization-family",
+  "title": "The Direct Preference Optimization Family",
+  "mode": "enrich",
+  "target": "adapting-llms",
+  "priority": 2,
+  "reason": "DPO family variants."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/04-sycophancy-rlhf-amplification",
+  "title": "Sycophancy as RLHF Amplification",
+  "mode": "link",
+  "target": "adapting-llms",
+  "priority": 3,
+  "reason": "Sycophancy from RLHF."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/05-constitutional-ai-rlaif",
+  "title": "Constitutional AI and RLAIF",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of constitutional AI."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/06-mesa-optimization-deceptive-alignment",
+  "title": "Mesa-Optimization and Deceptive Alignment",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment research theory."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/07-sleeper-agents-persistent-deception",
+  "title": "Sleeper Agents — Persistent Deception",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment research."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/08-in-context-scheming-frontier-models",
+  "title": "In-Context Scheming in Frontier Models",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment research."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/09-alignment-faking",
+  "title": "Alignment Faking",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment research."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/10-ai-control-subversion",
+  "title": "AI Control — Safety Despite Subversion",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment research."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/11-scalable-oversight-weak-to-strong",
+  "title": "Scalable Oversight and Weak-to-Strong Generalization",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Alignment research."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/12-red-teaming-pair-automated-attacks",
+  "title": "Red-Teaming: PAIR and Automated Attacks",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 2,
+  "reason": "Automated red-teaming (PAIR)."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/13-many-shot-jailbreaking",
+  "title": "Many-Shot Jailbreaking",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 3,
+  "reason": "Many-shot jailbreaking."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/14-ascii-art-visual-jailbreaks",
+  "title": "ASCII Art and Visual Jailbreaks",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Jailbreak niche."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/15-indirect-prompt-injection",
+  "title": "Indirect Prompt Injection — Production Attack Surface",
+  "mode": "enrich",
+  "target": "ai-security",
+  "priority": 1,
+  "reason": "Indirect prompt injection attack surface."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/16-red-team-tooling-garak-llamaguard-pyrit",
+  "title": "Red-Team Tooling — Garak, Llama Guard, PyRIT",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 3,
+  "reason": "Red-team tooling."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/17-wmdp-dual-use-evaluation",
+  "title": "WMDP and Dual-Use Capability Evaluation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Dual-use eval niche."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/18-frontier-safety-frameworks-rsp-pf-fsf",
+  "title": "Frontier Safety Frameworks — RSP, PF, FSF",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Policy frameworks."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/19-model-welfare-research",
+  "title": "Anthropic's Model Welfare Program",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research program."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/20-bias-representational-harm",
+  "title": "Bias and Representational Harm in LLMs",
+  "mode": "link",
+  "target": "fairness",
+  "priority": 3,
+  "reason": "Bias and representational harm."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/21-fairness-criteria-group-individual-counterfactual",
+  "title": "Fairness Criteria — Group, Individual, Counterfactual",
+  "mode": "import",
+  "target_module": "21-safety-security",
+  "priority": 2,
+  "reason": "Fairness metrics asked in DS/applied-scientist loops.",
+  "target": "fairness"
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/22-differential-privacy-for-llms",
+  "title": "Differential Privacy for LLMs",
+  "mode": "import",
+  "target_module": "21-safety-security",
+  "priority": 3,
+  "reason": "Differential privacy fundamentals.",
+  "target": "differential-privacy"
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/23-watermarking-synthid-stable-signature-c2pa",
+  "title": "Watermarking — SynthID, Stable Signature, C2PA",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 3,
+  "reason": "Watermarking/provenance."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/24-regulatory-frameworks-eu-us-uk-korea",
+  "title": "Regulatory Frameworks — EU, US, UK, Korea",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Regulation; changes fast."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/25-echoleak-cves-for-ai",
+  "title": "EchoLeak and the Emergence of CVEs for AI",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 3,
+  "reason": "EchoLeak case study."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/26-model-system-dataset-cards",
+  "title": "Model, System, and Dataset Cards",
+  "mode": "link",
+  "target": "ml-system-design",
+  "priority": 3,
+  "reason": "Model/dataset cards."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/27-data-provenance-training-governance",
+  "title": "Data Provenance and Training-Data Governance",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Governance niche."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/28-alignment-research-ecosystem",
+  "title": "Alignment Research Ecosystem — MATS, Redwood, Apollo, METR",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Ecosystem listing."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/29-moderation-systems-openai-perspective-llamaguard",
+  "title": "Moderation Systems — OpenAI, Perspective, Llama Guard",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 2,
+  "reason": "Moderation classifiers."
+ },
+ {
+  "upstream": "phases/18-ethics-safety-alignment/30-dual-use-risk-cyber-bio-chem-nuclear",
+  "title": "Dual-Use Risk — Cyber, Bio, Chem, Nuclear Uplift",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Dual-use policy."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/01-terminal-native-coding-agent",
+  "title": "Capstone 01 — Terminal-Native Coding Agent",
+  "mode": "link",
+  "target": "project-ladder",
+  "priority": 3,
+  "reason": "Coding-agent capstone idea."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/02-rag-over-codebase",
+  "title": "Capstone 02 — RAG over Codebase (Cross-Repo Semantic Search)",
+  "mode": "link",
+  "target": "project-ladder",
+  "priority": 3,
+  "reason": "RAG-over-codebase capstone idea."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/03-realtime-voice-assistant",
+  "title": "Capstone 03 — Real-Time Voice Assistant (ASR to LLM to TTS)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/04-multimodal-document-qa",
+  "title": "Capstone 04 — Multimodal Document QA (Vision-First PDF, Tables, Charts)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/05-autonomous-research-agent",
+  "title": "Capstone 05 — Autonomous Research Agent (AI-Scientist Class)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/06-devops-troubleshooting-agent",
+  "title": "Capstone 06 — DevOps Troubleshooting Agent for Kubernetes",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/07-end-to-end-fine-tuning-pipeline",
+  "title": "Capstone 07 — End-to-End Fine-Tuning Pipeline (Data to SFT to DPO to Serve)",
+  "mode": "link",
+  "target": "project-ladder",
+  "priority": 3,
+  "reason": "End-to-end fine-tuning capstone idea."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/08-production-rag-chatbot",
+  "title": "Capstone 08 — Production RAG Chatbot for a Regulated Vertical",
+  "mode": "link",
+  "target": "project-ladder",
+  "priority": 3,
+  "reason": "Production RAG capstone idea."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/09-code-migration-agent",
+  "title": "Capstone 09 — Code Migration Agent (Repo-Level Language / Runtime Upgrade)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/10-multi-agent-software-team",
+  "title": "Capstone 10 — Multi-Agent Software Engineering Team",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/11-llm-observability-dashboard",
+  "title": "Capstone 11 — LLM Observability & Eval Dashboard",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/12-video-understanding-pipeline",
+  "title": "Capstone 12 — Video Understanding Pipeline (Scene, QA, Search)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/13-mcp-server-with-registry",
+  "title": "Capstone 13: Stateless MCP Server with Registry and Governance",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/14-speculative-decoding-server",
+  "title": "Capstone 14 — Speculative-Decoding Inference Server",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/15-constitutional-safety-harness",
+  "title": "Capstone 15 — Constitutional Safety Harness + Red-Team Range",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/16-github-issue-to-pr-agent",
+  "title": "Capstone 16 — GitHub Issue-to-PR Autonomous Agent",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/17-personal-ai-tutor",
+  "title": "Capstone 17 — Personal AI Tutor (Adaptive, Multimodal, with Memory)",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone; not surfaced."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/20-agent-harness-loop-contract",
+  "title": "Agent Harness Loop Contract",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/21-tool-registry-schema-validation",
+  "title": "Tool Registry with Schema Validation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/22-jsonrpc-stdio-transport",
+  "title": "JSON-RPC 2.0 Over Newline-Delimited Stdio",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/23-function-call-dispatcher",
+  "title": "Function Call Dispatcher",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/24-plan-execute-control-flow",
+  "title": "Plan-Execute Control Flow",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/25-verification-gates-observation-budget",
+  "title": "Capstone Lesson 25: Verification Gates and the Observation Budget",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/26-sandbox-runner-denylist",
+  "title": "Capstone Lesson 26: Sandbox Runner with Denylist and Path Jail",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/27-eval-harness-fixture-tasks",
+  "title": "Capstone Lesson 27: Eval Harness with Fixture Tasks",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/28-observability-otel-traces",
+  "title": "Capstone Lesson 28: Observability with OTel GenAI Spans and Prometheus Metrics",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/29-end-to-end-coding-task-demo",
+  "title": "Capstone Lesson 29: End-to-End Coding Agent on the Harness",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Harness capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/30-bpe-tokenizer-from-scratch",
+  "title": "BPE Tokenizer From Scratch",
+  "mode": "enrich",
+  "target": "tokenization-and-pretraining",
+  "priority": 1,
+  "reason": "Clean BPE-from-scratch code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/31-tokenized-dataset-sliding-window",
+  "title": "Tokenized Dataset with Sliding Window",
+  "mode": "enrich",
+  "target": "tokenization-and-pretraining",
+  "priority": 2,
+  "reason": "Sliding-window dataset for next-token training."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/32-token-positional-embeddings",
+  "title": "Token and Positional Embeddings",
+  "mode": "enrich",
+  "target": "transformer-architecture",
+  "priority": 2,
+  "reason": "Token + positional embeddings code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/33-multihead-self-attention",
+  "title": "Multi-Head Self-Attention",
+  "mode": "enrich",
+  "target": "self-attention",
+  "priority": 2,
+  "reason": "Multi-head self-attention module code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/34-transformer-block",
+  "title": "Transformer Block from Scratch",
+  "mode": "enrich",
+  "target": "transformer-architecture",
+  "priority": 1,
+  "reason": "Transformer block from scratch."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/35-gpt-model-assembly",
+  "title": "GPT Model Assembly",
+  "mode": "enrich",
+  "target": "transformer-architecture",
+  "priority": 2,
+  "reason": "GPT model assembly."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/36-training-loop-eval",
+  "title": "Training Loop and Evaluation",
+  "mode": "enrich",
+  "target": "tokenization-and-pretraining",
+  "priority": 2,
+  "reason": "Training loop and eval."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/37-loading-pretrained-weights",
+  "title": "Loading Pretrained Weights",
+  "mode": "link",
+  "target": "fine-tuning-in-practice",
+  "priority": 3,
+  "reason": "Loading pretrained weights."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/38-classifier-finetuning",
+  "title": "Capstone Lesson 38: Classifier Fine-Tuning by Head Swap",
+  "mode": "link",
+  "target": "fine-tuning-in-practice",
+  "priority": 2,
+  "reason": "Classifier fine-tuning by head swap."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/39-instruction-tuning-sft",
+  "title": "Capstone Lesson 39: Instruction Tuning by Supervised Fine-Tuning",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Duplicate of SFT lesson."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/40-dpo-from-scratch",
+  "title": "Capstone Lesson 40: Direct Preference Optimization from Scratch",
+  "mode": "enrich",
+  "target": "adapting-llms",
+  "priority": 2,
+  "reason": "DPO from scratch code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/41-eval-pipeline",
+  "title": "Capstone Lesson 41: Full Evaluation Pipeline",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/42-large-corpus-downloader",
+  "title": "Large Corpus Downloader",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Data download tooling."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/43-hdf5-tokenized-corpus",
+  "title": "HDF5 Tokenized Corpus",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Storage tooling."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/44-cosine-lr-warmup",
+  "title": "Cosine LR with Linear Warmup",
+  "mode": "enrich",
+  "target": "training-and-regularization",
+  "priority": 2,
+  "reason": "Cosine LR with warmup code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/45-gradient-clipping-amp",
+  "title": "Gradient Clipping and Mixed Precision",
+  "mode": "import",
+  "target_module": "27-training-at-scale",
+  "priority": 2,
+  "reason": "Mixed precision and gradient clipping; standard training knowledge.",
+  "target": "gradient-clipping-amp"
+ },
+ {
+  "upstream": "phases/19-capstone-projects/46-gradient-accumulation",
+  "title": "Gradient Accumulation",
+  "mode": "enrich",
+  "target": "fine-tuning-in-practice",
+  "priority": 2,
+  "reason": "Gradient accumulation code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/47-checkpoint-save-resume",
+  "title": "Checkpoint Save and Resume",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Checkpoint tooling."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/48-distributed-fsdp-ddp",
+  "title": "Distributed Data Parallel and FSDP from Scratch",
+  "mode": "link",
+  "target": "scaling-distributed",
+  "priority": 3,
+  "reason": "DDP/FSDP from scratch code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/49-lm-eval-harness",
+  "title": "Language Model Evaluation Harness",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 3,
+  "reason": "LM eval harness."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/50-hypothesis-generator",
+  "title": "Hypothesis Generator",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/51-literature-retrieval",
+  "title": "Literature Retrieval",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/52-experiment-runner",
+  "title": "Experiment Runner",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/53-result-evaluator",
+  "title": "Result Evaluator",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/54-paper-writer",
+  "title": "Paper Writer",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/55-critic-loop",
+  "title": "Critic Loop",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/56-iteration-scheduler",
+  "title": "Iteration Scheduler",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/57-end-to-end-research-demo",
+  "title": "End-to-End Research Demo",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Research-agent capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/58-vision-encoder-patches",
+  "title": "Vision Encoder Patches",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VLM capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/59-vit-transformer",
+  "title": "Vision Transformer Encoder",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VLM capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/60-projection-layer-modality-align",
+  "title": "Projection Layer for Modality Alignment",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VLM capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/61-cross-attention-fusion",
+  "title": "Cross-Attention Fusion",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VLM capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/62-vision-language-pretraining",
+  "title": "Vision-Language Pretraining",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VLM capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/63-multimodal-eval",
+  "title": "Multimodal Evaluation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "VLM capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/64-chunking-strategies-advanced",
+  "title": "Chunking Strategies, Compared",
+  "mode": "enrich",
+  "target": "rag-pipeline",
+  "priority": 2,
+  "reason": "Chunking strategies compared in code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/65-hybrid-retrieval-bm25-dense",
+  "title": "Hybrid Retrieval with BM25 and Dense Embeddings",
+  "mode": "enrich",
+  "target": "vector-search",
+  "priority": 1,
+  "reason": "Hybrid BM25 + dense with RRF."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/66-reranker-cross-encoder",
+  "title": "Cross-Encoder Reranker",
+  "mode": "enrich",
+  "target": "rag-pipeline",
+  "priority": 1,
+  "reason": "Cross-encoder reranker code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/67-query-rewriting-hyde",
+  "title": "Query Rewriting: HyDE, Multi-Query, and Decomposition",
+  "mode": "enrich",
+  "target": "rag-pipeline",
+  "priority": 2,
+  "reason": "HyDE / multi-query rewriting."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/68-rag-eval-precision-recall",
+  "title": "RAG Evaluation: Precision, Recall, MRR, nDCG, Faithfulness, Answer Relevance",
+  "mode": "enrich",
+  "target": "llm-evaluation",
+  "priority": 1,
+  "reason": "Retrieval metrics: MRR, nDCG, faithfulness."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/69-end-to-end-rag-system",
+  "title": "End-to-End RAG System",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/70-task-spec-format",
+  "title": "Task Spec Format",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/71-classical-metrics",
+  "title": "Classical Metrics",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 2,
+  "reason": "BLEU/ROUGE classical metrics code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/72-code-exec-metric",
+  "title": "Code Exec Metric",
+  "mode": "enrich",
+  "target": "llm-evaluation",
+  "priority": 2,
+  "reason": "pass@k code execution metric."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/73-perplexity-calibration",
+  "title": "Perplexity and Calibration",
+  "mode": "enrich",
+  "target": "llm-evaluation",
+  "priority": 2,
+  "reason": "Perplexity and calibration (ECE)."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/74-leaderboard-aggregation",
+  "title": "Leaderboard Aggregation",
+  "mode": "link",
+  "target": "llm-evaluation",
+  "priority": 3,
+  "reason": "Leaderboard aggregation."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/75-end-to-end-eval-runner",
+  "title": "End-to-End Eval Runner",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/76-collective-ops-from-scratch",
+  "title": "Collective Ops From Scratch",
+  "mode": "import",
+  "target_module": "27-training-at-scale",
+  "priority": 2,
+  "reason": "Ring all-reduce from scratch; distributed fundamentals.",
+  "target": "collective-ops-from-scratch"
+ },
+ {
+  "upstream": "phases/19-capstone-projects/77-data-parallel-ddp",
+  "title": "Data Parallel DDP From Scratch",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Covered by distributed import."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/78-zero-parameter-sharding",
+  "title": "ZeRO Optimizer State Sharding",
+  "mode": "import",
+  "target_module": "27-training-at-scale",
+  "priority": 2,
+  "reason": "ZeRO sharding stages; memory math interview favorite.",
+  "target": "zero-parameter-sharding"
+ },
+ {
+  "upstream": "phases/19-capstone-projects/79-pipeline-parallel",
+  "title": "Pipeline Parallel and Bubble Analysis",
+  "mode": "link",
+  "target": "scaling-distributed",
+  "priority": 3,
+  "reason": "Pipeline parallel bubbles."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/80-checkpoint-sharded-resume",
+  "title": "Sharded Checkpoint and Atomic Resume",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Checkpoint tooling."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/81-end-to-end-distributed-train",
+  "title": "End-to-End Distributed Training",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/82-jailbreak-taxonomy",
+  "title": "Capstone 82 — Jailbreak Taxonomy",
+  "mode": "link",
+  "target": "ai-security",
+  "priority": 3,
+  "reason": "Jailbreak taxonomy."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/83-prompt-injection-detector",
+  "title": "Capstone 83 — Prompt Injection Detector",
+  "mode": "enrich",
+  "target": "ai-security",
+  "priority": 2,
+  "reason": "Prompt-injection detector code."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/84-refusal-evaluation",
+  "title": "Capstone 84 — Refusal Evaluation",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/85-content-classifier-integration",
+  "title": "Capstone 85 — Content Classifier Integration",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/86-constitutional-rules-engine",
+  "title": "Capstone 86 — Constitutional Rules Engine",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ },
+ {
+  "upstream": "phases/19-capstone-projects/87-end-to-end-safety-gate",
+  "title": "Capstone 87 — End-to-End Safety Gate",
+  "mode": "skip",
+  "priority": 3,
+  "reason": "Capstone step."
+ }
+]

@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 40
 prerequisites: [calculus-for-ml, linear-regression]
 related: [backpropagation, training-and-regularization, neural-network-forward-pass]
+adapted_from: [phases/01-math-foundations/08-optimization, phases/03-deep-learning-core/06-optimizers]
 ---
 
 # Gradient descent
@@ -135,40 +136,113 @@ The velocity in $\theta_1$ grew from 3 to 5.64 because the gradient kept pointin
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+The full script is [`code/11-gradient-descent-backprop/optimizers_scratch.py`](../../code/11-gradient-descent-backprop/optimizers_scratch.py) (NumPy only). Each optimizer is a small class with one method, `step(params, grads)`, which is the same interface PyTorch's optimizers expose. The gradient comes from outside; the optimizer only decides how to use it.
+
+### Build it from scratch
+
+**Step 1: plain gradient descent.** No memory between steps. This is the update rule from section 3 and nothing else.
 
 ```python
-import numpy as np
+class SGD:
+    def __init__(self, lr):
+        self.lr = lr
 
-def gradient_descent(grad, theta, lr=0.1, steps=100):
-    for _ in range(steps):
-        theta = theta - lr * grad(theta)     # one update
-    return theta
-
-def momentum(grad, theta, lr=0.02, beta=0.9, steps=100):
-    v = np.zeros_like(theta)
-    for _ in range(steps):
-        v = beta * v + grad(theta)
-        theta = theta - lr * v
-    return theta
+    def step(self, p, g):
+        return p - self.lr * g
 ```
 
-**In PyTorch** (the optimizer does the update; autograd computes the gradient):
+*Predict:* on the bowl from the worked example, which `lr` makes the steep coordinate land exactly on 0 in one step?
+
+**Step 2: momentum.** Keep a velocity `v` that adds each new gradient to a decayed copy of the old one. Where gradients keep pointing the same way, `v` grows; where they flip sign (a zig-zag), they cancel. This uses the course's convention $v_t = \beta v_{t-1} + g_t$.
+
+```python
+class Momentum:
+    def __init__(self, lr, beta=0.9):
+        self.lr, self.beta, self.v = lr, beta, None
+
+    def step(self, p, g):
+        self.v = g if self.v is None else self.beta * self.v + g
+        return p - self.lr * self.v
+```
+
+*Predict:* if the gradient were the same constant $g$ forever, what would `v` approach? (Sum the geometric series.)
+
+**Step 3: Adam.** Two running averages: `m` of the gradient (momentum) and `s` of its square (its typical size). Dividing one by the square root of the other gives every parameter a step of about `lr`, whatever its gradient scale. Both averages start at 0, so early on they are too small; dividing by $1 - \beta^t$ corrects that.
+
+```python
+    def step(self, p, g):
+        if self.m is None:
+            self.m, self.s = np.zeros_like(p), np.zeros_like(p)
+        self.t += 1
+        self.m = self.b1 * self.m + (1 - self.b1) * g          # average gradient
+        self.s = self.b2 * self.s + (1 - self.b2) * g ** 2     # average squared gradient
+        m_hat = self.m / (1 - self.b1 ** self.t)               # undo the bias toward 0
+        s_hat = self.s / (1 - self.b2 ** self.t)
+        return p - self.lr * (m_hat / (np.sqrt(s_hat) + self.eps) + self.wd * p)
+```
+
+*Predict:* without the two bias-correction lines, is the first step bigger or smaller than `lr`? The script prints the answer.
+
+**Step 4: AdamW.** The last line above already has a `self.wd * p` term. It shrinks weights directly, outside Adam's per-parameter scaling. That is *decoupled* weight decay, which is what AdamW means. Adding an L2 penalty to the loss instead would push the decay through `g`, so Adam would rescale it, and parameters with large gradients would barely be regularized.
+
+```python
+def AdamW(lr, weight_decay=0.01, **kw):
+    return Adam(lr, weight_decay=weight_decay, **kw)
+```
+
+*Predict:* with zero gradient, `lr = 0.1`, and `weight_decay = 0.1`, what is a weight of 1.0 after 10 steps?
+
+**Step 5: the training loop.** Every optimizer plugs into the same loop: compute the gradient, take a step, record where you are.
+
+```python
+def run(opt, grad, start, steps):
+    p, path = np.array(start, float), [np.array(start, float)]
+    for _ in range(steps):
+        p = opt.step(p, grad(p))
+        path.append(p.copy())
+    return np.array(path)
+```
+
+*Predict:* on the Rosenbrock valley (a long, curved, flat-bottomed valley), which of the three reaches the minimum at (1, 1) within 3,000 steps?
+
+### Use the library
+
+PyTorch splits the same two jobs: autograd fills `.grad` for every parameter, then the optimizer reads it and updates in place. `torch.optim.AdamW` is step 4. One convention differs: PyTorch's SGD momentum uses the same $v_t = \beta v_{t-1} + g_t$ as ours, while some textbooks use $(1-\beta) g_t$, which changes the effective learning rate by a factor of 10 at $\beta = 0.9$.
 
 ```python
 import torch
 
 model = torch.nn.Linear(10, 1)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)   # or torch.optim.SGD(..., momentum=0.9)
-
-for x_batch, y_batch in loader:            # mini-batches
-    optimizer.zero_grad()                  # clear old gradients
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
+# or torch.optim.SGD(..., momentum=0.9)
+for x_batch, y_batch in loader:           # mini-batches
+    optimizer.zero_grad()                 # clear old gradients
     loss = torch.nn.functional.mse_loss(model(x_batch), y_batch)
-    loss.backward()                        # compute gradients (backpropagation)
-    optimizer.step()                       # θ ← θ − η · (update rule)
+    loss.backward()                       # compute gradients (backpropagation)
+    optimizer.step()                      # θ ← θ − η · (update rule)
 ```
 
-Runnable script with the worked steps and figure: [`code/11-gradient-descent-backprop/gradient_descent.py`](../../code/11-gradient-descent-backprop/gradient_descent.py).
+### Run it
+
+```bash
+uv run code/11-gradient-descent-backprop/optimizers_scratch.py
+```
+
+Key lines of the output:
+
+```text
+        GD lr=0.1: step 1 [-2.7  0. ], step 2 [-2.43  0.  ], f after 2 = 2.9525
+ momentum lr=0.02: step 1 [-2.94  1.28], step 2 [-2.8272  0.736 ], f after 2 = 6.7050
+      Adam lr=0.1: step 1 [-2.9  1.5], step 2 [-2.8001  1.4002], f after 2 = 13.7234
+lr=0.21: f after 50 steps = 1.76e+05
+raw m/sqrt(s) = 3.1623; corrected = 1.0000
+     SGD: end [-1.2487  1.567 ], loss 5.06e+00
+momentum: end [0.7811 0.6092], loss 4.80e-02
+    Adam: end [1. 1.], loss 3.15e-11
+after 10 steps: 0.9044 (= 0.99^10 = 0.9044)
+```
+
+The first three lines are the worked example in section 3. On Rosenbrock, the learning rate that keeps plain SGD stable is so small that it barely moves along the valley floor; momentum gets close, and Adam's per-parameter scaling reaches the minimum. The figure script for the bowl paths is [`code/11-gradient-descent-backprop/gradient_descent.py`](../../code/11-gradient-descent-backprop/gradient_descent.py).
 
 ## 5. Engineering
 
@@ -224,6 +298,10 @@ Curvature is $f''(\theta) = 4$, so convergence requires $|1 - 4\eta| < 1$, that 
 **Next:** [Backpropagation](02-backpropagation.md)
 
 **Related:** [Linear regression](../03-regression/01-linear-regression.md) · [Training and regularization](../12-training-regularization/01-training-and-regularization.md) · [Forward pass](../10-neural-networks/01-neural-network-forward-pass.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Optimization](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/08-optimization), [Optimizers](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/06-optimizers).*
+<!-- /deeper -->
 
 ## Interview angle
 

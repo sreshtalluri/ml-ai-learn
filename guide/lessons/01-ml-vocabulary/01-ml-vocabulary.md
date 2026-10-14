@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 20
 prerequisites: [vectors-and-matrices]
 related: [learning-paradigms, linear-regression, ml-workflow]
+adapted_from: [phases/02-ml-fundamentals/01-what-is-machine-learning]
 ---
 
 # The language of ML
@@ -74,18 +75,92 @@ Here, the loss and the metric are related. Often they aren't: a fraud model trai
 
 ## 4. Implementation
 
+You will build the smallest complete learner, a nearest-centroid classifier, and label every line with the vocabulary above. Then the same words on scikit-learn, where they map to a fixed API.
+
+### Build it from scratch
+
+Training learns the parameters. Here the parameters are one centroid per class: the mean feature vector of that class's training rows. The mean is not arbitrary. It is the point that minimizes the summed squared distance to the class's rows, so even this "no-loss" model is an arg min of a loss.
+
+```python
+class NearestCentroid:
+    def fit(self, X, y):
+        """Training: learn one centroid (mean feature vector) per class. These are the parameters."""
+        self.classes_ = np.unique(y)
+        self.centroids_ = np.array([X[y == c].mean(axis=0) for c in self.classes_])  # [k, d]
+        return self
+```
+
+**Predict:** with 2 classes and 2 features, how many parameters does the model have? How does that count grow with more training rows?
+
+Inference uses the learned parameters and nothing else. Broadcasting `[n, 1, d] − [1, k, d]` gives every row's difference from every centroid in one shot, `[n, k, d]`; summing the squares over `d` gives an `[n, k]` distance table.
+
+```python
+    def predict(self, X):
+        """Inference: assign each row to the class whose centroid is closest."""
+        d = ((X[:, None, :] - self.centroids_[None, :, :]) ** 2).sum(axis=2)  # [n, k] squared distances
+        return self.classes_[d.argmin(axis=1)]
+
+    def score(self, X, y):
+        """Metric: accuracy, the share of rows predicted correctly."""
+        return float(np.mean(self.predict(X) == y))
+```
+
+The split is what makes "generalization" measurable. Shuffle once, hold some rows back, and never let `fit` see them.
+
+```python
+def train_test_split(X, y, test_fraction, rng):
+    idx = rng.permutation(len(y))
+    n_test = int(len(y) * test_fraction)
+    return X[idx[n_test:]], X[idx[:n_test]], y[idx[n_test:]], y[idx[:n_test]]
+```
+
+**Predict:** the script reports a test accuracy (0.950) *higher* than the training accuracy (0.907). Is that a bug? Then it varies how far apart the two synthetic blobs are. Which changes accuracy more, a smarter model or better-separated data?
+
+<details>
+<summary>Answers</summary>
+
+4 parameters (two 2-D centroids), and the count does not grow with data: more rows only make each mean more precise. Higher test than train accuracy is not a bug. With 60 test rows, one row is 1.7 points of accuracy, so a lucky split easily beats training; it is sampling noise, and the reason to report an interval or use cross-validation. Separation dominates: 0.667 at separation 0.5 and 1.000 at 4.0, with the same model. Data quality sets the ceiling.
+
+</details>
+
+### Use the library
+
+scikit-learn bakes this vocabulary into every estimator: hyperparameters go in the constructor, `fit` learns parameters (stored in attributes ending in `_`), `predict` is inference, and metrics live in `sklearn.metrics`.
+
 ```python
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 
-model = LinearRegression()                 # hyperparameters are constructor arguments
-model.fit(X_train, y_train)                # training: learns parameters coef_ and intercept_
-print(model.coef_, model.intercept_)       # parameters
-y_pred = model.predict(X_test)             # inference
+model = LinearRegression()              # hyperparameters are constructor arguments
+model.fit(X_train, y_train)             # training: learns parameters coef_ and intercept_
+print(model.coef_, model.intercept_)    # the parameters
+y_pred = model.predict(X_test)          # inference
 rmse = mean_squared_error(y_test, y_pred) ** 0.5   # metric, on data the model never saw
 ```
 
-Runnable script for this figure: [`code/02-ml-workflow/workflow.py`](../../code/02-ml-workflow/workflow.py).
+`sklearn.neighbors.NearestCentroid` is the library version of the class above; the script checks that its centroids and predictions match ours exactly.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/01-ml-vocabulary/nearest_centroid.py
+```
+
+```text
+X (200, 2), y (200,); train 140, test 60
+parameters (centroids):
+[[ 0.871  0.963]
+ [-1.001 -1.044]]
+train accuracy 0.907, test accuracy 0.950
+separation 0.5: test accuracy 0.667
+separation 2.0: test accuracy 0.917
+separation 4.0: test accuracy 1.000
+matches sklearn.neighbors.NearestCentroid
+```
+
+The data is two synthetic Gaussian blobs centred at (1, 1) and (−1, −1). Full script: [`code/01-ml-vocabulary/nearest_centroid.py`](../../code/01-ml-vocabulary/nearest_centroid.py). The figure comes from [`code/02-ml-workflow/workflow.py`](../../code/02-ml-workflow/workflow.py).
 
 ## 5. Engineering
 
@@ -131,6 +206,10 @@ Runnable script for this figure: [`code/02-ml-workflow/workflow.py`](../../code/
 **Next:** [Learning paradigms](02-learning-paradigms.md)
 
 **Related:** [Linear regression](../03-regression/01-linear-regression.md) · [The ML workflow](../02-ml-workflow/01-ml-workflow.md) · [Glossary](../../glossary.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [What Is Machine Learning](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/01-what-is-machine-learning).*
+<!-- /deeper -->
 
 ## Interview angle
 

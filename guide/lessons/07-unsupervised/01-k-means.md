@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 35
 prerequisites: [vectors-and-matrices, learning-paradigms]
 related: [k-nearest-neighbors, density-hierarchical-and-mixture-clustering, pca]
+adapted_from: [phases/02-ml-fundamentals/07-unsupervised-learning]
 ---
 
 # K-means clustering
@@ -126,25 +127,75 @@ Six points, $K = 2$. Initialize the centroids at A and F: $\mu_1 = (1, 1)$, $\mu
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+### Build it from scratch
+
+Four small functions in NumPy cover the whole algorithm. The full script is [`code/07-unsupervised/kmeans.py`](../../code/07-unsupervised/kmeans.py).
+
+**Assignment step.** Broadcasting `X[:, None, :] - mu[None, :, :]` makes an `[n, K, p]` array of differences, so one line gives every point's squared distance to every centroid. `argmin` along the centroid axis picks the nearest one.
 
 ```python
-import numpy as np
-
-def kmeans(X, k, seed=0, iters=100):
-    rng = np.random.default_rng(seed)
-    mu = X[rng.choice(len(X), k, replace=False)]              # [k, p] random initial centroids
-    for _ in range(iters):
-        d2 = ((X[:, None, :] - mu[None, :, :]) ** 2).sum(-1)  # [n, k] squared distances
-        assign = d2.argmin(axis=1)                            # assignment step
-        new = np.array([X[assign == j].mean(0) if (assign == j).any() else mu[j] for j in range(k)])
-        if np.allclose(new, mu):
-            break
-        mu = new                                              # update step
-    return mu, assign
+def assign(X, mu):
+    """Assignment step: squared distance to every centroid, then the nearest one."""
+    d2 = ((X[:, None, :] - mu[None, :, :]) ** 2).sum(axis=2)   # [n, K] squared distances
+    return d2, d2.argmin(axis=1)                               # [n, K], [n]
 ```
 
-**With scikit-learn:**
+*Predict:* point C in the worked example is at squared distance 13 from $\mu_1$ and 3.25 from $\mu_2$. What does `argmin` return for C's row, given that index 0 means cluster 1?
+
+**Objective and update step.** `mu[a]` looks up each point's own centroid, so the inertia is one subtraction and a sum. The update replaces each centroid with the mean of its points. A centroid that loses all its points would produce `NaN` from an empty mean, so it stays where it is.
+
+```python
+def inertia(X, mu, a):
+    """Objective J: total squared distance from each point to its own centroid."""
+    return float(((X - mu[a]) ** 2).sum())
+
+def update(X, a, mu):
+    """Update step: move each centroid to the mean of its points (keep it if the cluster is empty)."""
+    return np.array([X[a == j].mean(axis=0) if np.any(a == j) else mu[j] for j in range(len(mu))])
+```
+
+*Predict:* after an update, can `inertia(X, new_mu, a)` ever be larger than `inertia(X, mu, a)` with the same assignments `a`?
+
+**The loop (Lloyd's algorithm).** Start from K random data points, then alternate the two steps until the centroids stop moving. This version uses one random start, which is exactly the weakness k-means++ and `n_init` fix.
+
+```python
+def kmeans(X, k, seed=0, iters=100):
+    """Lloyd's algorithm from a random start: alternate assign and update until centroids stop moving."""
+    rng = np.random.default_rng(seed)
+    mu = X[rng.choice(len(X), k, replace=False)]               # [k, p] k random data points
+    for _ in range(iters):
+        _, a = assign(X, mu)
+        new = update(X, a, mu)
+        if np.allclose(new, mu):
+            break
+        mu = new
+    return mu, a
+```
+
+*Predict:* two of the four random starting points land in the same true blob. Will the loop ever move one of them to the empty blob?
+
+**Silhouette score.** For each point, $a$ is its mean distance to the rest of its own cluster and $b$ is its mean distance to the nearest other cluster; $s = (b - a)/\max(a, b)$. The `[n, n]` distance matrix makes this $O(n^2)$ memory, fine for 300 points but not for a million.
+
+```python
+def silhouette(X, a):
+    """Mean silhouette: s = (b - a) / max(a, b) per point, a = own-cluster mean distance, b = nearest other cluster."""
+    D = np.sqrt(((X[:, None, :] - X[None, :, :]) ** 2).sum(axis=2))   # [n, n] pairwise distances
+    s = np.zeros(len(X))
+    for i in range(len(X)):
+        own = a == a[i]
+        if own.sum() == 1:                                     # singleton cluster: s = 0 by convention
+            continue
+        a_i = D[i, own].sum() / (own.sum() - 1)                # exclude the zero distance to itself
+        b_i = min(D[i, a == c].mean() for c in np.unique(a) if c != a[i])
+        s[i] = (b_i - a_i) / max(a_i, b_i)
+    return float(s.mean())
+```
+
+*Predict:* a point sits exactly halfway between its own centroid and another cluster, so $a \approx b$. What is its silhouette, and what does a negative value mean?
+
+### Use the library
+
+scikit-learn's `KMeans` defaults to k-means++ initialization and runs several starts (`n_init`), keeping the lowest inertia. It computes distances with matrix products and runs in compiled code, so it is much faster than the loop above.
 
 ```python
 from sklearn.cluster import KMeans
@@ -156,9 +207,31 @@ km = KMeans(n_clusters=4, init="k-means++", n_init=10, random_state=0).fit(X_sca
 print(km.inertia_, silhouette_score(X_scaled, km.labels_))
 ```
 
-On the synthetic blobs, a single random start of the from-scratch version got stuck at inertia 2359.7 (two true blobs merged, one split). The best of 10 random starts and scikit-learn both reach 462.8. That is why `n_init` exists.
+### Run it
 
-Runnable script (worked example, both implementations, elbow and silhouette, figure): [`code/07-unsupervised/kmeans.py`](../../code/07-unsupervised/kmeans.py).
+From `guide/`:
+
+```bash
+uv run code/07-unsupervised/kmeans.py
+```
+
+Key lines of output:
+
+```text
+Iteration 1: centroids [[1.0, 1.0], [4.5, 5.0]]
+  inertia after assignment: 9.750
+  update -> [[1.25, 1.5], [4.0, 5.25]]  inertia 7.875
+  ...
+  converged
+
+from scratch, one random start (seed 1): inertia=2359.7  <- stuck in a local optimum
+from scratch, best of 10 random starts:  inertia=462.8
+scikit-learn (k-means++, n_init=10):      inertia=462.8
+silhouette at K = 4: from scratch 0.8265, scikit-learn 0.8265
+K, inertia, silhouette: [(1, 22193.5, None), (2, 8941.6, 0.599), (3, 2402.8, 0.776), (4, 462.8, 0.826), (5, 414.0, 0.721), ...]
+```
+
+The first block reproduces the worked example. On the synthetic blobs, a single random start got stuck at inertia 2359.7 (two true blobs merged, one split). The best of 10 random starts and scikit-learn both reach 462.8. That is why `n_init` exists. The from-scratch silhouette matches scikit-learn, and both the elbow and the silhouette peak point to K = 4.
 
 ## 5. Engineering
 
@@ -212,6 +285,10 @@ Iteration 3: no change. Final centroids 2 and 11. Inertia $= (1 + 0 + 1) + (1 + 
 **Next:** [DBSCAN, hierarchical clustering, and Gaussian mixtures](02-density-hierarchical-and-mixture-clustering.md)
 
 **Related:** [K-nearest neighbors](../05-instance-and-probabilistic/01-k-nearest-neighbors.md) · [PCA](../08-dimensionality-reduction/01-pca.md) · [Model card: K-means](../../models/k-means.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Unsupervised Learning](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/07-unsupervised-learning).*
+<!-- /deeper -->
 
 ## Interview angle
 

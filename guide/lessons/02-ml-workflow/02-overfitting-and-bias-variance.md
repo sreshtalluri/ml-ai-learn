@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 30
 prerequisites: [ml-workflow, linear-regression]
 related: [regularization-and-regression-metrics, training-and-regularization, k-nearest-neighbors]
+adapted_from: [phases/02-ml-fundamentals/10-bias-variance]
 ---
 
 # Overfitting and the bias-variance trade-off
@@ -42,7 +43,6 @@ Fit points that follow a wavy curve plus noise:
 1. Before you move anything: at degree 15 with 20 points, will validation error be higher or lower than at degree 3? Check with the slider.
 2. Keep degree 12 and raise training points to 60. Predict what happens to the gap between the two curves, then look.
 3. Set noise to 0. Which degree is best now, and why does the overfitting almost disappear?
-
 
 ## 3. The math
 
@@ -88,6 +88,66 @@ Suppose the truth at some $x$ is $f(x) = 5$, and fitting the same model on four 
 
 ## 4. Implementation
 
+You can't measure bias and variance from one dataset: both terms average over *many possible training sets*. With synthetic data you know the true function, so you can draw 200 training sets, fit 200 models, and compute the decomposition from section 3 directly.
+
+### Build it from scratch
+
+The data generator is the "truth" plus Gaussian noise with σ = 0.5, so the irreducible error σ² is 0.25.
+
+```python
+NOISE = 0.5
+
+def true_f(x):
+    return np.sin(1.5 * x) + 0.5 * x
+
+def sample(n, rng):
+    x = rng.uniform(-3, 3, n)
+    return x, true_f(x) + rng.normal(0, NOISE, n)
+```
+
+A polynomial fit is linear regression on the columns 1, x, x², ... (`np.vander` builds them). The optional L2 penalty `lam` is ridge regression; it skips the intercept so the penalty does not pull predictions toward zero. The `1e-10` keeps the solve stable when high powers make the columns nearly collinear.
+
+```python
+def fit_poly(x, y, degree, lam=0.0):
+    """Least squares on [1, x, x², ...]. lam > 0 adds an L2 penalty (not on the intercept)."""
+    X = np.vander(x, degree + 1, increasing=True)          # [n, degree+1]
+    P = lam * np.eye(degree + 1)
+    P[0, 0] = 0
+    return np.linalg.solve(X.T @ X + P + 1e-10 * np.eye(degree + 1), X.T @ y)
+
+def predict_poly(x, w):
+    return np.vander(x, len(w), increasing=True) @ w
+```
+
+**Predict:** a degree-10 polynomial has how many parameters? With 50 training points, is the fit forced to pass through every point?
+
+The decomposition itself: stack every model's predictions on a fixed test grid into a `[n_sets, 100]` array. The column mean is the "average model". Its squared distance from the truth is bias²; the spread of each column is variance.
+
+```python
+def decompose(degree, lam=0.0, n_sets=200, n_train=50, seed=42):
+    rng = np.random.default_rng(seed)
+    x_test = np.linspace(-2.5, 2.5, 100)
+    preds = np.array([predict_poly(x_test, fit_poly(*sample(n_train, rng), degree, lam))
+                      for _ in range(n_sets)])              # [n_sets, 100]
+    avg = preds.mean(axis=0)
+    bias2 = np.mean((avg - true_f(x_test)) ** 2)            # how far the AVERAGE model is from the truth
+    var = np.mean(preds.var(axis=0))                        # how much models disagree with each other
+    return bias2, var
+```
+
+**Predict:** sketch the bias² and variance columns for degrees 1, 3, 5, 8, 10 before you run it. Where is expected MSE (bias² + variance + 0.25) lowest? Then: adding a strong L2 penalty (λ = 10) to the degree-10 model, which term goes up and which goes down?
+
+<details>
+<summary>Answers</summary>
+
+11 parameters (powers 0 to 10). With 50 points it can't hit them all, but it has enough freedom to chase the noise. Bias² falls from 0.43 (degree 1, a straight line through a sine wave) to about 0.001 by degree 5 and stays there; variance climbs from about 0.03 to 0.06. Expected MSE is lowest at degree 5 (0.278). Beyond that, extra flexibility buys almost no bias and costs variance. With λ = 10, bias² rises to 0.14 and variance falls only slightly (0.060 to 0.051): too strong a penalty for this data. The right λ is a validation question.
+
+</details>
+
+### Use the library
+
+In real work you have one dataset and no `true_f`, so you can't compute bias² and variance separately. You estimate their sum with cross-validation and read the shape of the curves instead:
+
 ```python
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -106,7 +166,36 @@ best_degree = degrees[val_scores.mean(axis=1).argmax()]
 sizes, tr, va = learning_curve(model.set_params(polynomialfeatures__degree=best_degree), X, y, cv=5)
 ```
 
-Runnable script with the figure: [`code/02-ml-workflow/workflow.py`](../../code/02-ml-workflow/workflow.py).
+`validation_curve` sweeps one hyperparameter (complexity) and `learning_curve` sweeps training-set size. A large, persistent train/validation gap is the variance signature; both curves flat and high is the bias signature. scikit-learn scores are "higher is better", hence `neg_mean_squared_error` and `argmax`.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/02-ml-workflow/bias_variance_scratch.py
+```
+
+```text
+irreducible noise σ² = 0.250
+degree    bias²  variance  expected MSE
+     1   0.4304    0.0286        0.7090
+     3   0.0583    0.0223        0.3306
+     5   0.0012    0.0271        0.2783
+     8   0.0002    0.0441        0.2943
+    10   0.0003    0.0600        0.3104
+degree 10 with an L2 penalty:
+  λ=0.0   bias² 0.0003  variance 0.0600
+  λ=0.1   bias² 0.0012  variance 0.0537
+  λ=10.0  bias² 0.1418  variance 0.0513
+sklearn validation_curve: alpha=0.0001  CV MSE 0.267
+sklearn validation_curve: alpha=0.01    CV MSE 0.379
+sklearn validation_curve: alpha=1       CV MSE 0.720
+sklearn validation_curve: alpha=100     CV MSE 1.196
+checks pass: low degree = high bias, high degree = high variance
+```
+
+The data is synthetic, so the numbers are illustrative, not a benchmark. Full script: [`code/02-ml-workflow/bias_variance_scratch.py`](../../code/02-ml-workflow/bias_variance_scratch.py). The figure and diagnosis-table numbers come from [`code/02-ml-workflow/workflow.py`](../../code/02-ml-workflow/workflow.py).
 
 ## 5. Engineering
 
@@ -157,6 +246,10 @@ Mean prediction 10. Bias² $= (12 - 10)^2 = 4$. Variance $= \frac{1 + 1 + 0 + 4 
 **Next:** [Linear regression](../03-regression/01-linear-regression.md)
 
 **Related:** [Regularization](../03-regression/02-regularization-and-regression-metrics.md) · [Training and regularization for neural networks](../12-training-regularization/01-training-and-regularization.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Bias-Variance Tradeoff](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/10-bias-variance).*
+<!-- /deeper -->
 
 ## Interview angle
 

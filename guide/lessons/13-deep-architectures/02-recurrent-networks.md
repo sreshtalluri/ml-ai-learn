@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 35
 prerequisites: [backpropagation, neural-network-forward-pass]
 related: [self-attention, convolutional-networks, backpropagation]
+adapted_from: [phases/05-nlp-foundations-to-advanced/08-cnns-rnns-for-text, phases/05-nlp-foundations-to-advanced/09-sequence-to-sequence]
 ---
 
 # Recurrent networks, LSTMs, and GRUs
@@ -84,32 +85,105 @@ At $t = 2$ there is no input, but the hidden state still remembers the first inp
 
 ## 4. Implementation
 
-```python
-import numpy as np
+The full script is [`code/13-deep-architectures/rnn_scratch.py`](../../code/13-deep-architectures/rnn_scratch.py) (NumPy only). It builds a vanilla RNN, an LSTM cell, and a GRU cell, then measures the vanishing gradient directly.
 
+### Build it from scratch
+
+**Step 1: the vanilla RNN.** The same tanh layer runs at every step, taking the current input and the previous hidden state. The loop is the point: step $t$ cannot start until step $t-1$ is done, which is why RNNs cannot be parallelized over time.
+
+```python
 def rnn_forward(xs, Wx, Wh, b, h0):
     h, hs = h0, []
-    for x in xs:                         # sequential: step t needs step t-1
+    for x in xs:                                   # sequential: step t needs step t-1
         h = np.tanh(Wx @ x + Wh @ h + b)
         hs.append(h)
-    return np.stack(hs)                  # [T, d_h]
+    return np.stack(hs)                            # [T, d_h]
 ```
+
+*Predict:* with the worked example's scalars ($w_x = 0.5$, $w_h = 0.8$, inputs $[1, 0, 2]$), what are $h_1, h_2, h_3$?
+
+**Step 2: the LSTM cell.** One matrix multiply produces four blocks: forget gate `f`, input gate `i`, output gate `o` (all sigmoids, so between 0 and 1), and candidate `g` (tanh). The cell state `c` is updated by *addition*, not by passing through a squashing layer, and that is what lets gradients survive many steps.
+
+```python
+def lstm_step(x, h, c, W, b):
+    z = W @ np.concatenate([x, h]) + b             # all four blocks in one matmul: [4*d_h]
+    f, i, o, g = np.split(z, 4)
+    f, i, o, g = sigmoid(f), sigmoid(i), sigmoid(o), np.tanh(g)
+    c = f * c + i * g                              # forget some old, write some new
+    h = o * np.tanh(c)                             # expose a filtered view of c
+    return h, c
+```
+
+*Predict:* if the forget gate is 1 and the input gate is 0 at every step, what happens to `c`? What is $\partial c_T / \partial c_0$?
+
+**Step 3: the GRU cell.** Two gates and no separate cell state. The update gate `z` interpolates between keeping the old state and taking the new candidate; the reset gate `r` decides how much of the old state the candidate may look at.
+
+```python
+def gru_step(x, h, W, U, b):
+    zr = sigmoid(W[:2] @ x + U[:2] @ h + b[:2])    # update gate z, reset gate r (stacked)
+    z, r = zr[0], zr[1]
+    h_new = np.tanh(W[2] @ x + U[2] @ (r * h) + b[2])
+    return (1 - z) * h + z * h_new                 # interpolate old and candidate
+```
+
+*Predict:* the LSTM has 4 weight blocks and the GRU 3. For the same sizes, what fraction of the LSTM's parameters does the GRU need?
+
+**Step 4: measure the vanishing gradient.** By the chain rule, $\partial h_T/\partial h_0$ is a product of $T$ Jacobians, each $\text{diag}(1 - h_t^2)\,W_h$. The script multiplies them out and takes the norm. Scaling an orthogonal $W_h$ controls how much each factor shrinks or stretches.
+
+```python
+def grad_norm_to_start(Wh, T, rng, d_x=4):
+    d_h = Wh.shape[0]
+    Wx = rng.normal(scale=0.5, size=(d_h, d_x))
+    h, J = np.zeros(d_h), np.eye(d_h)
+    for _ in range(T):
+        h = np.tanh(Wx @ rng.normal(size=d_x) + Wh @ h)
+        J = np.diag(1 - h ** 2) @ Wh @ J           # dh_t/dh_0 = diag(tanh') Wh ... chain rule
+    return np.linalg.norm(J, 2)
+```
+
+*Predict:* with $W_h$ exactly orthogonal (scale 1.0), every $W_h$ factor preserves length. Does the gradient still vanish? Why?
+
+### Use the library
+
+`nn.LSTM` and `nn.GRU` run steps 2 and 3 over a whole batch and sequence, in cuDNN kernels. PyTorch orders the LSTM gates input, forget, candidate, output and keeps two bias vectors, so its count is $4 d_h (d_x + d_h + 2)$ per layer. Most implementations, PyTorch included, initialize the forget-gate bias to 0; setting it to 1 by hand (as the script does) is a common trick to start in "remember" mode.
 
 ```python
 import torch
 from torch import nn
 
 lstm = nn.LSTM(input_size=16, hidden_size=64, num_layers=2, batch_first=True)
-out, (h_n, c_n) = lstm(torch.randn(8, 50, 16))   # out: [8, 50, 64]; h_n, c_n: [2, 8, 64]
+out, (h_n, c_n) = lstm(torch.randn(8, 50, 16))
+# out: [8, 50, 64]; h_n and c_n: [2, 8, 64]
 ```
 
-Runnable script (unrolled RNN numbers and figure): [`code/13-deep-architectures/architectures.py`](../../code/13-deep-architectures/architectures.py).
+### Run it
+
+```bash
+uv run code/13-deep-architectures/rnn_scratch.py
+```
+
+Key lines of the output (weights and inputs are synthetic):
+
+```text
+h_1..h_3: [0.4621 0.3537 0.8573]
+linear gradient factors: 0.8^3 = 0.512  0.8^30 = 0.0012  1.1^30 = 17.4
+LSTM h, c: (8,) (8,)  params: 416 (4 x d_h x (d_x + d_h + 1))
+GRU h: (8,)  params: 312 (3 x d_h x (d_x + d_h + 1))
+Wh = 0.5 x orthogonal: T=5 1.72e-02  T=20 1.76e-08  T=50 4.21e-21
+Wh = 1.0 x orthogonal: T=5 4.15e-01  T=20 5.70e-03  T=50 2.56e-08
+Wh = 1.5 x orthogonal: T=5 2.42e+00  T=20 1.17e+01  T=50 2.18e+00
+LSTM cell path with forget gate 0.95: 0.95^50 = 0.077
+```
+
+The first two lines match the worked example. Even an orthogonal $W_h$ vanishes, because each tanh derivative is below 1. At scale 1.5 the gradient grows at first, then saturating tanh units cap it: the signal is unstable rather than cleanly exploding. The LSTM's additive path keeps 7.7% of the signal after 50 steps with a 0.95 forget gate, versus $10^{-8}$ for the plain RNN. The script also includes a 1-D text CNN (a width-2 filter slid over word embeddings and max-pooled), the fast non-recurrent baseline for short-text classification. The figure script is [`code/13-deep-architectures/architectures.py`](../../code/13-deep-architectures/architectures.py).
 
 ## 5. Engineering
 
 **Where RNNs still fit.** Streaming inputs where you must update a state per step with constant memory; tiny on-device models; some time-series forecasting. For tabular time series, gradient boosting on lagged features is often a stronger baseline.
 
 **Why transformers replaced them for language.** RNNs must process tokens sequentially, so training can't be parallelized across time, and long-range information must survive many steps. Self-attention connects any two positions in one step and processes all positions in parallel during training. (Recent state-space models revisit recurrence with better long-range behavior.)
+
+**Sequence to sequence.** For translation or summarization, an encoder RNN reads the whole input and hands its final hidden state to a decoder RNN, which generates the output one token at a time. That single fixed-size vector is a bottleneck: everything about a 50-word sentence must fit in, say, 512 numbers, and quality drops as inputs get longer. Attention was invented to fix exactly this: let the decoder look back at *every* encoder state, weighted by relevance, at each output step. Transformers then dropped the recurrence and kept the attention (see [self-attention](../14-transformers/01-self-attention.md)).
 
 **Training tips.** Gradient clipping is standard; use LSTM or GRU cells rather than vanilla RNNs; truncated backpropagation through time limits memory for long sequences.
 
@@ -148,6 +222,10 @@ Pre-activation $= 0.5(-1) + 0.8(0.8573) = -0.5 + 0.6858 = 0.1858$. $h_4 = \tanh(
 **Next:** [Autoencoders, diffusion, and transfer learning](03-autoencoders-diffusion-and-transfer.md)
 
 **Related:** [Backpropagation](../11-gradient-descent-backprop/02-backpropagation.md) · [Self-attention](../14-transformers/01-self-attention.md) · [Model card: LSTM](../../models/lstm.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [CNNs and RNNs for Text](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/08-cnns-rnns-for-text), [Sequence-to-Sequence Models](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/09-sequence-to-sequence).*
+<!-- /deeper -->
 
 ## Interview angle
 

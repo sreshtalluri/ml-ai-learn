@@ -5,6 +5,7 @@ skill: transformers
 minutes: 45
 prerequisites: [vectors-and-matrices, neural-network-forward-pass, word-embeddings]
 related: [transformer-architecture, tokenization-and-pretraining, recurrent-networks]
+adapted_from: [phases/05-nlp-foundations-to-advanced/10-attention-mechanism, phases/07-transformers-deep-dive/01-why-transformers, phases/07-transformers-deep-dive/02-self-attention-from-scratch, phases/07-transformers-deep-dive/03-multi-head-attention, phases/19-capstone-projects/33-multihead-self-attention]
 ---
 
 # Self-attention
@@ -33,6 +34,9 @@ Each token's embedding is turned into three different vectors by three learned l
 For each token, compare its query with every key (a dot product: large when they point the same way). Turn those similarity scores into weights that sum to 1 with a softmax. The token's output is the weighted average of all the values.
 
 Compare with a recurrent network, which reads left to right and squeezes everything so far into one hidden state. In attention, "it" can reach "animal" in a single step, however far apart they are, and all positions are computed at once.
+
+> [!NOTE]
+> Attention is older than the transformer. It was added to RNN translation models in 2014 (Bahdanau et al.): at each output step the decoder scored every encoder hidden state, took a softmax, and read a weighted average of them, instead of relying on one fixed summary vector. That version scored with a small neural network ("additive" attention); Luong et al. (2015) showed a plain dot product works as well and is cheaper. The 2017 transformer kept the dot product, added the $\sqrt{d_k}$ scale, and removed the recurrence entirely, so a sequence attends to *itself*.
 
 ## 2. Visualization
 
@@ -129,27 +133,71 @@ The query matched $k_1$ better, so the output is mostly $v_1$. Notice it is stil
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+The full script is [`code/14-transformers/attention_scratch.py`](../../code/14-transformers/attention_scratch.py) (NumPy only). It builds attention in four pieces, then checks them against the worked example above.
+
+### Build it from scratch
+
+**Step 1: a softmax that cannot overflow.** Attention turns scores into weights with a softmax. `np.exp(1000)` is infinity, so subtract each row's maximum first. That changes nothing mathematically, because softmax is unchanged when you add the same constant to every input.
 
 ```python
-import numpy as np
-
 def softmax(z, axis=-1):
-    z = z - z.max(axis=axis, keepdims=True)          # numerical stability
-    e = np.exp(z)
+    z = z - z.max(axis=axis, keepdims=True)    # shift so the largest entry is 0
+    e = np.exp(z)                              # every value now in (0, 1]
     return e / e.sum(axis=axis, keepdims=True)
-
-def attention(Q, K, V, causal=False):
-    d_k = K.shape[-1]
-    scores = Q @ K.T / np.sqrt(d_k)                   # [n, n]
-    if causal:
-        future = np.triu(np.ones_like(scores, dtype=bool), k=1)
-        scores = np.where(future, -np.inf, scores)
-    A = softmax(scores)                               # rows sum to 1
-    return A @ V, A                                   # [n, d_v], [n, n]
 ```
 
-**In PyTorch** (batched, multi-head, fused kernels):
+*Predict:* what does `softmax([1000, 1001, 1002])` return? (Hint: the same as `softmax([0, 1, 2])`.)
+
+**Step 2: scaled dot-product attention.** This is the formula from section 3, line for line. `np.swapaxes(K, -1, -2)` transposes only the last two axes, so the same function works for one head `[n, d]` or many heads `[h, n, d]`. The causal mask writes $-\infty$ above the diagonal before the softmax, never after.
+
+```python
+def attention(Q, K, V, causal=False):
+    d_k = Q.shape[-1]
+    scores = Q @ np.swapaxes(K, -1, -2) / np.sqrt(d_k)   # [..., n, n]
+    if causal:
+        n = scores.shape[-1]
+        future = np.triu(np.ones((n, n), dtype=bool), k=1)
+        scores = np.where(future, -np.inf, scores)       # exp(-inf) = 0
+    A = softmax(scores)                                  # each row sums to 1
+    return A @ V, A                                      # [..., n, d_v], [..., n, n]
+```
+
+*Predict:* with `causal=True`, what is row 0 of `A`, whatever the inputs are?
+
+**Step 3: multi-head attention, the readable way.** Each head uses its own slice of the projection columns, so with $d_{\text{model}} = 8$ and $h = 2$ each head works in 4 dimensions. Run attention per head, concatenate, and mix with $W_O$.
+
+```python
+def mha_loop(X, Wq, Wk, Wv, Wo, h, causal=True):
+    d_head = X.shape[-1] // h
+    outs = []
+    for i in range(h):
+        cols = slice(i * d_head, (i + 1) * d_head)       # this head's slice of the projections
+        out, _ = attention(X @ Wq[:, cols], X @ Wk[:, cols], X @ Wv[:, cols], causal)
+        outs.append(out)                                 # [n, d_head]
+    return np.concatenate(outs, axis=-1) @ Wo            # [n, d_model]
+```
+
+*Predict:* if you set `h = 8` with $d_{\text{model}} = 8$, what is each head's $d_k$, and what happens to the $\sqrt{d_k}$ scale?
+
+**Step 4: the same thing without the loop.** Real implementations never loop over heads. They project once, reshape `[n, d_model]` into `[h, n, d_head]`, and let the head axis act like a batch axis. Merging reverses the reshape. The script checks that this gives exactly the loop's answer.
+
+```python
+def split_heads(M, h):                                   # [n, d] -> [h, n, d/h]
+    n, d = M.shape
+    return M.reshape(n, h, d // h).transpose(1, 0, 2)
+
+def mha_batched(X, Wq, Wk, Wv, Wo, h, causal=True):
+    Q, K, V = (split_heads(X @ W, h) for W in (Wq, Wk, Wv))
+    out, A = attention(Q, K, V, causal)                  # all heads in one call
+    merged = out.transpose(1, 0, 2).reshape(X.shape[0], -1)   # [n, d_model]
+    return merged @ Wo, A
+```
+
+*Predict:* if you forgot the `transpose(1, 0, 2)` before the final `reshape`, would the shapes still work? Would the answer still match the loop?
+
+### Use the library
+
+PyTorch does all four steps in fused kernels. `F.scaled_dot_product_attention` is step 2 (and picks a FlashAttention-style kernel when it can, so the $[n, n]$ matrix is never stored in full). `nn.MultiheadAttention` is steps 3 and 4 plus the four projection matrices and their biases.
 
 ```python
 import torch
@@ -163,7 +211,25 @@ mha = torch.nn.MultiheadAttention(embed_dim=512, num_heads=8, batch_first=True)
 out, weights = mha(x, x, x, need_weights=True)   # self-attention: Q, K, V all come from x
 ```
 
-Runnable script (the worked example, masked self-attention over a toy sentence, the $\sqrt{d_k}$ measurement, and the figure): [`code/14-transformers/self_attention.py`](../../code/14-transformers/self_attention.py).
+### Run it
+
+```bash
+uv run code/14-transformers/attention_scratch.py
+```
+
+Key lines of the output (the multi-head weights come from synthetic random matrices):
+
+```text
+== Course worked example (one query, two keys, d_k = 2) ==
+weights: [0.6698 0.3302]  output: [6.6976 1.9814]
+softmax([1000, 1001, 1002]) = [0.09   0.2447 0.6652]
+row 0 (first token can only see itself): [1. 0. 0. 0. 0. 0.]
+upper triangle all zero: True
+output shape: (6, 8)  per-head weights shape: (2, 6, 6)
+loop and batched agree: True
+```
+
+The first two lines reproduce the worked example in section 3. The figure script, with the masked sentence and the $\sqrt{d_k}$ measurement, is [`code/14-transformers/self_attention.py`](../../code/14-transformers/self_attention.py).
 
 ## 5. Engineering
 
@@ -215,6 +281,10 @@ Output $= 0.1956\,[10, 0] + 0.8044\,[0, 6] = [1.956,\; 4.827]$. Now the second v
 **Next:** [The transformer architecture](02-transformer-architecture.md)
 
 **Related:** [Tokenization and pretraining](../15-llms/01-tokenization-and-pretraining.md) · [Recurrent networks](../13-deep-architectures/02-recurrent-networks.md) · [Model card: transformer decoder](../../models/transformer-decoder.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Attention Mechanism — The Breakthrough](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/10-attention-mechanism), [Why Transformers — The Problems with RNNs](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/01-why-transformers), [Self-Attention from Scratch](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/02-self-attention-from-scratch), [Multi-Head Attention](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/03-multi-head-attention), [Multi-Head Self-Attention](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/33-multihead-self-attention).*
+<!-- /deeper -->
 
 ## Interview angle
 

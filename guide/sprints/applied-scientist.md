@@ -24,6 +24,7 @@ This sprint uses **full lessons**, not quick read: the math sections are the int
 ## Day 1: The math you'll be asked to use
 
 - Read: [Probability and statistics](../lessons/00-foundations/03-probability-and-statistics.md), [Calculus for ML](../lessons/00-foundations/02-calculus-for-ml.md), [Vectors and matrices](../lessons/00-foundations/01-vectors-and-matrices.md), [Overfitting and bias-variance](../lessons/02-ml-workflow/02-overfitting-and-bias-variance.md)
+- Also read: [Information theory](../lessons/00-foundations/05-information-theory.md), [Numerical stability](../lessons/00-foundations/06-numerical-stability.md)
 - Lab: underfitting vs overfitting
 - Cheat sheet: [formulas](../cheatsheets/formulas.md)
 - Be ready to: derive the bias-variance decomposition, apply Bayes' rule to a base-rate problem, and explain MLE vs MAP.
@@ -43,18 +44,21 @@ This sprint uses **full lessons**, not quick read: the math sections are the int
 ## Day 4: Deep learning
 
 - Read: [Gradient descent](../lessons/11-gradient-descent-backprop/01-gradient-descent.md), [Backpropagation](../lessons/11-gradient-descent-backprop/02-backpropagation.md), [Training and regularization](../lessons/12-training-regularization/01-training-and-regularization.md), [Convolutional networks](../lessons/13-deep-architectures/01-convolutional-networks.md), [Recurrent networks](../lessons/13-deep-architectures/02-recurrent-networks.md)
+- Also read: [Loss functions](../lessons/10-neural-networks/02-loss-functions.md), [Debugging neural networks](../lessons/12-training-regularization/02-debugging-neural-networks.md), [ZeRO sharding](../lessons/27-training-at-scale/05-zero-parameter-sharding.md)
 - Labs: gradient descent, backpropagation, convolution
 - Be ready to: backpropagate through a small network by hand, explain vanishing gradients and why residual connections and LSTMs help, and compare normalization schemes.
 
 ## Day 5: Transformers and generative models
 
 - Read: [Self-attention](../lessons/14-transformers/01-self-attention.md), [Transformer architecture](../lessons/14-transformers/02-transformer-architecture.md), [Tokenization and pretraining](../lessons/15-llms/01-tokenization-and-pretraining.md), [Autoencoders, diffusion, and transfer learning](../lessons/13-deep-architectures/03-autoencoders-diffusion-and-transfer.md)
+- Also read: [BERT](../lessons/14-transformers/03-bert-masked-language-modeling.md), [Attention variants](../lessons/14-transformers/04-attention-variants.md), [Scaling laws](../lessons/15-llms/06-scaling-laws.md), [Latent diffusion](../lessons/13-deep-architectures/05-latent-diffusion-stable-diffusion.md)
 - Labs: self-attention, tokenizer
 - Be ready to: count a transformer's parameters and FLOPs, explain the attention cost in sequence length, and contrast autoregressive and diffusion generation.
 
 ## Day 6: Post-training, evaluation, and experiments
 
 - Read: [Fine-tuning in practice](../lessons/15-llms/04-fine-tuning-in-practice.md), [Evaluating LLM systems](../lessons/17-llm-evaluation/01-llm-evaluation.md), [Experimentation and A/B testing](../lessons/22-ml-system-design/02-experimentation-and-ab-testing.md)
+- Also read: [Policy gradients](../lessons/26-reinforcement-learning/04-policy-gradients-reinforce.md), [PPO](../lessons/26-reinforcement-learning/05-ppo.md), [Mixture of experts](../lessons/15-llms/05-mixture-of-experts.md)
 - Labs: LoRA and fine-tuning memory, A/B test power and peeking
 - Be ready to: compare RLHF with PPO against DPO, design an ablation, and compute a sample size for an online test.
 

@@ -22,6 +22,7 @@ summary: Seven days on what AI and LLM engineer loops test - how LLMs work, adap
 ## Day 1: How an LLM produces text
 
 - Read: [Tokenization and pretraining](../lessons/15-llms/01-tokenization-and-pretraining.md), [Self-attention](../lessons/14-transformers/01-self-attention.md), [Transformer architecture](../lessons/14-transformers/02-transformer-architecture.md), [Decoding](../lessons/15-llms/02-decoding.md)
+- Also read: [Attention variants](../lessons/14-transformers/04-attention-variants.md)
 - Labs: tokenizer, self-attention, temperature/top-k/top-p
 - Cheat sheet: [transformer architecture](../cheatsheets/transformer-architecture.md)
 - Be ready to: explain why token count drives cost and latency, what temperature does to the distribution, and what the KV cache stores.
@@ -29,6 +30,7 @@ summary: Seven days on what AI and LLM engineer loops test - how LLMs work, adap
 ## Day 2: Adapting models
 
 - Read: [Adapting LLMs](../lessons/15-llms/03-adapting-llms.md), [Fine-tuning in practice](../lessons/15-llms/04-fine-tuning-in-practice.md)
+- Also read: [Prompt engineering](../lessons/28-prompting-and-context/01-prompt-engineering.md), [Few-shot and chain-of-thought](../lessons/28-prompting-and-context/02-few-shot-cot.md)
 - Lab: LoRA and fine-tuning memory
 - Cheat sheets: [LLM adaptation](../cheatsheets/llm-adaptation.md), [fine-tuning](../cheatsheets/fine-tuning.md)
 - Be ready to: argue prompting vs RAG vs fine-tuning for a concrete product, compute LoRA's trainable parameters, and explain DPO in two sentences.
@@ -36,6 +38,7 @@ summary: Seven days on what AI and LLM engineer loops test - how LLMs work, adap
 ## Day 3: Retrieval
 
 - Read: [The RAG pipeline](../lessons/16-rag/01-rag-pipeline.md), [Vector search](../lessons/16-rag/02-vector-search.md), [Text to vectors](../lessons/09-classical-nlp/01-text-to-vectors.md)
+- Also read: [Context engineering](../lessons/28-prompting-and-context/03-context-engineering.md)
 - Labs: RAG pipeline, approximate nearest neighbors, TF-IDF
 - Cheat sheets: [RAG pipeline](../cheatsheets/rag-pipeline.md), [vector search](../cheatsheets/vector-search.md)
 - Be ready to: debug "the right document exists but the answer is wrong", justify hybrid search, and pick chunking settings.
@@ -43,6 +46,7 @@ summary: Seven days on what AI and LLM engineer loops test - how LLMs work, adap
 ## Day 4: Tools and agents
 
 - Read: [Tool use and agents](../lessons/19-agents/01-tool-use-and-agents.md), [Reliable agents](../lessons/19-agents/02-reliable-agents.md)
+- Also read: [Agent memory](../lessons/19-agents/03-agent-memory.md), [Model Context Protocol](../lessons/19-agents/04-model-context-protocol.md), [Multi-agent systems](../lessons/19-agents/05-multi-agent-systems.md)
 - Lab: agent loop
 - Cheat sheet: [agents](../cheatsheets/agents-and-tool-use.md)
 - Be ready to: explain how a tool call works end to end, when a fixed workflow beats an agent, and how per-step reliability compounds.
@@ -57,6 +61,7 @@ summary: Seven days on what AI and LLM engineer loops test - how LLMs work, adap
 ## Day 6: Inference, serving, and production
 
 - Read: [LLM inference](../lessons/18-llm-inference/01-llm-inference.md), [Serving LLMs](../lessons/18-llm-inference/02-serving-llms.md), [Production architecture](../lessons/20-production-ai/01-production-architecture.md), [Reliability, cost, and observability](../lessons/20-production-ai/02-reliability-cost-and-observability.md)
+- Also read: [Mixture of experts](../lessons/15-llms/05-mixture-of-experts.md), [Open-model architectures](../lessons/15-llms/07-open-models-architecture-walkthroughs.md)
 - Labs: KV cache and inference memory, static vs continuous batching, production architecture
 - Cheat sheets: [LLM inference](../cheatsheets/llm-inference.md), [production reliability](../cheatsheets/production-reliability.md)
 - Be ready to: estimate KV-cache memory, explain TTFT vs time per output token, and cut serving cost without losing quality.

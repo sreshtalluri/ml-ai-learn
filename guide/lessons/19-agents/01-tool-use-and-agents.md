@@ -5,6 +5,7 @@ skill: llms
 minutes: 45
 prerequisites: [decoding, rag-pipeline]
 related: [reliable-agents, ai-security, production-architecture, llm-evaluation]
+adapted_from: [phases/14-agent-engineering/01-the-agent-loop, phases/13-tools-and-protocols/01-the-tool-interface, phases/13-tools-and-protocols/02-function-calling-deep-dive, phases/13-tools-and-protocols/05-tool-schema-design]
 ---
 
 # Tool use and agents
@@ -147,40 +148,179 @@ so the output always parses. It does not make the model choose the right tool or
 
 ## 4. Implementation
 
-The whole runtime fits in a loop. The model here is a placeholder for any chat API that accepts tool schemas and returns either text or a tool call.
+The whole runtime is about 100 lines of stdlib Python. The model is the only part you don't write, so here it is a scripted stand-in that returns the same shapes a real API returns.
+
+### Build it from scratch
+
+**A tool is a function plus the text the model sees.** The model never reads your Python. It reads a name, a description, and a JSON Schema for the arguments. A decorator puts all three in a registry so the runtime can list them and look them up by name.
 
 ```python
-TOOLS = [{"name": "get_fare_rules",
-          "description": "Return refundability and change fee for one flight.",
-          "input_schema": {"type": "object",
-                           "properties": {"flight_id": {"type": "string"}},
-                           "required": ["flight_id"]}}]          # ... plus the other tools
+@dataclass
+class Tool:
+    name: str
+    description: str          # the model only sees this text and the schema
+    input_schema: dict        # JSON Schema for the arguments
+    fn: Callable[..., dict]
 
-def run_agent(task, max_steps=8, approve=ask_human):
-    messages = [{"role": "user", "content": task}]
-    for step in range(max_steps):                                # hard stop
-        reply = model(system=SYSTEM, tools=TOOLS, messages=messages)
-        messages.append({"role": "assistant", "content": reply})
-        if not reply.tool_calls:                                 # final answer
-            return reply.text
-        for call in reply.tool_calls:
-            if (err := validate(call, TOOLS)):                   # schema check
-                result = {"error": err}
-            elif call.name in SIDE_EFFECTS and not approve(call):
-                result = {"status": "declined_by_user"}          # human gate
-            else:
-                result = execute(call)                           # your code runs it
-            messages.append({"role": "tool", "id": call.id, "content": result})
-    return "Stopped: step limit reached."
+REGISTRY: dict[str, Tool] = {}
+
+def tool(description: str, input_schema: dict):
+    """Decorator: register a Python function as a tool the model can call."""
+    def wrap(fn):
+        REGISTRY[fn.__name__] = Tool(fn.__name__, description, input_schema, fn)
+        return fn
+    return wrap
 ```
 
-Note what the model never touches: validation, permissions, execution, and the step limit are all runtime code.
+*Predict:* two functions in different files are both called `search`. What happens to the registry, and what does the model see?
 
-Runnable script (scripted mock model, four mocked tools, schema validation, error retry, approval gate, the token arithmetic above, and the figure; fully offline): [`code/19-agents/agent_loop.py`](../../code/19-agents/agent_loop.py).
+**Validate arguments before running anything.** Constrained decoding guarantees the call parses, but not every provider enforces the schema, and a model can still send `412` where you wanted `"UA412"`. This checker covers the subset of JSON Schema the tools use: required fields, unknown fields, types, and enums.
+
+```python
+def validate(schema: dict, value) -> list[str]:
+    """Check a value against a small JSON Schema subset (object, string, number, enum)."""
+    t = schema.get("type")
+    if t == "object":
+        if not isinstance(value, dict):
+            return [f"expected object, got {type(value).__name__}"]
+        errors = [f"missing required field '{k}'" for k in schema.get("required", []) if k not in value]
+        errors += [f"unknown field '{k}'" for k in value if k not in schema.get("properties", {})]
+        for k, sub in schema.get("properties", {}).items():
+            if k in value:
+                errors += [f"{k}: {e}" for e in validate(sub, value[k])]
+        return errors
+```
+
+Objects recurse: each property is checked against its own sub-schema, and the error is prefixed with the field name so the model knows what to fix. The leaves are plain type checks:
+
+```python
+    if t == "string" and not isinstance(value, str):
+        return [f"expected string, got {type(value).__name__}"]
+    if t == "number" and (isinstance(value, bool) or not isinstance(value, (int, float))):
+        return [f"expected number, got {type(value).__name__}"]
+    if "enum" in schema and value not in schema["enum"]:
+        return [f"{value!r} not in {schema['enum']}"]
+    return []
+```
+
+*Predict:* why does the number check exclude `bool`? (Hint: what is `isinstance(True, int)` in Python?)
+
+**Write descriptions as routing instructions.** Each description says when to use the tool, what it returns, and when *not* to use it. That last sentence is what stops the model from calling `search_flights` when it wanted fare rules. The tool raises a helpful error instead of returning `None`.
+
+```python
+@tool("Use when you have a flight_id from search_flights and need refundability or change fee. "
+      "Do not use to search for flights.",
+      {"type": "object", "properties": {"flight_id": {"type": "string"}}, "required": ["flight_id"]})
+def get_fare_rules(flight_id):
+    if flight_id not in FLIGHTS:
+        raise KeyError(f"flight_id {flight_id} not found; call search_flights first")
+    f = FLIGHTS[flight_id]
+    return {"flight_id": flight_id, "refundable": f["refundable"], "change_fee": f["change_fee"]}
+```
+
+*Predict:* the model calls `get_fare_rules("XX999")`. Without the error text naming `search_flights`, what is the model likely to do next?
+
+**Dispatch turns every failure into an observation.** Unknown tool, bad arguments, or an exception inside the tool all become a `{"error": ...}` dict that goes back into the conversation. The loop never crashes, and the model gets a chance to correct itself.
+
+```python
+def dispatch(name: str, args: dict) -> dict:
+    """Run one tool call. Every failure becomes an observation the model can read, never a crash."""
+    t = REGISTRY.get(name)
+    if t is None:
+        return {"error": f"unknown tool {name!r}; available: {sorted(REGISTRY)}"}
+    if errs := validate(t.input_schema, args):
+        return {"error": "invalid arguments: " + "; ".join(errs)}
+    try:
+        return t.fn(**args)
+    except Exception as e:                      # tool bug or bad id: report, don't crash the loop
+        return {"error": f"{type(e).__name__}: {e}"}
+```
+
+*Predict:* the unknown-tool error lists the available tools. Why is that worth the extra tokens?
+
+**The loop.** Call the model with the conversation and the tool schemas. No tool calls means a final answer. Otherwise run every call (the model may emit several in one turn), append each result, and go again. The step limit belongs to the runtime, not the model.
+
+```python
+def run_agent(task: str, model, max_steps: int = 6):
+    messages = [{"role": "user", "content": task}]
+    tools = [to_anthropic(t) for t in REGISTRY.values()]
+    for step in range(1, max_steps + 1):          # hard stop owned by the runtime
+        reply = model(messages, tools)
+        messages.append({"role": "assistant", "content": reply})
+        if "tool_calls" not in reply:             # no tool call means final answer
+            return reply["text"], step, messages
+        for call in reply["tool_calls"]:          # parallel calls: run each, append each result
+            result = dispatch(call["name"], call["args"])
+            messages.append({"role": "tool", "name": call["name"], "content": result})
+            print(f"  step {step}: {call['name']}({json.dumps(call['args'])}) -> {json.dumps(result)}")
+    return "Stopped: step limit reached.", max_steps, messages
+```
+
+*Predict:* the scripted model in Run 2 calls a tool that doesn't exist on every turn. With `max_steps=3`, how many model calls are billed, and what does the user see?
+
+The script also has `search_flights`, a `to_anthropic` formatter (the wire format; OpenAI wraps the same three fields as `{"type": "function", "function": {..., "parameters": ...}}`), and the `ScriptedModel`. What the model never touches: validation, execution, error handling, and the step limit are all yours.
+
+### Use the library
+
+With a real provider the loop is the same. Only the wire format changes. Anthropic's Messages API returns `tool_use` content blocks and expects `tool_result` blocks back in a user message:
+
+```python
+import json, anthropic                                      # pip install anthropic
+
+client = anthropic.Anthropic()                              # reads ANTHROPIC_API_KEY
+tools = [to_anthropic(t) for t in REGISTRY.values()]
+messages = [{"role": "user", "content": "Cheapest refundable SEA->SFO?"}]
+for _ in range(6):
+    resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024,
+                                  tools=tools, messages=messages)
+    messages.append({"role": "assistant", "content": resp.content})
+    if resp.stop_reason != "tool_use":
+        break
+    messages.append({"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(dispatch(b.name, b.input))}
+        for b in resp.content if b.type == "tool_use"]})
+```
+
+OpenAI's Chat Completions API works the same way: tools go in as `{"type": "function", "function": {...}}`, calls come back in `message.tool_calls` with arguments as a JSON *string*, and each result goes back as a `{"role": "tool", "tool_call_id": ...}` message. Both providers offer a strict mode that constrains decoding to your schema. Agent frameworks and the providers' own agent SDKs wrap this loop, but they still run your validation, permissions, and limits only if you add them.
+
+To expose the same tools to any MCP host instead of one app, the official Python SDK turns typed functions into an MCP server; type hints and the docstring become the schema and description:
+
+```python
+from mcp.server.fastmcp import FastMCP                      # pip install mcp
+
+mcp = FastMCP("flights")
+
+@mcp.tool()
+def get_fare_rules(flight_id: str) -> dict:
+    """Use when you have a flight_id and need refundability or change fee."""
+    ...
+
+if __name__ == "__main__":
+    mcp.run()                                               # stdio transport by default
+```
+
+### Run it
+
+```bash
+uv run code/19-agents/tool_registry_scratch.py
+```
+
+Key output (the model sends a bad argument, reads the error, then makes two parallel calls):
+
+```text
+  step 2: get_fare_rules({"flight_id": 412}) -> {"error": "invalid arguments: flight_id: expected string, got int"}
+  step 3: get_fare_rules({"flight_id": "UA412"}) -> {"flight_id": "UA412", "refundable": false, "change_fee": 99}
+  step 3: get_fare_rules({"flight_id": "AS330"}) -> {"flight_id": "AS330", "refundable": true, "change_fee": 0}
+  final (4 model calls): UA412 is cheapest (289) but non-refundable; AS330 (312) is refundable.
+...
+  final (3 model calls): Stopped: step limit reached.
+```
+
+The fuller script behind the figure and lab (four mocked tools, approval gate for side effects, the token arithmetic from section 3): [`code/19-agents/agent_loop.py`](../../code/19-agents/agent_loop.py).
 
 ## 5. Engineering
 
-**Writing tool schemas.** The description is a prompt. Say what the tool does, what it returns, and when *not* to use it. Use specific names (`search_flights`, not `search`). Keep the tool list short: every schema costs tokens on every call and every extra similar-looking tool is a chance to pick the wrong one. Return compact, structured results, and make errors informative ("flight_id not found; use search_flights first") so the model can recover. The [next lesson](02-reliable-agents.md) covers tool design in depth.
+**Writing tool schemas.** The description is a prompt. Say what the tool does, what it returns, and when *not* to use it. Use specific names (`search_flights`, not `search`). Keep the tool list short: every schema costs tokens on every call and every extra similar-looking tool is a chance to pick the wrong one. Return compact, structured results, and make errors informative ("flight_id not found; use search_flights first") so the model can recover. A few rules worth linting automatically: snake_case verb-noun names with no arguments baked in (`get_weather`, not `get_weather_in_paris`); a `required` list and a type on every property; an `enum` wherever the set of values is closed; and one tool per action rather than a monolithic `manage_booking(action: str, ...)` whose meaning hides in a free-text field. The [next lesson](02-reliable-agents.md) covers tool design in depth.
 
 **Parallel tool calls.** Most APIs let the model emit several independent calls in one turn (check fare rules for three flights at once). The runtime runs them concurrently and appends all results. This cuts model calls and wall-clock time.
 
@@ -245,6 +385,12 @@ Keep `last_call = None`; before executing, `if call == last_call: return "Stoppe
 **Next:** [Building reliable agents](02-reliable-agents.md)
 
 **Related:** [Decoding](../15-llms/02-decoding.md) · [RAG pipeline](../16-rag/01-rag-pipeline.md) · [Securing AI systems](../21-safety-security/01-ai-security.md) · [Production architecture](../20-production-ai/01-production-architecture.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Function Calling & Tool Use](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/09-function-calling) · [Agent Framework Tradeoffs — Graph, Role, and Actor Orchestration](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/17-agent-framework-tradeoffs) · [Multimodal Agents and Computer-Use (Capstone)](https://aiengineeringfromscratch.com/lesson?path=phases/12-multimodal-ai/25-multimodal-agents-computer-use) · [Parallel Tool Calls and Streaming with Tools](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/03-parallel-and-streaming-tool-calls) · [Agent Skills: Portable Contract and Runtime Boundary](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/22-skills-and-agent-sdks) · [ReWOO and Plan-and-Execute: Decoupled Planning](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/02-rewoo-plan-and-execute)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [The Agent Loop: Observe, Think, Act](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/01-the-agent-loop), [The Tool Interface — Why Agents Need Structured I/O](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/01-the-tool-interface), [Function Calling Deep Dive — OpenAI, Anthropic, Gemini](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/02-function-calling-deep-dive), [Tool Schema Design — Naming, Descriptions, Parameter Constraints](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/05-tool-schema-design).*
+<!-- /deeper -->
 
 ## Interview angle
 

@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 35
 prerequisites: [neural-network-forward-pass, training-and-regularization]
 related: [recurrent-networks, autoencoders-diffusion-and-transfer, transformer-architecture]
+adapted_from: [phases/04-computer-vision/02-convolutions-from-scratch, phases/04-computer-vision/03-cnns-lenet-to-resnet, phases/04-computer-vision/04-image-classification]
 ---
 
 # Convolutional networks
@@ -98,21 +99,76 @@ A layer with 64 input channels, 128 output channels, and 3×3 kernels: $128 \tim
 
 ## 4. Implementation
 
-```python
-import numpy as np
+The full script is [`code/13-deep-architectures/conv_scratch.py`](../../code/13-deep-architectures/conv_scratch.py) (NumPy only). It builds a real multi-channel convolution, rewrites it as one matrix multiply the way fast libraries do, and adds pooling, receptive fields, and a residual connection.
 
-def conv2d(x, k, stride=1, pad=0):
-    x = np.pad(x, pad)
-    kh, kw = k.shape
-    oh, ow = (x.shape[0] - kh) // stride + 1, (x.shape[1] - kw) // stride + 1
-    out = np.zeros((oh, ow))
-    for i in range(oh):
-        for j in range(ow):
-            out[i, j] = np.sum(x[i*stride:i*stride+kh, j*stride:j*stride+kw] * k)
-    return out
+### Build it from scratch
+
+**Step 1: the output-size formula.** Count how many window positions fit. Every shape in a CNN comes from this one line.
+
+```python
+def out_size(n, k, pad=0, stride=1):
+    return (n + 2 * pad - k) // stride + 1
 ```
 
-A small image classifier in PyTorch:
+*Predict:* a 32×32 image, 5×5 kernel, no padding, stride 1. What size is the output? What padding keeps it at 32?
+
+**Step 2: multi-channel convolution.** The input is `[C_in, H, W]` and the weights are `[C_out, C_in, k, k]`. Each filter spans *all* input channels, so one output pixel sums `C_in × k × k` products. Each of the `C_out` filters produces one feature map.
+
+```python
+def conv2d(x, w, b=None, stride=1, pad=0):
+    c_out, _, k, _ = w.shape
+    x = np.pad(x, ((0, 0), (pad, pad), (pad, pad)))
+    oh, ow = out_size(x.shape[1], k, 0, stride), out_size(x.shape[2], k, 0, stride)
+    out = np.zeros((c_out, oh, ow))
+    for o in range(c_out):                                  # one feature map per filter
+        for i in range(oh):
+            for j in range(ow):
+                patch = x[:, i * stride:i * stride + k, j * stride:j * stride + k]
+                out[o, i, j] = np.sum(patch * w[o])         # sums over channels too
+    return out if b is None else out + b[:, None, None]
+```
+
+*Predict:* on worked example 1's step image, what does this return? (The script prints it.)
+
+**Step 3: im2col.** Three nested Python loops are slow. Copy every window into one column of a matrix, flatten each filter into a row, and the whole convolution becomes a single matrix multiply that BLAS or a GPU runs fast. The cost is memory: each input pixel is copied up to $k^2$ times.
+
+```python
+def conv2d_im2col(x, w, stride=1, pad=0):
+    c_out, c_in, k, _ = w.shape
+    x = np.pad(x, ((0, 0), (pad, pad), (pad, pad)))
+    oh, ow = out_size(x.shape[1], k, 0, stride), out_size(x.shape[2], k, 0, stride)
+    cols = np.stack([x[:, i * stride:i * stride + k, j * stride:j * stride + k].ravel()
+                     for i in range(oh) for j in range(ow)], axis=1)   # [C_in*k*k, oh*ow]
+    return (w.reshape(c_out, -1) @ cols).reshape(c_out, oh, ow)
+```
+
+*Predict:* for a `[3, 8, 8]` input, a 3×3 kernel, and padding 1, what shape is `cols`?
+
+**Step 4: receptive field.** Each layer widens what one output pixel can "see" by `k - 1` steps of its input. Strides and pooling make later steps cover more pixels. This is why stacks of small kernels replaced large ones: three 3×3 layers see 7×7 with fewer weights and two extra nonlinearities.
+
+```python
+def receptive_field(layers):                                # layers: [(kernel, stride), ...]
+    rf, jump = 1, 1
+    for k, s in layers:
+        rf += (k - 1) * jump                                # each layer widens by (k-1) input steps
+        jump *= s                                           # stride spreads later layers out
+    return rf
+```
+
+*Predict:* what is the receptive field of conv3 → pool2 → conv3 → pool2 → conv3?
+
+**Step 5: a residual block.** ResNet's idea is $y = x + F(x)$. If $F$'s weights are zero, the block passes its input straight through. A deep stack therefore starts close to the identity and gradients have a direct path back, which is what made 50 to 150 layer networks trainable.
+
+```python
+    y = relu(x + conv2d(relu(conv2d(x, zero, pad=1)), zero, pad=1))
+    print("output equals input:", bool(np.allclose(y, x)))
+```
+
+*Predict:* why does this need the input `x` to be non-negative (it went through a ReLU) for the output to equal it exactly?
+
+### Use the library
+
+`nn.Conv2d` is step 2 with learned weights; under the hood cuDNN picks among im2col-style GEMM, Winograd, and FFT algorithms per layer shape. Shapes follow the formula from step 1.
 
 ```python
 import torch
@@ -126,13 +182,33 @@ cnn = nn.Sequential(
 print(cnn(torch.randn(4, 3, 32, 32)).shape)   # torch.Size([4, 10])
 ```
 
-Runnable script (the feature map, size formula, pooling, and figure): [`code/13-deep-architectures/architectures.py`](../../code/13-deep-architectures/architectures.py).
+### Run it
+
+```bash
+uv run code/13-deep-architectures/conv_scratch.py
+```
+
+Key lines of the output:
+
+```text
+[[ 0. 27. 27.]
+ [ 0. 27. 27.]
+ [ 0. 27. 27.]]
+sizes: no pad 3  pad 1 5  stride 2 2
+output shape: (4, 8, 8)  max difference: 5.3e-15
+conv: 73856  dense 32x32x64 -> 32x32x64: 4,294,967,296
+three 3x3 stride-1 convs: 7  (same view as one 7x7)
+params, C=64 channels: three 3x3 = 110592  one 7x7 = 200704
+output equals input: True
+```
+
+The feature map, sizes, pooling, and parameter count match the three worked examples. The loop and im2col agree to floating-point rounding. The figure script is [`code/13-deep-architectures/architectures.py`](../../code/13-deep-architectures/architectures.py).
 
 ## 5. Engineering
 
 **Use pretrained models.** For most image tasks, start from a pretrained backbone (ResNet, EfficientNet, ConvNeXt, or a vision transformer) and fine-tune; training from scratch needs far more data (see [transfer learning](03-autoencoders-diffusion-and-transfer.md)).
 
-**Augmentation** (random crops, flips, color jitter) is essential for CNNs on small datasets, as long as it preserves the label.
+**Augmentation** (random crops, flips, color jitter) is essential for CNNs on small datasets, as long as it preserves the label. Mixup goes further: it blends two images and their one-hot labels with the same weight (say 0.7 and 0.3) and trains on the soft target, which smooths decision boundaries and reduces overconfidence.
 
 **Architecture pieces.** Batch normalization after convolutions; residual connections for depth; global average pooling instead of large dense heads; 1×1 convolutions to mix channels cheaply.
 
@@ -146,6 +222,7 @@ Runnable script (the feature map, size formula, pooling, and figure): [`code/13-
 - Forgetting that channels are a dimension: inputs are $[B, C, H, W]$ in PyTorch.
 - Computing the flattened size by hand wrong; run a dummy tensor through and print shapes.
 - Training a large CNN from scratch on a few thousand images.
+- Applying random augmentation at evaluation time, or computing the normalization mean and standard deviation on train plus test. Augment only the training split, and compute statistics from it alone (or use the pretrained model's own values).
 
 ## 6. Knowledge check
 
@@ -170,9 +247,15 @@ Convolution: $(32 - 5)/1 + 1 = 28$, so 28×28. Pooling: $28/2 = 14$, so 14×14.
 - Pooling downsamples and adds small-shift tolerance.
 - Locality and weight sharing make CNNs efficient for images; in practice, fine-tune pretrained backbones.
 
-**Next:** [Recurrent networks](02-recurrent-networks.md)
+**Next:** [Recurrent networks, LSTMs, and GRUs](02-recurrent-networks.md)
 
 **Related:** [Training and regularization](../12-training-regularization/01-training-and-regularization.md) · [Model card: CNN](../../models/cnn.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Image Fundamentals — Pixels, Channels, Color Spaces](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/01-image-fundamentals)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Convolutions from Scratch](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/02-convolutions-from-scratch), [CNNs — LeNet to ResNet](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/03-cnns-lenet-to-resnet), [Image Classification](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/04-image-classification).*
+<!-- /deeper -->
 
 ## Interview angle
 

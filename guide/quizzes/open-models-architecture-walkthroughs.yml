@@ -1,0 +1,129 @@
+title: "Open models: architecture walkthroughs"
+lesson: open-models-architecture-walkthroughs
+questions:
+  - id: om-kv-token
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A config has `num_hidden_layers: 28`, `num_attention_heads: 28`, `num_key_value_heads: 4`, `hidden_size: 3584`, no `head_dim` field, and every layer global. How many bytes of KV cache does one token need in BF16?
+    answer: 57344
+    tolerance: 0
+    explanation: |
+      $d = 3{,}584/28 = 128$. Per layer: $2 \cdot 4 \cdot 128 \cdot 2 = 2{,}048$ bytes. Times 28 layers: $57{,}344$ bytes (56 KiB). The 28 query heads do not enter the formula.
+  - id: om-attn-params
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A layer has $h = 2{,}048$, 16 query heads, 4 KV heads, head size 128, and no biases. How many attention parameters (Q, K, V, output) does it have, in millions? (2 decimals)
+    answer: 10.49
+    tolerance: 0.01
+    explanation: |
+      Q: $2{,}048 \cdot 16 \cdot 128 = 4{,}194{,}304$. K and V: $2 \cdot 2{,}048 \cdot 4 \cdot 128 = 2{,}097{,}152$. Output: $4{,}194{,}304$. Total $10{,}485{,}760 \approx 10.49$M.
+  - id: om-mixtral
+    type: numeric
+    difficulty: hard
+    prompt: |
+      A synthetic MoE has shared parameters (attention, norms, embeddings) of 2B and 16 experts per model of 1.5B each (summed across layers), with top-2 routing. How many billion parameters are active per token?
+    answer: 5
+    tolerance: 0
+    explanation: |
+      Active = shared + $k$ experts $= 2 + 2 \cdot 1.5 = 5$B. Total $= 2 + 16 \cdot 1.5 = 26$B, which sets memory (52 GB in BF16).
+  - id: om-swiglu
+    type: single
+    difficulty: medium
+    prompt: |
+      Why do SwiGLU models use an intermediate size near $\tfrac{8}{3}h$ instead of the $4h$ used by GPT-2's MLP?
+    options:
+      - The gated MLP has three matrices instead of two, so $3 \cdot h \cdot \tfrac{8}{3}h = 8h^2$ matches the $2 \cdot h \cdot 4h$ parameters of the GELU MLP.
+      - SwiGLU needs a smaller hidden size to stay numerically stable.
+      - RoPE requires the MLP width to be a multiple of 3.
+      - It halves the KV cache.
+    answer: 0
+    explanation: |
+      Keeping parameters equal makes the comparison fair. Llama 3 rounds up to $3.5h$ for hardware-friendly sizes.
+    why_not:
+      - ""
+      - Stability isn't the reason; the choice is about parameter budget.
+      - RoPE acts on queries and keys in attention, not on the MLP.
+      - The MLP doesn't affect the KV cache at all.
+  - id: om-headdim
+    type: single
+    difficulty: hard
+    prompt: |
+      Your parameter calculator gives 9.01B for Gemma 2 9B instead of the published 9.24B. Its config has `hidden_size: 3584`, `num_attention_heads: 16`, `head_dim: 256`. What's the most likely bug?
+    options:
+      - You computed head size as $3{,}584/16 = 224$ instead of using `head_dim = 256`, undercounting every attention projection.
+      - You forgot that Gemma 2 is a mixture-of-experts model.
+      - You counted the output head separately although embeddings are tied.
+      - You used BF16 instead of FP32.
+    answer: 0
+    explanation: |
+      With $d = 224$ the Q and output projections are $3{,}584 \times 3{,}584$ instead of $3{,}584 \times 4{,}096$, and K and V shrink too. Always prefer an explicit `head_dim`.
+    why_not:
+      - ""
+      - Gemma 2 9B is dense.
+      - That would overcount, by about 0.9B, not undercount.
+      - Precision affects bytes, not the parameter count.
+  - id: om-sliding
+    type: single
+    difficulty: hard
+    prompt: |
+      A team serves a model whose config has `layer_types` alternating sliding (window 4,096) and full attention. At 32k context their engine's KV memory is twice what your calculation predicts. What's the likely cause?
+    options:
+      - The engine doesn't implement the sliding-window layers' smaller cache and allocates full context for every layer.
+      - The model secretly uses MHA.
+      - RoPE doubles the cache at long context.
+      - The tokenizer produces twice as many tokens.
+    answer: 0
+    explanation: |
+      Half the layers should keep 4,096 tokens instead of 32,768. An engine that treats them as global allocates nearly twice the memory. Check the engine's support for the architecture.
+    why_not:
+      - ""
+      - "`num_key_value_heads` in the config defines the cache; the engine reads the same config."
+      - RoPE changes how keys are computed, not how many are stored.
+      - Token count affects both your calculation and the engine's the same way.
+  - id: om-pick
+    type: single
+    difficulty: medium
+    prompt: |
+      You need a model for one 80 GB GPU, serving many concurrent requests with 32k-token contexts, quality similar to a mid-size dense model. Which property should you weight most when comparing candidates of similar size?
+    options:
+      - KV-cache bytes per token: few KV heads, MLA, or sliding-window layers.
+      - Vocabulary size.
+      - Whether the model uses RMSNorm.
+      - Total parameter count only.
+    answer: 0
+    explanation: |
+      With many long requests, KV cache, not weights, limits concurrency. Two 8B models can differ several times in cache per token.
+    why_not:
+      - ""
+      - Vocabulary affects embedding size and tokens per text, but not concurrency much.
+      - Every current model uses RMSNorm; it doesn't discriminate.
+      - Parameter count sets weight memory but ignores the cache, which dominates here.
+  - id: om-mla
+    type: single
+    difficulty: medium
+    prompt: What does multi-head latent attention (MLA) store in the KV cache?
+    options:
+      - A small compressed latent per token per layer, plus a shared RoPE key, from which per-head keys and values are reconstructed.
+      - Keys and values for every head, in FP8.
+      - Only the keys; values are recomputed from scratch.
+      - One key-value head shared across all layers.
+    answer: 0
+    explanation: |
+      DeepSeek-V3 caches $512 + 64 = 576$ values per token per layer, about 71× less than full per-head keys and values for 128 heads.
+    why_not:
+      - ""
+      - That describes KV quantization, which is orthogonal.
+      - Values are reconstructed from the latent like keys; neither is recomputed from the hidden states.
+      - Cross-layer sharing is a different technique; MLA caches one latent per layer.
+  - id: om-match
+    type: match
+    difficulty: easy
+    prompt: Match each component with what it replaced and why.
+    pairs:
+      - ["RMSNorm", "LayerNorm without mean subtraction or bias: cheaper, equally stable"]
+      - ["RoPE", "Learned position table: relative positions, context can be extended"]
+      - ["SwiGLU", "GELU MLP: gated, better loss per parameter"]
+      - ["Grouped-query attention", "Multi-head attention: fewer KV heads, smaller cache"]
+    explanation: These four appear in essentially every current open dense model.

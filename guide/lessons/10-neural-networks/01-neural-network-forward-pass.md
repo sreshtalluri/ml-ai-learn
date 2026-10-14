@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 40
 prerequisites: [vectors-and-matrices, logistic-regression]
 related: [gradient-descent, backpropagation, self-attention]
+adapted_from: [phases/03-deep-learning-core/01-the-perceptron, phases/03-deep-learning-core/02-multi-layer-networks, phases/03-deep-learning-core/04-activation-functions]
 ---
 
 # The neural-network forward pass
@@ -147,20 +148,76 @@ with the bias broadcast across the $B$ rows. For a batch of 4 examples: $X$ is $
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+The full script is [`code/10-neural-networks/mlp_scratch.py`](../../code/10-neural-networks/mlp_scratch.py) (NumPy only). It starts from a single perceptron, shows exactly where it breaks, and builds the multilayer network that fixes it.
+
+### Build it from scratch
+
+**Step 1: the perceptron.** One neuron with a hard threshold, trained by the 1958 perceptron rule: when it misclassifies a point, move the weights toward that point (or away from it). It needs no gradients, but it only works when one straight line can separate the classes.
 
 ```python
-import numpy as np
-
-def relu(z): return np.maximum(0, z)
-def sigmoid(z): return 1 / (1 + np.exp(-z))
-
-def forward(X, W1, b1, W2, b2):
-    H = relu(X @ W1.T + b1)        # [B, d_in] @ [d_in, d_h] -> [B, d_h]
-    return sigmoid(H @ W2.T + b2)  # [B, d_h] @ [d_h, 1]    -> [B, 1]
+def train_perceptron(X, y, lr=0.1, epochs=50):
+    w, b = np.zeros(X.shape[1]), 0.0
+    for epoch in range(1, epochs + 1):
+        mistakes = 0
+        for xi, yi in zip(X, y):
+            pred = int(w @ xi + b >= 0)          # step function: fire or not
+            if pred != yi:
+                w += lr * (yi - pred) * xi       # nudge the boundary toward the missed point
+                b += lr * (yi - pred)
+                mistakes += 1
+        if mistakes == 0:
+            return w, b, epoch                   # a full pass with no mistakes: converged
+    return w, b, None                            # never converged
 ```
 
-**In PyTorch:**
+*Predict:* AND converges in a few epochs. What happens on XOR, where no single line separates the 1s from the 0s?
+
+**Step 2: activation functions.** The nonlinearity between layers. ReLU is the default for hidden layers in MLPs and CNNs, GELU is the default inside transformers, and sigmoid and tanh mostly survive at outputs and inside gates.
+
+```python
+ACTIVATIONS = {
+    "relu": lambda z: np.maximum(0, z),
+    "sigmoid": lambda z: 1 / (1 + np.exp(-z)),
+    "tanh": np.tanh,
+    "gelu": lambda z: 0.5 * z * (1 + np.tanh(np.sqrt(2 / np.pi) * (z + 0.044715 * z ** 3))),
+}
+```
+
+*Predict:* which of these four outputs a negative number for a negative input, and which output exactly 0?
+
+**Step 3: a layer and a network.** A layer is the affine map from section 3 followed by an activation. It takes a batch `X` of shape `[B, d_in]`, so the weight matrix is transposed, exactly as `nn.Linear` does it. A network is a list of layers applied in order.
+
+```python
+class Layer:
+    def __init__(self, W, b, act):
+        self.W, self.b, self.act = np.asarray(W, float), np.asarray(b, float), ACTIVATIONS[act]
+
+    def __call__(self, X):                       # X: [B, d_in]
+        return self.act(X @ self.W.T + self.b)   # [B, d_in] @ [d_in, d_out] -> [B, d_out]
+
+    def n_params(self):
+        return self.W.size + self.b.size
+
+def forward(layers, X):
+    for layer in layers:
+        X = layer(X)
+    return X
+```
+
+*Predict:* the course network has `W1` of shape `[3, 2]` and `W2` of shape `[1, 3]`. What does `n_params` add up to across both layers?
+
+**Step 4: solve XOR by hand.** Two ReLU units are enough. The first computes $h_1 = x_1 + x_2$, the second $h_2 = \max(0, x_1 + x_2 - 1)$, which is only nonzero for $(1, 1)$. The output $h_1 - 2h_2$ gives 0, 1, 1, 0.
+
+```python
+    xor_net = [Layer([[1, 1], [1, 1]], [0, -1], "relu"),     # h1 = x1+x2, h2 = x1+x2-1
+               Layer([[1, -2]], [0], "relu")]                # y = h1 - 2*h2
+```
+
+*Predict:* replace `"relu"` with a linear activation in the first layer. Can any choice of output weights still produce 0, 1, 1, 0?
+
+### Use the library
+
+In PyTorch, `nn.Linear` is step 3's affine map with initialized weights, and autograd records every operation so [backpropagation](../11-gradient-descent-backprop/02-backpropagation.md) comes for free.
 
 ```python
 import torch
@@ -171,12 +228,30 @@ model = nn.Sequential(
     nn.ReLU(),
     nn.Linear(3, 1),
 )
-logits = model(torch.randn(4, 2))     # [4, 1] raw scores
+logits = model(torch.randn(4, 2))   # [4, 1] raw scores
 probs = torch.sigmoid(logits)
 # For training, pass logits to nn.BCEWithLogitsLoss, which is more numerically stable.
 ```
 
-Runnable script (worked example, batched shapes, the linear-collapse check, the XOR figure): [`code/10-neural-networks/forward_pass.py`](../../code/10-neural-networks/forward_pass.py).
+### Run it
+
+```bash
+uv run code/10-neural-networks/mlp_scratch.py
+```
+
+Key lines of the output:
+
+```text
+AND: converged at epoch 4; predictions [0 0 0 1], targets [0 0 0 1]
+XOR: did NOT converge in 50 epochs; predictions [1 1 0 0], targets [0 1 1 0]
+hidden a1 = [0.  2.  0.5]  y_hat = [0.5622]
+parameters: 13
+outputs [0. 1. 1. 0.]  targets [0 1 1 0]
+two linear layers: [-1.25]  one layer Wc x + bc: [-1.25]
+bias -3: 90% of 20 units never fire on 1,000 inputs
+```
+
+The worked example's 0.5622, the 13 parameters, and the $-1.25$ linear collapse all match section 3. The last line (synthetic random inputs) shows dead ReLUs: units whose pre-activation is negative for every input never fire and get zero gradient. The figure script with batched shapes and the XOR decision boundary is [`code/10-neural-networks/forward_pass.py`](../../code/10-neural-networks/forward_pass.py).
 
 ## 5. Engineering
 
@@ -200,6 +275,7 @@ Runnable script (worked example, batched shapes, the linear-collapse check, the 
 - Mixing up `[d_out, d_in]` (PyTorch weight storage) with `[d_in, d_out]` when implementing from scratch.
 - Not tracking shapes, then "fixing" an error with a transpose that changes the meaning.
 - Initializing all weights to zero.
+- Ignoring dead ReLUs. A unit whose pre-activation is negative for every input outputs 0 and gets zero gradient, so it never recovers. Large learning rates or badly shifted biases cause it; check the fraction of units that never fire on a batch, and try Leaky ReLU or GELU if it is high.
 
 ## 6. Knowledge check
 
@@ -227,9 +303,15 @@ This matches the second row of the batched output in the script.
 - Without nonlinear activations, any stack of layers collapses into one linear layer.
 - ReLU (and GELU in transformers) are the defaults; return logits and let the loss apply the final squashing.
 
-**Next:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md)
+**Next:** [Loss functions](02-loss-functions.md)
 
 **Related:** [Logistic regression](../04-classification/01-logistic-regression.md) · [Backpropagation](../11-gradient-descent-backprop/02-backpropagation.md) · [Model card: MLP](../../models/multilayer-perceptron.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Introduction to JAX](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/12-intro-to-jax)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [The Perceptron](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/01-the-perceptron), [Multi-Layer Networks and Forward Pass](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/02-multi-layer-networks), [Activation Functions](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/04-activation-functions).*
+<!-- /deeper -->
 
 ## Interview angle
 

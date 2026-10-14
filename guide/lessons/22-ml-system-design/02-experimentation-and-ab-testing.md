@@ -4,6 +4,7 @@ summary: Design an A/B test that can actually detect the effect you care about, 
 skill: engineering
 minutes: 45
 prerequisites: [probability-and-statistics, ml-system-design]
+adapted_from: [phases/17-infrastructure-and-production/21-ab-testing-llm-features]
 related: [llm-evaluation, classification-metrics, reliability-cost-and-observability]
 ---
 
@@ -163,6 +164,102 @@ The 14 looks are highly correlated (day 9's data contains day 8's), so the infla
 
 ## 4. Implementation
 
+Section 3 gave you the fixed-horizon test and showed that peeking breaks it. This section builds the fix, an always-valid sequential test, plus the two checks every experimentation platform runs on top: multiple-comparison control and a sample ratio mismatch alarm.
+
+### Build it from scratch
+
+The script is [`code/22-ml-system-design/sequential_test_scratch.py`](../../code/22-ml-system-design/sequential_test_scratch.py) (NumPy plus stdlib, all traffic synthetic and seeded).
+
+**The naive rule.** Re-run the z-test after every day and stop the first time it crosses 1.96. The inputs are cumulative counts, so every look reuses all earlier data. That correlation is why the inflation is "only" about 4x and not the 10x you'd get from independent tests.
+
+```python
+def z_stats(ca, cb, n):
+    """Two-proportion z per look. ca, cb: cumulative conversions [looks]; n: cumulative users per arm."""
+    pool = (ca + cb) / (2 * n)
+    se = np.sqrt(pool * (1 - pool) * 2 / n)
+    return np.where(se > 0, (cb - ca) / n / np.where(se > 0, se, 1), 0.0)
+```
+
+*Predict:* if you looked every hour instead of every day for 14 days, would the false-positive rate go up, down, or stay at 0.216?
+
+**The mSPRT statistic.** A mixture sequential probability ratio test (Johari et al., 2017) compares "the effect is exactly zero" against "the effect is drawn from a normal prior with variance τ²". Averaging the likelihood ratio over that prior gives a closed form. Here $V$ is the variance of the observed difference $d$ in conversion rates:
+
+```math
+\Lambda_n = \sqrt{\frac{V}{V+\tau^2}}\;\exp\!\left(\frac{\tau^2 d^2}{2V(V+\tau^2)}\right)
+```
+
+Under no effect, $\Lambda_n$ is a martingale with mean 1, so by Ville's inequality the chance it *ever* reaches $1/\alpha$ is at most $\alpha$, however often you look.
+
+```python
+def msprt_lambda(ca, cb, n, tau2):
+    """Mixture likelihood ratio for H0: no difference. V is the variance of the observed difference."""
+    pool = (ca + cb) / (2 * n)
+    V = np.maximum(2 * pool * (1 - pool) / n, 1e-12)
+    d = (cb - ca) / n
+    return np.sqrt(V / (V + tau2)) * np.exp(tau2 * d**2 / (2 * V * (V + tau2)))
+```
+
+*Predict:* with $\alpha = 0.05$ the stopping threshold is 20. As $n$ grows, $V$ shrinks; what happens to the first factor $\sqrt{V/(V+\tau^2)}$, and why does that make the test harder to trigger on noise late in the run?
+
+**Simulate many experiments.** Each row is one experiment, each column one day. One call gives the fixed-horizon rate, the naive-peeking rate, the mSPRT rate, and the day mSPRT stopped (days + 1 means it never did).
+
+```python
+def simulate(p_a, p_b, users_per_day, days, sims, alpha=0.05, tau2=1e-4, seed=0):
+    rng = np.random.default_rng(seed)
+    ca = rng.binomial(users_per_day, p_a, size=(sims, days)).cumsum(1)
+    cb = rng.binomial(users_per_day, p_b, size=(sims, days)).cumsum(1)
+    n = users_per_day * np.arange(1, days + 1)
+    zcrit = N.inv_cdf(1 - alpha / 2)
+    naive = (np.abs(z_stats(ca, cb, n)) > zcrit).any(1).mean()
+    final = (np.abs(z_stats(ca, cb, n))[:, -1] > zcrit).mean()
+    hit = msprt_lambda(ca, cb, n, tau2) >= 1 / alpha
+    stop_day = np.where(hit.any(1), hit.argmax(1) + 1, days + 1)
+    return final, naive, hit.any(1).mean(), stop_day
+```
+
+*Predict:* `tau2 = 1e-4` means the prior expects effects of about ±0.01 (one percentage point). If the true effect were 0.1 points, would mSPRT be slower or faster than with a prior matched to it?
+
+**Benjamini-Hochberg.** Ten metrics at α = 0.05 give about one false "win" by chance alone. Bonferroni tests each at α/m and controls the chance of *any* false positive. Benjamini-Hochberg controls the expected *fraction* of false discoveries: sort the p-values, find the largest rank $r$ with $p_{(r)} \le q\,r/m$, and accept everything up to it.
+
+```python
+def benjamini_hochberg(pvals, q=0.05):
+    order = sorted(range(len(pvals)), key=pvals.__getitem__)
+    k = max((r for r, i in enumerate(order, 1) if pvals[i] <= q * r / len(pvals)), default=0)
+    return sorted(order[:k])                          # indices declared significant
+```
+
+*Predict:* p-values 0.001, 0.008, 0.012, 0.041, ... with m = 10. Check ranks 3 and 4 against $0.05 \cdot r/10$. Where does the cut fall?
+
+**SRM check.** Worked example 3 as a function. A chi-square with one degree of freedom is a squared z, so the p-value comes from the normal CDF.
+
+```python
+def srm_pvalue(n_a, n_b, share_a=0.5):
+    total = n_a + n_b
+    chi2 = (n_a - total * share_a) ** 2 / (total * share_a) + (n_b - total * (1 - share_a)) ** 2 / (total * (1 - share_a))
+    return 2 * (1 - N.cdf(math.sqrt(chi2)))           # 1 degree of freedom: chi2 = z^2
+```
+
+*Predict:* a 90/10 rollout logs 9,100 vs 900. Is that an SRM? (Pass `share_a=0.9`.)
+
+### Use the library
+
+For the fixed-horizon pieces, use `statsmodels`:
+
+```python
+from statsmodels.stats.proportion import proportions_ztest
+from statsmodels.stats.power import NormalIndPower
+from statsmodels.stats.proportion import proportion_effectsize
+from statsmodels.stats.multitest import multipletests
+
+z, p = proportions_ztest([1650, 1500], [15000, 15000])                       # z = 2.825, p = 0.0047
+n = NormalIndPower().solve_power(proportion_effectsize(0.11, 0.10), alpha=0.05, power=0.8)
+reject, p_adj, _, _ = multipletests(pvals, alpha=0.05, method="fdr_bh")      # Benjamini-Hochberg
+```
+
+`NormalIndPower` uses Cohen's arcsine effect size, so it returns about 14,744 per arm, close to but not identical to the 14,749 from the unpooled formula. Sequential testing, CUPED, and SRM alarms are usually built into the experimentation platform (GrowthBook is open source and warehouse-native; Statsig, Optimizely, and Eppo are hosted). Read which sequential method your platform uses and what τ (or equivalent) it assumes, because that sets the trade-off you see below.
+
+The fixed-horizon formula, written once by hand so you can sanity-check what a platform reports:
+
 ```python
 from statistics import NormalDist
 import math
@@ -184,9 +281,30 @@ sample_size(0.10, 0.10)          # 14749
 z_test(1500, 15000, 1650, 15000) # (2.825, 0.0047)
 ```
 
-In production you would use `statsmodels` (`proportions_ztest`, `NormalIndPower`) or your experimentation platform, but write the formula once by hand so you can sanity-check what the platform tells you.
+### Run it
 
-Runnable script (sample size, z-test, SRM, CUPED, the seeded A/A peeking simulation, and the figure): [`code/22-ml-system-design/ab_test.py`](../../code/22-ml-system-design/ab_test.py).
+From `guide/`:
+
+```bash
+uv run code/22-ml-system-design/sequential_test_scratch.py
+```
+
+```text
+A/A (no true effect), 4,000 synthetic experiments, 14 daily looks, 1,500 users/arm/day
+  fixed z-test, one look at day 14 : false-positive rate 0.051
+  z-test, stop at first p < 0.05   : false-positive rate 0.216
+  mSPRT, stop when Lambda >= 20    : false-positive rate 0.013
+A/B with a true 10% relative lift (10% -> 11%)
+  fixed z-test power at day 14 0.924; mSPRT power 0.693, median stop day 11 (15 = never stopped)
+10 metrics, raw p < 0.05: [0, 1, 2, 3, 4]
+  Bonferroni (p < 0.005): [0]
+  Benjamini-Hochberg q=0.05: [0, 1, 2]
+SRM 50,600 vs 49,400 planned 50/50: p = 0.00015
+```
+
+Read it as a trade-off, not a free lunch. mSPRT keeps the false-positive rate under 0.05 (0.013 here, it is conservative with daily looks) while you peek every day. It pays in power: 0.693 against 0.924 for one look at a fixed day 14. Sequential tests win when effects are large or you need to stop harmful variants early; a fixed horizon wins when you can wait.
+
+The sample-size, z-test, SRM, CUPED, and A/A peeking arithmetic from section 3, plus this lesson's figure, are in [`code/22-ml-system-design/ab_test.py`](../../code/22-ml-system-design/ab_test.py).
 
 ## 5. Engineering
 
@@ -247,9 +365,13 @@ Reuse the cumulative z-statistics from `aa_false_positive_rate`; mark a test sig
 - Check SRM, watch for novelty, primacy, and interference, and use CUPED to cut variance.
 - Offline evals gate; online A/B tests decide.
 
-**Next:** [Twelve-week plan](../23-projects/01-twelve-week-plan.md)
+**Next:** [Model monitoring and drift](03-model-monitoring-and-drift.md)
 
 **Related:** [ML system design](01-ml-system-design.md) · [Probability and statistics](../00-foundations/03-probability-and-statistics.md) · [Evaluating LLM systems](../17-llm-evaluation/01-llm-evaluation.md) · [Cheat sheet: ML system design](../../cheatsheets/ml-system-design.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [A/B Testing LLM Features — GrowthBook, Statsig, and the Vibes Problem](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/21-ab-testing-llm-features).*
+<!-- /deeper -->
 
 ## Interview angle
 

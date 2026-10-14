@@ -1,0 +1,145 @@
+title: Gradient clipping and mixed precision
+lesson: gradient-clipping-amp
+questions:
+  - id: clip-purpose
+    type: single
+    difficulty: easy
+    prompt: What problem does clipping gradients by their global L2 norm solve?
+    options:
+      - One unusual batch can produce a gradient hundreds of times larger than normal; clipping caps the size of that update so it cannot throw the weights far off.
+      - It stops the vocabulary from drifting during fine-tuning.
+      - It makes every training step faster.
+      - It removes the need for a learning-rate schedule.
+    answer: 0
+    explanation: |
+      Clipping rescales the whole gradient when its norm exceeds a threshold. Normal steps are untouched; spikes are capped while keeping their direction.
+    why_not:
+      - ""
+      - Clipping acts on gradient magnitudes, not on the tokenizer or vocabulary.
+      - Computing the norm adds a little work; it never makes steps faster.
+      - Warm-up and decay still matter; clipping only limits outlier steps.
+  - id: clip-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Gradients are $g_1 = [6, 8]$ and $g_2 = [0, 0]$. With global-norm clipping at $c = 2$, what is the first entry of the clipped $g_1$?
+    answer: 1.2
+    tolerance: 0.001
+    explanation: |
+      Norm $= \sqrt{36 + 64} = 10$. Factor $= \min(1, 2/10) = 0.2$. Clipped $g_1 = [6 \times 0.2, 8 \times 0.2] = [1.2, 1.6]$.
+  - id: clip-global-vs-value
+    type: single
+    difficulty: medium
+    prompt: Why clip by the global norm instead of clipping each value to $[-c, c]$?
+    options:
+      - Value clipping is not supported by PyTorch.
+      - Global-norm clipping multiplies every gradient by the same factor, so the update keeps its direction; value clipping shrinks components unequally and changes the direction.
+      - Global-norm clipping is cheaper to compute.
+      - Value clipping only works with SGD.
+    answer: 1
+    explanation: |
+      With $[3, 4]$ and $[12]$, global clipping to 1 keeps the 3 : 4 : 12 ratio. Clipping each value to 1 gives $[1, 1, 1]$, a different direction.
+    why_not:
+      - PyTorch has `clip_grad_value_`; it exists but changes direction.
+      - ""
+      - Global-norm clipping needs a reduction over all gradients, so it is slightly more work.
+      - Both can be used with any optimizer.
+  - id: amp-order
+    type: order
+    difficulty: medium
+    prompt: Put one fp16 training step with a GradScaler and clipping in the correct order.
+    options:
+      - "scaler.scale(loss).backward()"
+      - "scaler.unscale_(optimizer)"
+      - "clip_grad_norm_(model.parameters(), 1.0)"
+      - "scaler.step(optimizer)"
+      - "scaler.update()"
+    explanation: |
+      Backward on the scaled loss, unscale so gradients are true size, clip those, step (skipped automatically on inf/NaN), then update the scale on every step.
+  - id: amp-overflow-calc
+    type: numeric
+    difficulty: hard
+    prompt: |
+      fp16's largest finite value is 65,504. With a loss scale of $S = 2^{17} = 131{,}072$, above what true gradient magnitude does a scaled gradient overflow? (3 decimals)
+    answer: 0.5
+    tolerance: 0.001
+    explanation: |
+      Overflow when $|g| \cdot S > 65{,}504$, so $|g| > 65{,}504 / 131{,}072 = 0.49976 \approx 0.500$.
+  - id: amp-stuck-scale
+    type: single
+    difficulty: hard
+    prompt: |
+      An fp16 run logs "skipped step" on every step after step 300, and the logged loss scale never changes. What is the most likely bug?
+    options:
+      - The learning rate is too low.
+      - "`scaler.update()` is only called on successful steps, so the scale never halves after an overflow."
+      - The model is too small for fp16.
+      - Gradient clipping threshold is too high.
+    answer: 1
+    explanation: |
+      The scaler halves its factor inside `update()` when it has seen inf/NaN. If update is skipped on bad steps, the factor stays too high and every following step overflows again.
+    why_not:
+      - A low learning rate makes training slow, not every step non-finite.
+      - ""
+      - Model size does not determine whether the scale adapts.
+      - Clipping runs after the overflow check; it cannot cause or fix overflow.
+  - id: amp-bf16
+    type: single
+    difficulty: medium
+    prompt: Why does bf16 training usually not need a loss scaler while fp16 does?
+    options:
+      - bf16 has more mantissa bits than fp16.
+      - bf16 has 8 exponent bits, the same range as fp32, so small gradients do not underflow and large values rarely overflow.
+      - bf16 computes gradients in fp32 automatically.
+      - bf16 only works with SGD, which does not need scaling.
+    answer: 1
+    explanation: |
+      fp16 has 5 exponent bits (max 65,504, normals down to about $6 \times 10^{-5}$). bf16 trades mantissa (7 bits) for range (8 exponent bits).
+    why_not:
+      - It is the opposite; bf16 has 7 mantissa bits, fp16 has 10.
+      - ""
+      - Autocast chooses per-operation precision, but bf16 tensors stay bf16.
+      - bf16 works with any optimizer, including AdamW.
+  - id: amp-master
+    type: single
+    difficulty: medium
+    prompt: |
+      Why does mixed-precision training keep an fp32 master copy of the weights (the 4 bytes in "16 bytes per parameter")?
+    options:
+      - To make checkpoint files smaller.
+      - Small updates vanish in 16-bit; for example 1 + 0.0001 rounds back to 1 in fp16, so updates must accumulate in fp32.
+      - Because GPUs cannot read 16-bit weights.
+      - To store the Adam moments.
+    answer: 1
+    explanation: |
+      fp16's spacing near 1 is about 0.00098 and bf16's is about 0.0078. Typical updates are far smaller and would round away.
+    why_not:
+      - It makes checkpoints bigger, not smaller.
+      - ""
+      - Tensor cores are built for 16-bit matrix multiplies.
+      - The Adam moments are separate, 4 more bytes each.
+  - id: amp-nan-loss
+    type: single
+    difficulty: hard
+    prompt: |
+      A bf16 fine-tuning run (no loss scaler) produces a NaN loss on one particular batch every epoch. Which first step is most useful?
+    options:
+      - Switch to fp16 with a GradScaler.
+      - Lower the clip threshold from 1.0 to 0.1.
+      - Check the loss with `torch.isfinite` before backward, log that batch's IDs, and inspect it (for example an empty sequence giving 0/0 or an out-of-range label).
+      - Double the learning rate to escape the bad region.
+    answer: 2
+    explanation: |
+      A NaN tied to one batch points to the data or to a forward-pass overflow, not to gradient size. Skip and log the batch, then fix the data or the offending operation.
+    why_not:
+      - fp16 has a narrower range than bf16, so it would make overflow more likely.
+      - Clipping acts on gradients after backward; a NaN loss already poisons them.
+      - ""
+      - A higher learning rate makes instability worse.
+  - id: clip-every-step
+    type: short
+    difficulty: medium
+    prompt: The logged pre-clip gradient norm is above your threshold of 1.0 on 95% of steps. What does that mean, and what would you do?
+    sample_answer: |
+      Clipping is no longer a safety belt for rare spikes; it is rescaling almost every update, which acts like a smaller and varying learning rate. I would check whether the learning rate is too high or warm-up too short, look for bad data or numerical issues raising the norm, and compare runs with a lower learning rate or a higher threshold. Only rare steps should clip.
+    explanation: Frequent clipping hides a learning-rate or data problem.

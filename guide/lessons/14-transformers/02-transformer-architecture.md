@@ -5,6 +5,7 @@ skill: transformers
 minutes: 40
 prerequisites: [self-attention, training-and-regularization]
 related: [self-attention, tokenization-and-pretraining, decoding]
+adapted_from: [phases/07-transformers-deep-dive/04-positional-encoding, phases/07-transformers-deep-dive/05-full-transformer, phases/07-transformers-deep-dive/14-build-a-transformer-capstone, phases/19-capstone-projects/32-token-positional-embeddings, phases/19-capstone-projects/34-transformer-block, phases/19-capstone-projects/35-gpt-model-assembly]
 ---
 
 # The transformer architecture
@@ -67,6 +68,20 @@ y = x' + \text{FFN}(\text{LayerNorm}(x'))
 
 Shapes never change through a block: $[n, d]$ in, $[n, d]$ out. That is what makes blocks stackable.
 
+### Positional information
+
+Attention treats its input as a set: shuffle the tokens and each output row is shuffled the same way, with nothing else changed. Order has to be injected. Three schemes matter:
+
+- **Learned absolute** (GPT-2): a trainable table `pos_emb` of shape $[\text{ctx}, d]$, added to the token embedding. Nothing exists past `ctx`.
+- **Sinusoidal** (original transformer): a fixed table, no parameters. For position $p$ and feature pair $i$:
+
+```math
+PE(p, 2i) = \sin\!\left(\frac{p}{10000^{2i/d}}\right), \qquad PE(p, 2i+1) = \cos\!\left(\frac{p}{10000^{2i/d}}\right)
+```
+
+  With $d = 4$ at $p = 1$: pair $i = 0$ has frequency $1/10000^{0} = 1$, giving $\sin 1 = 0.8415$ and $\cos 1 = 0.5403$. Pair $i = 1$ has frequency $1/10000^{2/4} = 0.01$, giving $\sin 0.01 = 0.0100$ and $\cos 0.01 = 1.0000$. Low pairs spin fast and tell neighbours apart; high pairs spin slowly and encode coarse position.
+- **Rotary (RoPE)**, used by most current open LLMs: instead of adding anything, rotate each pair of query and key features by an angle proportional to the position. Rotating $q$ by angle $p\theta$ and $k$ by angle $m\theta$ makes $q \cdot k$ depend only on the offset $p - m$, so attention sees relative distance directly.
+
 ### Families
 
 | Family | Attention pattern | Typical use | Examples |
@@ -96,6 +111,81 @@ A forward pass costs roughly $2 \times (\text{parameters})$ multiply-adds per to
 
 ## 4. Implementation
 
+The full script is [`code/14-transformers/gpt_scratch.py`](../../code/14-transformers/gpt_scratch.py) (NumPy only). It reuses `attention`, `softmax`, and `split_heads` from the [self-attention lesson's script](../../code/14-transformers/attention_scratch.py) and assembles a complete GPT-style forward pass.
+
+### Build it from scratch
+
+**Step 1: one shape table for the whole model.** Every parameter's shape is written down once. The same table initializes the tiny model and counts GPT-2-small, so the count in section 3 is checked by code rather than trusted. The query, key, and value projections are fused into one $[d, 3d]$ matrix, as in GPT-2.
+
+```python
+def param_shapes(V, ctx, d, L, d_ff):
+    block = {"ln1_g": (d,), "ln1_b": (d,), "W_qkv": (d, 3 * d), "b_qkv": (3 * d,),
+             "W_o": (d, d), "b_o": (d,), "ln2_g": (d,), "ln2_b": (d,),
+             "W_1": (d, d_ff), "b_1": (d_ff,), "W_2": (d_ff, d), "b_2": (d,)}
+    top = {"tok_emb": (V, d), "pos_emb": (ctx, d), "lnf_g": (d,), "lnf_b": (d,)}
+    return top, [block] * L          # no separate output head: it reuses tok_emb
+```
+
+*Predict:* if you untie the output head (add a separate `(d, V)` matrix), how many parameters does GPT-2-small gain?
+
+**Step 2: the per-token operations.** LayerNorm normalizes each token's $d$ features to mean 0 and variance 1, then rescales with learned `g` and `b`. The MLP widens each token to $d_{\text{ff}}$, applies GELU, and projects back. Neither looks at other tokens.
+
+```python
+def layer_norm(x, g, b, eps=1e-5):
+    mu = x.mean(axis=-1, keepdims=True)                  # per token, over the d features
+    var = x.var(axis=-1, keepdims=True)
+    return g * (x - mu) / np.sqrt(var + eps) + b
+
+def gelu(x):                                             # tanh approximation used by GPT-2
+    return 0.5 * x * (1 + np.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * x ** 3)))
+
+def mlp(x, p):
+    return gelu(x @ p["W_1"] + p["b_1"]) @ p["W_2"] + p["b_2"]   # [n, d] -> [n, d_ff] -> [n, d]
+```
+
+*Predict:* LayerNorm here uses `axis=-1`. What would go wrong at inference if it normalized over the sequence axis instead?
+
+**Step 3: causal multi-head attention.** One matrix multiply produces Q, K, and V side by side; `np.split` cuts them apart. Then it is the batched multi-head attention from the previous lesson, followed by the output projection.
+
+```python
+def causal_mha(x, p, h):
+    q, k, v = np.split(x @ p["W_qkv"] + p["b_qkv"], 3, axis=-1)   # three [n, d]
+    out, _ = attention(split_heads(q, h), split_heads(k, h), split_heads(v, h), causal=True)
+    merged = out.transpose(1, 0, 2).reshape(x.shape[0], -1)       # [n, d]
+    return merged @ p["W_o"] + p["b_o"]
+```
+
+*Predict:* attention is the only place tokens exchange information. If you removed the causal mask here, which check in the output below would fail?
+
+**Step 4: one pre-norm block.** This is the two-line formula from section 3. Each sublayer sees a normalized copy of `x`, and its output is *added* to `x`. The residual path itself is never normalized, which is why gradients reach early layers cleanly.
+
+```python
+def block(x, p, h):
+    x = x + causal_mha(layer_norm(x, p["ln1_g"], p["ln1_b"]), p, h)   # communicate
+    x = x + mlp(layer_norm(x, p["ln2_g"], p["ln2_b"]), p)             # compute
+    return x                                                          # still [n, d]
+```
+
+*Predict:* if every weight in a block were zero, what would the block output?
+
+**Step 5: the whole model.** Look up a token vector and a position vector and add them. Run the blocks, apply a final LayerNorm, and multiply by the transposed token embedding to get one logit per vocabulary entry at every position.
+
+```python
+def gpt_forward(ids, P, h):
+    n = len(ids)
+    x = P["tok_emb"][ids] + P["pos_emb"][:n]           # [n, d]: what + where
+    for p in P["blocks"]:
+        x = block(x, p, h)
+    x = layer_norm(x, P["lnf_g"], P["lnf_b"])
+    return x @ P["tok_emb"].T                          # tied head: logits [n, V]
+```
+
+*Predict:* generation only needs the logits at the last position. What fraction of this computation does a [KV cache](../18-llm-inference/01-llm-inference.md) let you skip for each new token?
+
+### Use the library
+
+The PyTorch block below is the same computation as steps 2 to 4, with autograd, dropout, and fused GPU kernels. `nn.MultiheadAttention` holds separate Q, K, V weights where GPT-2 fuses them, but the parameter count is identical.
+
 ```python
 import torch
 from torch import nn
@@ -107,17 +197,37 @@ class Block(nn.Module):
         self.attn = nn.MultiheadAttention(d, heads, dropout=dropout, batch_first=True)
         self.ff = nn.Sequential(nn.Linear(d, d_ff), nn.GELU(), nn.Linear(d_ff, d), nn.Dropout(dropout))
 
-    def forward(self, x):                                   # x: [B, n, d]
+    def forward(self, x):                                  # x: [B, n, d]
         n = x.size(1)
         causal = torch.triu(torch.ones(n, n, dtype=torch.bool, device=x.device), diagonal=1)
         h = self.ln1(x)
         x = x + self.attn(h, h, h, attn_mask=causal, need_weights=False)[0]   # residual 1
-        return x + self.ff(self.ln2(x))                                      # residual 2
+        return x + self.ff(self.ln2(x))                                       # residual 2
 
-print(sum(p.numel() for p in Block().parameters()))   # 7,087,872
+print(sum(p.numel() for p in Block().parameters()))       # 7,087,872
 ```
 
-Runnable script (the full parameter count and figures): [`code/15-llms/llms.py`](../../code/15-llms/llms.py).
+To load real GPT-2 weights instead of random ones, use Hugging Face `transformers` (`AutoModelForCausalLM.from_pretrained("gpt2")`).
+
+### Run it
+
+```bash
+uv run code/14-transformers/gpt_scratch.py
+```
+
+Key lines of the output (the tiny model's weights are synthetic and random):
+
+```text
+== GPT-2-small parameter count from the shape table ==
+total: 124,439,808
+one block: 7,087,872
+ids shape: (5,) -> logits shape: (5, 12)
+positions 0-3 unchanged: True
+position 4 changed:      True
+sequence: [3, 7, 1, 4, 9, 9, 9, 9, 9, 9]
+```
+
+The totals match the hand count in section 3. Changing the last token leaves earlier logits untouched, which proves the mask works. Random weights generate a repeated token, which is what an untrained model does. FLOP and memory figures are in [`code/15-llms/llms.py`](../../code/15-llms/llms.py).
 
 ## 5. Engineering
 
@@ -159,9 +269,15 @@ Attention: $4 \times 512^2 + 4 \times 512 = 1{,}048{,}576 + 2{,}048 = 1{,}050{,}
 - The feed-forward layers hold about two-thirds of block parameters; GPT-2 small totals 124M.
 - Encoder-only for understanding and embeddings, decoder-only for generation, encoder-decoder (with cross-attention) for sequence-to-sequence tasks.
 
-**Next:** [Tokenization and pretraining](../15-llms/01-tokenization-and-pretraining.md)
+**Next:** [BERT and masked language modeling](03-bert-masked-language-modeling.md)
 
 **Related:** [Self-attention](01-self-attention.md) · [Model card: transformer encoder](../../models/transformer-encoder.md) · [Model card: transformer decoder](../../models/transformer-decoder.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Machine Translation](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/11-machine-translation)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Positional Encoding — Sinusoidal, RoPE, ALiBi](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/04-positional-encoding), [The Full Transformer — Encoder + Decoder](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/05-full-transformer), [Build a Transformer from Scratch — The Capstone](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/14-build-a-transformer-capstone), [Token and Positional Embeddings](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/32-token-positional-embeddings), [Transformer Block from Scratch](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/34-transformer-block), [GPT Model Assembly](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/35-gpt-model-assembly).*
+<!-- /deeper -->
 
 ## Interview angle
 

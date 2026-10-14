@@ -1,0 +1,133 @@
+title: Prompt engineering
+lesson: prompt-engineering
+questions:
+  - id: pe-vague
+    type: single
+    difficulty: easy
+    prompt: What is the most common reason a prompt gives mediocre or inconsistent results?
+    options:
+      - It doesn't include enough examples
+      - It leaves the label set, format, length, or edge cases unspecified, so the model guesses
+      - It uses the wrong API endpoint
+      - It uses too many tokens
+    answer: 1
+    explanation: Whatever the prompt leaves out, the model fills in with its most typical guess. Specifying labels, format, and edge-case rules removes those guesses.
+    why_not:
+      - Examples help, but a clearly specified zero-shot prompt often works; missing specification is the more common cause.
+      - Correct.
+      - The endpoint does not change how well the instructions describe the task.
+      - Length alone isn't the problem; a short vague prompt and a long contradictory one both fail.
+  - id: pe-parts
+    type: single
+    difficulty: easy
+    prompt: What does the system message usually hold in a chat API call?
+    options:
+      - The model's architecture and weights
+      - Standing rules for the whole conversation, such as role, scope, and output format
+      - The API key and authentication
+      - A compressed copy of earlier conversation turns
+    answer: 1
+    explanation: The system message sets rules that apply to every turn. It is re-sent on every call, so it also costs tokens on every call.
+    why_not:
+      - Weights are fixed; the system message is just text in the context.
+      - Correct.
+      - Authentication is an HTTP header, not part of the prompt.
+      - History compaction is a context-engineering technique; the system message is the standing instructions.
+  - id: pe-only-json
+    type: single
+    difficulty: medium
+    prompt: |
+      A prompt says `Respond as JSON: {"sentiment": "<label>"}`. Most outputs look like `Here is the analysis:` followed by valid JSON. Your code calls `json.loads` on the whole output. What is the most robust fix?
+    options:
+      - Raise the temperature so the model tries different phrasings
+      - Use the provider's structured-output or tool-calling feature with a JSON schema, and validate in code
+      - Add "please" to the instruction
+      - Strip the first line of every response
+    answer: 1
+    explanation: Schema-constrained decoding guarantees the output parses. Saying "output only the JSON" helps too, but validation in code is still needed.
+    why_not:
+      - Higher temperature adds variety, including more preambles; it makes parsing less reliable.
+      - Correct.
+      - Politeness doesn't specify the format.
+      - A brittle patch that breaks the moment the preamble changes or disappears.
+  - id: pe-temperature
+    type: single
+    difficulty: easy
+    prompt: Which temperature setting fits a classification prompt whose output feeds an automated pipeline?
+    options:
+      - Low (near 0), so the most probable label is chosen consistently
+      - High (around 1.5), so the model explores more labels
+      - Whatever the default is; temperature doesn't affect classification
+      - Alternate between low and high on each call
+    answer: 0
+    explanation: Low temperature concentrates probability on the top token. In the lesson's harness, the same prompt fell from 0.917 accuracy at T = 0 to about 0.70 at T = 1.0.
+    why_not:
+      - Correct.
+      - More randomness gives noisier labels, not better ones.
+      - Temperature changes the sampling distribution for every task, including classification.
+      - This adds noise and makes results impossible to reproduce.
+  - id: pe-se
+    type: numeric
+    difficulty: medium
+    prompt: A prompt passes 18 of 24 test cases. What is the standard error of the pass rate? (3 decimals)
+    answer: 0.088
+    tolerance: 0.002
+    explanation: |
+      $\hat p = 18/24 = 0.75$. $\hat p(1 - \hat p) = 0.75 \times 0.25 = 0.1875$. Divide by 24: $0.0078125$. Square root: $0.0884$.
+  - id: pe-n
+    type: numeric
+    difficulty: hard
+    prompt: You want the standard error of a pass rate to be at most 0.05 even in the worst case (p = 0.5). What is the minimum number of test cases?
+    answer: 100
+    tolerance: 0
+    explanation: |
+      $\sqrt{0.5 \times 0.5 / n} \le 0.05 \Rightarrow 0.25 / n \le 0.0025 \Rightarrow n \ge 100$.
+  - id: pe-diagnose
+    type: single
+    difficulty: medium
+    prompt: |
+      You changed one word in a prompt, tried it on three examples, and all three looked better. On your 50-case test set the pass rate went from 0.88 to 0.90. What should you conclude?
+    options:
+      - The change is an improvement; ship it
+      - The difference is within noise (about one case); look at which cases changed, and add cases before deciding
+      - The test set is wrong because it disagrees with the three examples
+      - The change made things worse
+    answer: 1
+    explanation: A one-case change on 50 cases is far below the standard error (about 0.045). A paired look at fixed and broken cases, and a larger set, are needed.
+    why_not:
+      - Three hand-picked examples plus a one-case gain is not evidence.
+      - Correct.
+      - Three examples are a far weaker sample than 50.
+      - It went up by one case; there's no evidence either way.
+  - id: pe-limits
+    type: single
+    difficulty: medium
+    prompt: A support bot answers policy questions incorrectly because the policies changed last month. Which fix addresses the cause?
+    options:
+      - Add "You are a world-class policy expert" to the system prompt
+      - Retrieve the current policy documents and put the relevant ones in the context
+      - Lower the temperature to 0
+      - Add more output-format rules
+    answer: 1
+    explanation: The model lacks current knowledge. Prompting changes behaviour, not facts; retrieval supplies the facts.
+    why_not:
+      - A role biases style; it cannot supply knowledge the model never saw.
+      - Correct.
+      - Determinism makes it consistently wrong, not right.
+      - Format rules don't change what the model knows.
+  - id: pe-version
+    type: single
+    difficulty: medium
+    prompt: Which practice makes it easiest to trace a bad production output back to its cause?
+    options:
+      - Edit the prompt directly in the production config whenever needed
+      - Version prompts in git, run the test suite on every change, and log the prompt version with each call
+      - Keep several prompt variants and pick one at random per call
+      - Only change prompts during model upgrades
+    answer: 1
+    explanation: Prompts are code. Versioning, tests, and logging the version per call let you reproduce and attribute any output.
+    why_not:
+      - Untracked edits make it impossible to know which prompt produced which output.
+      - Correct.
+      - Random variants without logging hide which one caused the failure.
+      - Bundling prompt and model changes means you can't tell which one caused a regression.

@@ -1,0 +1,132 @@
+title: GANs, generator versus discriminator
+lesson: gans-generator-discriminator
+questions:
+  - id: gan-d-step
+    type: single
+    difficulty: easy
+    prompt: What does the discriminator step of GAN training optimize?
+    options:
+      - Mean squared error between fakes and the nearest real sample
+      - Binary cross-entropy with real samples labeled 1 and generated samples labeled 0
+      - The likelihood of the real data under the generator
+      - The KL divergence between the noise and the data
+    answer: 1
+    explanation: D is an ordinary binary classifier. Its loss is $-\log D(x) - \log(1 - D(G(z)))$.
+    why_not:
+      - GANs never measure pixel distance to a target; that's what makes them sharp.
+      - ""
+      - GANs avoid computing a likelihood; that's the point of the adversarial setup.
+      - No term compares the noise distribution with the data.
+  - id: gan-optimal-d
+    type: numeric
+    difficulty: medium
+    prompt: At a point $x$, $p_{\text{data}}(x) = 0.3$ and $p_g(x) = 0.1$. What is the optimal discriminator output $D^*(x)$?
+    answer: 0.75
+    tolerance: 0.001
+    explanation: $D^*(x) = p_{\text{data}}/(p_{\text{data}} + p_g) = 0.3/0.4 = 0.75$.
+  - id: gan-ns-ratio
+    type: numeric
+    difficulty: medium
+    prompt: |
+      $D(G(z)) = 0.02$. With $D = \sigma(a)$, how many times larger in magnitude is the non-saturating generator gradient $\partial(-\log D)/\partial a$ than the saturating one $\partial \log(1 - D)/\partial a$?
+    answer: 49
+    tolerance: 0.01
+    explanation: Saturating gives $-D = -0.02$; non-saturating gives $-(1 - D) = -0.98$. Ratio $0.98/0.02 = 49$.
+  - id: gan-equilibrium-loss
+    type: numeric
+    difficulty: medium
+    prompt: At the GAN equilibrium, $D$ outputs 0.5 on every real and fake sample. What is the discriminator loss $L_D = -\ln D(x) - \ln(1 - D(G(z)))$? Give 3 decimals.
+    answer: 1.386
+    tolerance: 0.002
+    explanation: $-\ln 0.5 - \ln 0.5 = 0.693 + 0.693 = 1.386 = \ln 4$.
+  - id: gan-saturate
+    type: single
+    difficulty: medium
+    prompt: Why is the non-saturating loss $-\log D(G(z))$ preferred over minimizing $\log(1 - D(G(z)))$?
+    options:
+      - It has a different optimum that gives sharper samples
+      - Early on, D rejects fakes confidently, and the original loss then has almost zero gradient; the non-saturating loss has a large gradient there
+      - It makes D train faster
+      - It removes the need for a discriminator
+    answer: 1
+    explanation: Both share the same fixed point. The difference is gradient magnitude when $D(G(z))$ is near 0.
+    why_not:
+      - Both losses share the same equilibrium.
+      - ""
+      - It changes only G's loss; D's step is unchanged.
+      - The loss is computed through D.
+  - id: gan-detach
+    type: single
+    difficulty: hard
+    prompt: In a PyTorch GAN, you forget `fake.detach()` in the discriminator step and step only D's optimizer. Then the G step zeroes G's gradients before its own backward. What is the main effect?
+    options:
+      - D's loss gradients are also computed for G's parameters, which wastes compute; correctness is saved only because G's gradients are zeroed before its step
+      - D stops learning
+      - G receives no gradient at all in its own step
+      - Training becomes deterministic
+    answer: 0
+    explanation: Without detach, backprop from D's loss runs through G too. If G's grads weren't zeroed, G would be pushed to make fakes look fake. Detach makes intent explicit and saves compute.
+    why_not:
+      - ""
+      - D's own gradients are unaffected by the missing detach.
+      - G's step recomputes its loss and backward from scratch.
+      - Detach has nothing to do with randomness.
+  - id: gan-mode-collapse
+    type: single
+    difficulty: hard
+    prompt: A GAN trained on 10 digit classes produces mostly 1s and 7s. D's average output is near 0.5 and losses look stable. What's happening and what helps?
+    options:
+      - Underfitting; train longer with the same settings
+      - Mode collapse; D only shapes gradients where fakes are. Add minibatch statistics to D, spectral norm or a gradient penalty, and measure coverage (recall, FID)
+      - The dataset has too many 1s and 7s
+      - D is too weak; remove spectral normalization
+    answer: 1
+    explanation: Stable losses don't rule out collapse. Measure coverage and give D batch-level information so it can penalize low diversity.
+    why_not:
+      - More steps often lets G hop between modes rather than cover them.
+      - ""
+      - Possible, but check the data's class balance before blaming it; the symptom matches collapse.
+      - Removing a stabilizer usually makes collapse worse.
+  - id: gan-stabilizers
+    type: multi
+    difficulty: medium
+    prompt: Which are standard ways to stabilize GAN training? Select all that apply.
+    options:
+      - Spectral normalization on the discriminator
+      - Wasserstein loss with gradient penalty
+      - Adam with a low beta1 such as 0.5 or 0
+      - Using the saturating generator loss
+    answer: [0, 1, 2]
+    explanation: Spectral norm and gradient penalties bound D's slope; low momentum reduces oscillation. The saturating loss makes early training worse.
+  - id: gan-turbo
+    type: single
+    difficulty: medium
+    prompt: Which statement about fast (1 to 4 step) image samplers is accurate?
+    options:
+      - All of them are plain GANs trained from scratch
+      - SDXL-Turbo uses adversarial diffusion distillation, while Latent Consistency Models use consistency distillation without an adversarial loss
+      - They all use flow matching only, with no distillation
+      - They can only generate one class
+    answer: 1
+    explanation: Adversarial losses are one distillation tool, not the only one.
+    why_not:
+      - They are distilled from diffusion teachers, not trained as standalone GANs.
+      - ""
+      - Distillation is how they get to few steps.
+      - They are text-conditioned, open-domain models.
+  - id: gan-design
+    type: single
+    difficulty: hard
+    prompt: You need diverse, open-domain text-to-image generation with stable training, and latency of a few seconds is fine. Which is the better default?
+    options:
+      - A GAN, because sampling is one forward pass
+      - A latent diffusion or flow-matching model, because training is stable and it covers the distribution; distill later if latency becomes a problem
+      - A gazetteer of stock images
+      - An autoencoder trained with squared error only
+    answer: 1
+    explanation: GANs shine in narrow domains with tight latency. For open-domain quality and coverage, diffusion and flow matching are the default.
+    why_not:
+      - One-pass speed doesn't fix open-domain coverage and training instability, and latency isn't the constraint here.
+      - ""
+      - Retrieval isn't generation.
+      - Squared-error decoders produce blurry averages.

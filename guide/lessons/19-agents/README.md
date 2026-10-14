@@ -22,5 +22,8 @@ An agent is a model in a loop: it reads the context, calls a tool, sees the resu
 |---|---|---|
 | 1 | [Tool use and agents](01-tool-use-and-agents.md) | trace a tool call end to end, compute context and token growth, explain MCP, and choose between workflow patterns and an agent |
 | 2 | [Building reliable agents](02-reliable-agents.md) | quantify compounding error, design tools and guardrails, decide on multi-agent designs, and evaluate and observe agents |
+| 3 | [Agent memory](03-agent-memory.md) | size a context budget, page facts between the prompt and an external store with memory tools, and defend memory against rot and poisoning |
+| 4 | [Model Context Protocol](04-model-context-protocol.md) | trace a JSON-RPC tool call over stdio or Streamable HTTP, build a stdlib server and client, and design server state, errors, and trust boundaries |
+| 5 | [Multi-agent systems](05-multi-agent-systems.md) | choose between pipeline, fan-out, orchestrator-worker, and swarm designs, and compute their token and latency cost against a single agent |
 
 **Interactive lab:** [Agent loop](https://sreshtalluri.github.io/ml-ai-learn/labs/agent-loop/)

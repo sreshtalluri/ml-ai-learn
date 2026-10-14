@@ -81,9 +81,91 @@ Result: cluster 0 = {1.0, 1.5, 2.0, 2.4}, cluster 1 = {6.0, 6.3, 6.8}, and 12.0 
 
 ### Worked example: soft membership
 
-A two-component GMM fit to synthetic data (a tight cluster at 0 and a wider one at 4) gives the point $(2.2, 0)$ responsibilities $[0.402, 0.598]$. Although it is closer to the left center, the right cluster's larger spread makes the point more plausible under it. K-means would assign it to the left cluster with full confidence.
+A two-component GMM fit to synthetic data (a tight cluster at 0 and a wider one at 4) gives the point $(2.2, 0)$ responsibilities $[0.240, 0.760]$. Although it is closer to the left center, the right cluster's larger spread makes the point more plausible under it. K-means would assign it to the left cluster with full confidence.
 
 ## 4. Implementation
+
+### Build it from scratch
+
+DBSCAN and the EM loop for a Gaussian mixture each fit in about 20 lines of NumPy. The full script, which checks both against scikit-learn, is [`code/07-unsupervised/clustering.py`](../../code/07-unsupervised/clustering.py).
+
+**DBSCAN, part 1: neighbors and core points.** Compute all pairwise distances once, list each point's ε-neighbors (including itself, as in the worked example), and mark a point core when it has at least `min_samples` of them.
+
+```python
+def dbscan(X, eps, min_samples):
+    """Label each point with a cluster id, or -1 for noise. Also return the core-point mask."""
+    D = np.sqrt(((X[:, None, :] - X[None, :, :]) ** 2).sum(axis=2))   # [n, n] pairwise distances
+    nbrs = [np.flatnonzero(row <= eps) for row in D]                 # neighbors, including itself
+    core = np.array([len(nb) >= min_samples for nb in nbrs])
+    labels = np.full(len(X), -1)
+    cluster = 0
+```
+
+*Predict:* on the line example with ε = 0.6, how many entries does `nbrs` hold for the point 12.0, and is it core?
+
+**DBSCAN, part 2: grow clusters.** Start a new cluster at each unlabeled core point and flood-fill: every neighbor joins, but only core neighbors are pushed on the stack to expand further. Border points join a cluster and stop there; whatever is never reached keeps the label −1 (noise).
+
+```python
+    for i in np.flatnonzero(core):
+        if labels[i] != -1:                                          # already reached from another core point
+            continue
+        labels[i], stack = cluster, [i]
+        while stack:                                                 # flood-fill through core points
+            j = stack.pop()
+            for q in nbrs[j]:
+                if labels[q] == -1:
+                    labels[q] = cluster                              # core or border point joins
+                    if core[q]:
+                        stack.append(q)                              # only core points keep expanding
+        cluster += 1
+    return labels, core
+```
+
+*Predict:* if you removed the `if core[q]` check and pushed every neighbor, what would happen to 1.0 and 2.4 in the worked example, and to the two moons when a few noise points sit between them?
+
+**Gaussian density.** EM needs $\mathcal{N}(x \mid \mu, \Sigma)$ for every point. The `einsum` computes $d^\top \Sigma^{-1} d$ row by row (the squared Mahalanobis distance), so an elongated covariance makes distance along the long axis cheap.
+
+```python
+def gauss_pdf(X, mean, cov):
+    """Multivariate normal density N(x | mean, cov) for every row of X."""
+    d = X - mean                                                     # [n, p]
+    q = np.einsum("ij,jk,ik->i", d, np.linalg.inv(cov), d)           # squared Mahalanobis distance
+    return np.exp(-0.5 * q) / np.sqrt((2 * np.pi) ** X.shape[1] * np.linalg.det(cov))
+```
+
+*Predict:* with `cov` the identity matrix, what does `q` reduce to?
+
+**EM loop.** The E-step turns weighted densities into responsibilities $\gamma_{ik}$ (rows of `R`, each summing to 1). The M-step is K-means' update step with soft weights: $N_k$ effective points, new weights, weighted means, weighted covariances. The tiny ridge `1e-6 * I` keeps a component from collapsing onto a single point.
+
+```python
+def gmm_em(X, k, iters=200, seed=0, tol=1e-8):
+    """Fit a full-covariance Gaussian mixture with EM. Returns weights, means, covariances, responsibilities."""
+    n, p = X.shape
+    r = np.random.default_rng(seed)
+    pi, mu = np.full(k, 1 / k), X[r.choice(n, k, replace=False)]    # equal weights, random points as means
+    S = np.array([np.cov(X.T) for _ in range(k)])                    # start every component at the data covariance
+    prev = -np.inf
+    for _ in range(iters):
+        dens = np.stack([pi[j] * gauss_pdf(X, mu[j], S[j]) for j in range(k)], axis=1)   # [n, k]
+        ll = np.log(dens.sum(axis=1)).sum()                          # log-likelihood never decreases
+        R = dens / dens.sum(axis=1, keepdims=True)                   # E-step: responsibilities, rows sum to 1
+        Nk = R.sum(axis=0)                                           # M-step: effective points per component
+        pi, mu = Nk / n, (R.T @ X) / Nk[:, None]
+        S = np.array([(R[:, j, None] * (X - mu[j])).T @ (X - mu[j]) / Nk[j] + 1e-6 * np.eye(p)
+                      for j in range(k)])                            # small ridge stops collapse onto one point
+        if ll - prev < tol:
+            break
+        prev = ll
+    return pi, mu, S, R, ll
+```
+
+*Predict:* if you replaced each row of `R` with a one-hot vector at its largest entry fixed every `S[j]` to the identity, and kept every weight at 1/k, which algorithm would this loop become?
+
+Hierarchical clustering has no from-scratch version here: the naive algorithm (recompute all cluster distances after every merge) is $O(n^3)$, and SciPy's `linkage` is the standard tool.
+
+### Use the library
+
+In production, use scikit-learn for DBSCAN and Gaussian mixtures and SciPy for the dendrogram. Scale first, because every method here uses distances.
 
 ```python
 from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
@@ -106,7 +188,30 @@ probs = gmm.predict_proba(X)                                  # soft memberships
 anomaly_score = -gmm.score_samples(X)                         # low likelihood = unusual
 ```
 
-Runnable script (DBSCAN by hand, GMM probabilities, and figures): [`code/07-unsupervised/clustering_pca.py`](../../code/07-unsupervised/clustering_pca.py).
+`GaussianMixture` stops when the average per-point log-likelihood improves by less than `tol`, which defaults to `1e-3`. On the two-blob example that stops after 3 iterations, with $P(\text{left} \mid (2.2, 0)) = 0.402$ instead of the converged 0.240. Check `gmm.converged_` and `gmm.n_iter_`, and lower `tol` when you read individual probabilities.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/07-unsupervised/clustering.py
+```
+
+Key lines of output:
+
+```text
+DBSCAN eps=0.6 min_samples=3
+  from scratch labels: [0, 0, 0, 0, 1, 1, 1, -1]  core: [1, 2, 5]
+  scikit-learn labels: [0, 0, 0, 0, 1, 1, 1, -1]  core: [1, 2, 5]
+GMM on two synthetic blobs (tight at x=0, wide at x=4)
+  from scratch: weights [0.499 0.501], means x [0.003 3.879], log-likelihood -1524.10
+  scikit-learn: weights [0.499 0.501], means x [0.004 3.88 ], log-likelihood -1524.10
+  P(cluster | x=(2.2, 0)): from scratch [0.24 0.76], scikit-learn [0.24 0.76] (left, right)
+moons: DBSCAN found 2 clusters and 10 noise points; from scratch agrees on every point: True
+```
+
+The DBSCAN labels match the table in the worked example: indices 1, 2, and 5 (the points 1.5, 2.0, 6.3) are core, and 12.0 is noise. EM from scratch reaches the same likelihood and the same soft membership as scikit-learn.
 
 ## 5. Engineering
 
@@ -129,6 +234,7 @@ Runnable script (DBSCAN by hand, GMM probabilities, and figures): [`code/07-unsu
 - Running DBSCAN with default ε on unscaled data.
 - Treating DBSCAN noise as errors to delete rather than signals to inspect.
 - Using hierarchical clustering on 1 million points.
+- Reading GMM probabilities from a fit that stopped early: check `converged_` and lower `tol`.
 
 ## 6. Knowledge check
 
@@ -169,7 +275,7 @@ DBSCAN defines clusters as dense regions. A point is a core point if at least `m
 <details>
 <summary><strong>How does a Gaussian mixture model differ from K-means, and what is EM doing?</strong></summary>
 
-A GMM models the data as $p(x) = \sum_k \pi_k \mathcal{N}(x \mid \mu_k, \Sigma_k)$: each component has its own mean, its own covariance (so elliptical shapes and different spreads), and a mixing weight. EM alternates two steps. The E-step computes responsibilities $\gamma_{ik}$, the posterior probability that point $i$ came from component $k$, via Bayes' rule. The M-step re-estimates each $\pi_k$, $\mu_k$, and $\Sigma_k$ as responsibility-weighted averages. Each iteration never decreases the likelihood, and like K-means, it converges to a local optimum; K-means is the limit with hard assignments and identical round clusters. Practical differences: soft membership (the lesson's point at $(2.2, 0)$ is 60% the wider cluster despite being nearer the tight one), a likelihood for anomaly scoring, and BIC for choosing $K$. Costs: $O(p^2)$ parameters per full covariance, and components can collapse onto single points without regularization.
+A GMM models the data as $p(x) = \sum_k \pi_k \mathcal{N}(x \mid \mu_k, \Sigma_k)$: each component has its own mean, its own covariance (so elliptical shapes and different spreads), and a mixing weight. EM alternates two steps. The E-step computes responsibilities $\gamma_{ik}$, the posterior probability that point $i$ came from component $k$, via Bayes' rule. The M-step re-estimates each $\pi_k$, $\mu_k$, and $\Sigma_k$ as responsibility-weighted averages. Each iteration never decreases the likelihood, and like K-means, it converges to a local optimum; K-means is the limit with hard assignments and identical round clusters. Practical differences: soft membership (the lesson's point at $(2.2, 0)$ is 76% the wider cluster despite being nearer the tight one), a likelihood for anomaly scoring, and BIC for choosing $K$. Costs: $O(p^2)$ parameters per full covariance, and components can collapse onto single points without regularization.
 
 </details>
 

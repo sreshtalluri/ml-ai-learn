@@ -63,7 +63,11 @@ Section rules:
 - **Intuition.** Plain English first. No symbols until they are defined.
 - **Visualization.** Show a figure (PNG from `figures/`). If the site has an interactive lab for it, wrap the static figure in lab markers (see below).
 - **The math.** Include a symbol table (`| Symbol | Meaning | Shape |`), then the formula, then a worked numerical example where every arithmetic step is written out. Never write "it works out".
-- **Implementation.** Give a from-scratch NumPy version and a library version (scikit-learn / PyTorch). Keep inline snippets short and link the runnable script in `code/`.
+- **Implementation (build it).** The course is visual *and* code-first: section 4 is where the learner builds the thing. Use these subsections:
+  - `### Build it from scratch`: walk the from-scratch code in chunks of 5 to 15 lines. Before each chunk say what it does and why it exists; after it, one prediction question ("what happens if x is negative here?"). Stdlib or NumPy only.
+  - `### Use the library`: the production version (scikit-learn, PyTorch, an SDK) and what the library does that the scratch version made explicit.
+  - `### Run it`: the exact command (`uv run code/<module>/<file>.py` from `guide/`) and the key lines of its output, so readers can check their run.
+  The full script lives in `code/`; inline chunks must match it.
 - **Engineering.** Cover use cases, preprocessing, compute cost, production concerns, and failure modes, plus a `### Common mistakes` subsection.
 - **Knowledge check.** Wrap a link to the quiz in quiz markers, then add one practice exercise and one small implementation challenge, with a solution in `<details>`.
 - **Summary.** 3 to 6 bullets, then `**Next:**` and `**Related:**` links.
@@ -134,6 +138,25 @@ On GitHub the reader sees the static figure and the link. On the website, everyt
 ```
 
 On the website this becomes the interactive quiz.
+
+## Content from AI Engineering from Scratch
+
+Some lessons are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) (MIT, by Rohit Ghumare). `upstream/map.json` classifies every upstream lesson:
+
+| Mode | Meaning |
+|---|---|
+| `import` | We own an adapted copy as one of our lessons |
+| `enrich` | Its code and best explanations were merged into one of our lessons (`target`) |
+| `link` | Linked from `target` as "Go deeper, code-first" |
+| `skip` | Not used |
+
+Rules:
+
+- English only. Rewrite into this guide's format and voice (six layers, symbol tables, worked numbers, a lab or figure, quiz, interview angle). Don't paste their docs verbatim.
+- List every upstream lesson you used in the lesson's frontmatter: `adapted_from: [phases/14-agent-engineering/01-the-agent-loop]`. That drives the credit line the MIT license requires.
+- Copied code goes in `code/<module>/` with a header: `# Adapted from AI Engineering from Scratch (MIT), <upstream path>`.
+- After changing the map or `adapted_from`, run `npm run gen:upstream` in `web/` (CI runs `check:upstream`).
+- To catch upstream edits to lessons we own: `node web/scripts/upstream-changes.mjs <clone>`, port what matters, then bump `pinned_commit` in `upstream/source.json`.
 
 ## Visual explainers and guided tours
 

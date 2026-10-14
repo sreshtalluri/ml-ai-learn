@@ -1,0 +1,132 @@
+title: Latent diffusion and Stable Diffusion
+lesson: latent-diffusion-stable-diffusion
+questions:
+  - id: ld-compression
+    type: numeric
+    difficulty: easy
+    prompt: SD 1.5 encodes a $512 \times 512 \times 3$ image into a $64 \times 64 \times 4$ latent. How many times fewer values does the diffusion model process?
+    answer: 48
+    tolerance: 0
+    explanation: $786{,}432 / 16{,}384 = 48$. Spatial positions drop by $8 \times 8 = 64$; channels go from 3 to 4.
+  - id: ld-cfg-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Using $\tilde\epsilon = \epsilon_\varnothing + w(\epsilon_c - \epsilon_\varnothing)$ with $\epsilon_\varnothing = -0.4$, $\epsilon_c = 0.1$, and $w = 5$, what is $\tilde\epsilon$?
+    answer: 2.1
+    tolerance: 0.001
+    explanation: $-0.4 + 5 \times (0.1 - (-0.4)) = -0.4 + 5 \times 0.5 = -0.4 + 2.5 = 2.1$.
+  - id: ld-scale-calc
+    type: numeric
+    difficulty: medium
+    prompt: A new autoencoder's latents have standard deviation 4.0 on your dataset. What scaling factor should multiply the latents so diffusion sees unit variance?
+    answer: 0.25
+    tolerance: 0.001
+    explanation: $s_f = 1 / 4.0 = 0.25$. SD 1.5 uses 0.18215 for the same reason (its latents have standard deviation of roughly 5.5).
+  - id: ld-two-stage
+    type: single
+    difficulty: easy
+    prompt: How are the two stages of latent diffusion trained?
+    options:
+      - Jointly, end to end, with one loss
+      - The autoencoder is trained first and frozen; then the diffusion model is trained on its latents
+      - The diffusion model is trained first, then the autoencoder learns to decode its samples
+      - Only the decoder is trained; the encoder is random
+    answer: 1
+    explanation: Stage 1 learns a compact, decodable latent space. Stage 2 trains the usual noise-prediction loss on $z = s_f E(x)$.
+    why_not:
+      - Joint training would let the latent space drift while diffusion is trying to model it.
+      - ""
+      - The diffusion model needs latents to train on, so the autoencoder must come first.
+      - A random encoder would give latents unrelated to image content.
+  - id: ld-cross-attn
+    type: single
+    difficulty: medium
+    prompt: In Stable Diffusion's cross-attention layers, what plays the role of queries, keys, and values?
+    options:
+      - Queries, keys, and values all come from the text tokens
+      - Queries come from image (latent) features; keys and values come from the text-encoder tokens
+      - Queries come from text tokens; keys and values from image features
+      - Queries, keys, and values all come from image features
+    answer: 1
+    explanation: Each latent position asks which prompt tokens are relevant and takes a weighted mix of their values. The attention matrix is (positions) by (text tokens).
+    why_not:
+      - Then the output would describe text only, not each image position.
+      - ""
+      - That would produce one output per text token, not per image position.
+      - That's self-attention, which also appears in the denoiser, but it doesn't bring in the prompt.
+  - id: ld-cfg-convention
+    type: single
+    difficulty: medium
+    prompt: A paper writes guidance as $(1 + w')\epsilon_c - w'\epsilon_\varnothing$ and recommends $w' = 3$. What `guidance_scale` gives the same result in diffusers, which uses $\epsilon_\varnothing + w(\epsilon_c - \epsilon_\varnothing)$?
+    options:
+      - "2"
+      - "3"
+      - "4"
+      - "6"
+    answer: 2
+    explanation: Expanding the paper's form gives $\epsilon_\varnothing + (1 + w')(\epsilon_c - \epsilon_\varnothing)$, so $w = 1 + w' = 4$.
+    why_not:
+      - That subtracts instead of adding 1.
+      - That ignores the offset between the two conventions.
+      - ""
+      - That doubles instead of adding 1.
+  - id: ld-washed-out
+    type: single
+    difficulty: hard
+    prompt: After fine-tuning SD 1.5 on your own images, samples come out washed out and low contrast, although loss looked normal. What is the most likely cause?
+    options:
+      - The learning rate was too low
+      - The training latents were not multiplied by the VAE scaling factor (0.18215), so the denoiser learned the wrong variance
+      - The text encoder was frozen
+      - Too many sampling steps
+    answer: 1
+    explanation: The schedule assumes unit-variance data; unscaled latents have standard deviation of about 5.5. Encoding and decoding must both apply the factor.
+    why_not:
+      - A low learning rate gives a model that barely changes, not systematically washed-out colors.
+      - ""
+      - Freezing the text encoder is the normal setup.
+      - More steps generally helps or does nothing; it doesn't wash out colors.
+  - id: ld-no-dropout
+    type: single
+    difficulty: hard
+    prompt: A team trains a class-conditional latent diffusion model but never drops the condition. At sampling they apply classifier-free guidance with a null token. What happens?
+    options:
+      - Guidance works as usual
+      - The null-token prediction is untrained, so the guided direction is meaningless and samples degrade
+      - The model becomes unconditional
+      - Sampling is faster
+    answer: 1
+    explanation: CFG needs the unconditional prediction, which comes from training with condition dropout (about 10%).
+    why_not:
+      - Guidance relies on a trained unconditional branch.
+      - ""
+      - The conditional predictions are still fine; only the guidance combination is broken.
+      - Guidance still costs two network passes per step.
+  - id: ld-family
+    type: single
+    difficulty: medium
+    prompt: Which statement about SD3 and Flux.1 compared with SD 1.5 is accurate?
+    options:
+      - They are pixel-space diffusion models
+      - They use transformer denoisers, 16-channel latents, a T5 text encoder alongside CLIP, and rectified-flow training
+      - They use the same autoencoder as SD 1.5, so SD 1.5 LoRAs work on them
+      - They removed text conditioning
+    answer: 1
+    explanation: Same two-stage recipe, upgraded parts.
+    why_not:
+      - Both are latent models.
+      - ""
+      - Their autoencoders and latent spaces differ, so components don't transfer.
+      - They are text-to-image models.
+  - id: ld-latency
+    type: multi
+    difficulty: medium
+    prompt: Which changes reduce text-to-image latency for a latent diffusion model? Select all that apply.
+    options:
+      - Distill to a 1 to 4 step sampler
+      - Batch the conditional and unconditional passes together
+      - Use fp16 or bf16 weights and fast attention kernels
+      - Increase guidance scale from 5 to 12
+    answer: [0, 1, 2]
+    explanation: Fewer steps, batched guidance, and cheaper arithmetic all cut time. Guidance scale changes the output, not the cost.

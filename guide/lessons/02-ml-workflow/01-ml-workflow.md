@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 35
 prerequisites: [ml-vocabulary, learning-paradigms]
 related: [overfitting-and-bias-variance, classification-metrics, reliability-cost-and-observability]
+adapted_from: [phases/02-ml-fundamentals/13-ml-pipelines]
 ---
 
 # Workflow, splits, and leakage
@@ -90,6 +91,107 @@ Predicting at 9:00 on day $T$ whether a delivery will be late:
 
 ## 4. Implementation
 
+You will build a preprocessing pipeline from scratch (imputer, scaler, feature selector, model), a k-fold cross-validator, and then use them to manufacture 90% accuracy out of pure noise by fitting one step in the wrong place. Seeing the fake score is the fastest way to stop trusting unexplained ones.
+
+### Build it from scratch
+
+Every preprocessing step has two phases. `fit` learns statistics (medians, means, standard deviations) and `transform` applies them. The rule that prevents leakage is that `fit` only ever sees training rows; validation and test rows are transformed with the training statistics.
+
+```python
+class MedianImputer:
+    def fit(self, X, y=None):
+        self.medians_ = np.nanmedian(X, axis=0)           # learned from TRAINING rows only
+        return self
+
+    def transform(self, X):
+        return np.where(np.isnan(X), self.medians_, X)
+
+class Standardizer:
+    def fit(self, X, y=None):
+        self.mean_, self.std_ = X.mean(axis=0), X.std(axis=0) + 1e-12
+        return self
+
+    def transform(self, X):
+        return (X - self.mean_) / self.std_
+```
+
+**Predict:** a test row has a feature value 3 standard deviations above the training mean. After `transform`, is it exactly 3.0, or recomputed from the test set's own mean?
+
+Some steps look at the labels. A feature selector that keeps the columns most correlated with `y` is supervised, so it can leak the labels it was fit on.
+
+```python
+class TopKByCorrelation:
+    """Keep the k features most correlated with y. It looks at y, so it can leak."""
+    def __init__(self, k):
+        self.k = k
+
+    def fit(self, X, y):
+        Xc, yc = X - X.mean(0), y - y.mean()
+        corr = np.abs(Xc.T @ yc) / (np.linalg.norm(Xc, axis=0) * np.linalg.norm(yc) + 1e-12)
+        self.keep_ = np.argsort(-corr)[: self.k]
+        return self
+
+    def transform(self, X):
+        return X[:, self.keep_]
+```
+
+A pipeline chains the steps so they are fit together, on the same rows, every time. Passing the whole pipeline into cross-validation means each fold refits every step on its own training part.
+
+```python
+class Pipeline:
+    def __init__(self, *steps):
+        self.transforms, self.model = steps[:-1], steps[-1]
+
+    def fit(self, X, y):
+        for t in self.transforms:
+            X = t.fit(X, y).transform(X)                   # fit, then pass the transformed data on
+        self.model.fit(X, y)
+        return self
+
+    def predict(self, X):
+        for t in self.transforms:
+            X = t.transform(X)                             # transform only: reuse training statistics
+        return self.model.predict(X)
+```
+
+K-fold cross-validation from section 3: shuffle once, cut into `k` folds, train a fresh model on `k − 1` of them, score the held-out one, average.
+
+```python
+def kfold_accuracy(make_model, X, y, k=5, seed=0):
+    idx = np.random.default_rng(seed).permutation(len(y))
+    folds = np.array_split(idx, k)
+    scores = []
+    for i in range(k):
+        te = folds[i]
+        tr = np.concatenate([folds[j] for j in range(k) if j != i])
+        model = make_model().fit(X[tr], y[tr])
+        scores.append(np.mean(model.predict(X[te]) == y[te]))
+    return float(np.mean(scores))
+```
+
+Now the trap. 100 rows, 5,000 random features, coin-flip labels. Select the top 20 features on all 100 rows, *then* cross-validate.
+
+```python
+    Xn = rng.normal(size=(100, 5000))
+    yn = rng.integers(0, 2, 100)
+    keep = TopKByCorrelation(20).fit(Xn, yn).keep_         # WRONG: selection saw every label
+    leaky = kfold_accuracy(LogisticRegression, Xn[:, keep], yn)
+    honest = kfold_accuracy(lambda: Pipeline(TopKByCorrelation(20), LogisticRegression()), Xn, yn)
+```
+
+**Predict:** the labels are random, so the true accuracy of any model is 50%. What do `leaky` and `honest` come out to?
+
+<details>
+<summary>Answers</summary>
+
+The test row stays at exactly 3.0: `transform` uses the training mean and standard deviation. Recomputing from the test set would erase real distribution shift and leak test statistics. On noise, `leaky` is 0.900 and `honest` is 0.560. Among 5,000 random columns, some correlate with these 100 particular labels by chance; selecting them on all rows lets every validation fold "see" its own labels through the choice of features. Inside the pipeline the selection is redone per fold and the score falls back toward chance (0.56 is within the noise of 50% on 20-row folds).
+
+</details>
+
+### Use the library
+
+The production version is the same shape: `ColumnTransformer` routes numeric and categorical columns to their own steps, `make_pipeline` chains them, and the cross-validation splitters encode the split rules from section 3.
+
 ```python
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -108,16 +210,34 @@ pre = ColumnTransformer([
     ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_cols),
 ])
 model = make_pipeline(pre, LogisticRegression(max_iter=1000))
-
 baseline = cross_val_score(DummyClassifier(strategy="most_frequent"), X_train, y_train, cv=5).mean()
 score = cross_val_score(model, X_train, y_train, cv=5).mean()
 
-# Grouped or temporal data: use matching splitters
+# Grouped and temporal data: use the matching splitters
 cross_val_score(model, X, y, cv=GroupKFold(5), groups=user_ids)
 cross_val_score(model, X_time_sorted, y_time_sorted, cv=TimeSeriesSplit(5))
 ```
 
-Runnable script with both leakage demonstrations and the figure: [`code/02-ml-workflow/workflow.py`](../../code/02-ml-workflow/workflow.py).
+What scikit-learn adds: `handle_unknown="ignore"` for categories first seen in production, stratified folds by default for classifiers, and one object you can pickle so serving runs exactly the transforms training ran (the cure for training-serving skew).
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/02-ml-workflow/pipeline_scratch.py
+```
+
+```text
+missing values: 193 of 2000
+scratch pipeline 5-fold accuracy: 0.748
+noise labels: selection outside CV 0.900, selection inside CV 0.560
+sklearn Pipeline, selection inside CV: 0.590
+sklearn Pipeline on the real-signal data: 0.750
+checks pass: leakage inflates noise to look like signal
+```
+
+All data is synthetic. Full script: [`code/02-ml-workflow/pipeline_scratch.py`](../../code/02-ml-workflow/pipeline_scratch.py). The target-leak and group-leak demonstrations and the figure are in [`code/02-ml-workflow/workflow.py`](../../code/02-ml-workflow/workflow.py).
 
 ## 5. Engineering
 
@@ -166,6 +286,10 @@ Pick a cutoff month: train on snapshots before it, validate on the month after, 
 **Next:** [Overfitting and the bias-variance trade-off](02-overfitting-and-bias-variance.md)
 
 **Related:** [Classification metrics](../04-classification/02-classification-metrics.md) · [Reliability, cost, and observability](../20-production-ai/02-reliability-cost-and-observability.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [ML Pipelines](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/13-ml-pipelines).*
+<!-- /deeper -->
 
 ## Interview angle
 

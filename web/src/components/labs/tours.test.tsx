@@ -6,10 +6,12 @@ import { LABS } from "@/lib/labs";
 import AbTestLab from "./AbTestLab";
 import AgentLoopLab from "./AgentLoopLab";
 import ArchitectureLab from "./ArchitectureLab";
+import AttentionMasksLab from "./AttentionMasksLab";
 import AttentionLab from "./AttentionLab";
 import BackpropLab from "./BackpropLab";
 import BatchingLab from "./BatchingLab";
 import BoostingLab from "./BoostingLab";
+import ClipSimilarityLab from "./ClipSimilarityLab";
 import ConvolutionLab from "./ConvolutionLab";
 import DecisionTreeLab from "./DecisionTreeLab";
 import DecodingLab from "./DecodingLab";
@@ -21,15 +23,18 @@ import KvCacheLab from "./KvCacheLab";
 import LinearRegressionLab from "./LinearRegressionLab";
 import LoraLab from "./LoraLab";
 import NeuralNetLab from "./NeuralNetLab";
+import MoeRoutingLab from "./MoeRoutingLab";
 import ParadigmGuideLab from "./ParadigmGuideLab";
 import PcaLab from "./PcaLab";
 import PromptInjectionLab from "./PromptInjectionLab";
+import QLearningLab from "./QLearningLab";
 import RagLab from "./RagLab";
 import RecsysFunnelLab from "./RecsysFunnelLab";
 import ThresholdLab from "./ThresholdLab";
 import TfidfLab from "./TfidfLab";
 import TokenizerLab from "./TokenizerLab";
 import VectorSearchLab from "./VectorSearchLab";
+import ZeroShardingLab from "./ZeroShardingLab";
 import { TourContext } from "./tour";
 
 // Static twin of registry.tsx (which loads labs lazily).
@@ -40,6 +45,10 @@ const LAB: Record<string, ComponentType> = {
   convolution: ConvolutionLab, tokenizer: TokenizerLab, rag: RagLab, architecture: ArchitectureLab, "prompt-injection": PromptInjectionLab,
   lora: LoraLab, "vector-search": VectorSearchLab, "kv-cache": KvCacheLab, batching: BatchingLab, "agent-loop": AgentLoopLab,
   "recsys-funnel": RecsysFunnelLab, "ab-test": AbTestLab,
+  "clip-similarity": ClipSimilarityLab,
+  "moe-routing": MoeRoutingLab,
+  "q-learning": QLearningLab,
+  "attention-masks": AttentionMasksLab, "zero-sharding": ZeroShardingLab,
 };
 
 const stepsOf = (id: string) => {

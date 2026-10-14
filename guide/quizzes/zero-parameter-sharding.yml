@@ -1,0 +1,140 @@
+title: ZeRO and FSDP
+lesson: zero-parameter-sharding
+questions:
+  - id: zero-why-optim-first
+    type: single
+    difficulty: easy
+    prompt: Why does ZeRO shard the optimizer state first?
+    options:
+      - It is the largest per-parameter term (12 of 16 bytes) and is only used in the optimizer step, not in forward or backward.
+      - DeepSpeed requires it.
+      - The optimizer state is the most important for accuracy.
+      - Weights cannot be sharded.
+    answer: 0
+    explanation: |
+      Sharding the biggest term that nobody else needs gives the largest saving for the least extra communication: none.
+    why_not:
+      - ""
+      - It is a design choice backed by the memory arithmetic, not a framework rule.
+      - Sharding does not change the values or the accuracy.
+      - ZeRO-3 shards weights too.
+  - id: zero1-wire
+    type: single
+    difficulty: medium
+    prompt: What are the communication operations in one ZeRO-1 step?
+    options:
+      - Nothing.
+      - One broadcast.
+      - One all-reduce of the gradients, as in DDP.
+      - One reduce-scatter of gradients, then one all-gather of the updated weights.
+    answer: 3
+    explanation: |
+      Each rank receives only its slice's summed gradient, updates that slice with its local Adam state, and all-gathers the new weights.
+    why_not:
+      - Gradients must still be combined across ranks.
+      - A single broadcast cannot combine gradients.
+      - An all-reduce gives every rank the whole gradient, which ZeRO-1 does not need.
+      - ""
+  - id: zero1-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      With mixed-precision AdamW on $N = 8$ GPUs, ZeRO-1 stores $4P + 12P/N$ bytes per GPU. By what percentage does that reduce memory compared with DDP's $16P$? (1 decimal)
+    answer: 65.6
+    tolerance: 0.1
+    explanation: |
+      $4 + 12/8 = 5.5$ bytes per parameter. $(16 - 5.5)/16 = 10.5/16 = 65.6\%$.
+  - id: zero-same-bandwidth
+    type: single
+    difficulty: medium
+    prompt: Why do ZeRO-1 and ZeRO-2 send the same number of bytes as DDP?
+    options:
+      - They compress gradients.
+      - A ring all-reduce is itself a reduce-scatter plus an all-gather; ZeRO does the same two operations, only the all-gather carries updated weights instead of summed gradients.
+      - They skip the all-gather.
+      - They do not; they send twice as much.
+    answer: 1
+    explanation: |
+      With bf16 weights and gradients both halves move $\frac{N-1}{N} \cdot 2P$ bytes, so the total equals DDP's $2\frac{N-1}{N} \cdot 2P$.
+    why_not:
+      - No compression is involved.
+      - ""
+      - Without the all-gather ranks would not have the full model for the next forward.
+      - Traffic is identical.
+  - id: zero3-comm
+    type: numeric
+    difficulty: medium
+    prompt: |
+      ZeRO-3 all-gathers weights for the forward pass, again for the backward pass, and reduce-scatters gradients. With bf16 weights and gradients, how many times DDP's bytes does it send per step?
+    answer: 1.5
+    tolerance: 0
+    explanation: |
+      Three operations of $\frac{N-1}{N} \cdot 2P$ each, versus DDP's two (one all-reduce). $3/2 = 1.5$.
+  - id: zero-70b-gpus
+    type: numeric
+    difficulty: hard
+    prompt: |
+      A 70B-style model has $P = 69 \times 10^9$ parameters. Under ZeRO-3 with mixed-precision AdamW, plus 3.3 GB of activations per GPU, what is the fewest GPUs (a power of 2) that keeps each GPU under 80 GB?
+    answer: 16
+    tolerance: 0
+    explanation: |
+      $16P = 1{,}104$ GB. On 8 GPUs: $138 + 3.3 = 141.3$ GB, too big. On 16: $69 + 3.3 = 72.3$ GB, fits.
+  - id: zero1-floor
+    type: single
+    difficulty: hard
+    prompt: You keep adding GPUs to a ZeRO-1 job. What does memory per GPU approach?
+    options:
+      - Zero.
+      - $4P$ bytes, the replicated bf16 weights and gradients.
+      - $12P$ bytes.
+      - $16P/N$ bytes.
+    answer: 1
+    explanation: |
+      $4P + 12P/N \to 4P$. Only sharding the weights and gradients (ZeRO-3) removes that floor; ZeRO-2's floor is $2P$.
+    why_not:
+      - Replicated pieces never shrink.
+      - ""
+      - That is the optimizer state, which is the part that does get divided.
+      - That is ZeRO-3's formula.
+  - id: zero-oom-wrap
+    type: single
+    difficulty: hard
+    prompt: |
+      An FSDP job runs out of memory although the formula predicts 30 GB per GPU on 80 GB cards. The whole model was wrapped in one `fully_shard` call. What is the likely cause?
+    options:
+      - FSDP does not shard optimizer state.
+      - With one wrap unit, FSDP gathers every weight at once for forward and backward, so the full model is materialized on each GPU; wrap each transformer block separately.
+      - Gradient checkpointing doubles weight memory.
+      - bf16 weights take 4 bytes.
+    answer: 1
+    explanation: |
+      Each wrapped unit is gathered whole. Per-block wrapping keeps only one or two blocks' full weights alive at a time.
+    why_not:
+      - FSDP shards optimizer state along with weights and gradients.
+      - ""
+      - Checkpointing affects activations, not weights.
+      - bf16 is 2 bytes.
+  - id: zero-clip
+    type: single
+    difficulty: medium
+    prompt: Under ZeRO-2, how must global-norm gradient clipping be computed?
+    options:
+      - Each rank clips its own gradient slice by its own norm.
+      - Each rank computes the sum of squares of its slice, an all-reduce adds them, and every rank scales by the same factor from the global norm.
+      - Clipping is impossible with sharded gradients.
+      - Only rank 0 clips.
+    answer: 1
+    explanation: |
+      A per-rank norm would apply different factors to different slices and change the update's direction.
+    why_not:
+      - That is per-shard clipping, which changes direction.
+      - ""
+      - It is possible with one small all-reduce of a scalar.
+      - Other ranks' slices would never be clipped.
+  - id: zero-choose
+    type: short
+    difficulty: hard
+    prompt: You fine-tune a 13B model on one server with 8 x 80 GB GPUs. Which ZeRO stage would you start with, and why?
+    sample_answer: |
+      Training state is about 16 x 13 = 208 GB. DDP needs 208 GB per GPU and does not fit. ZeRO-1 gives 4P + 12P/8 = 52 + 19.5 = 71.5 GB, too tight with activations. ZeRO-2 gives 2P + 14P/8 = 26 + 22.75 = 48.75 GB, which fits with room for activations at DDP's communication cost. So start with ZeRO-2 (FSDP's SHARD_GRAD_OP) plus gradient checkpointing, and only move to ZeRO-3 if longer sequences need more headroom.
+    explanation: Pick the lowest stage that fits; ZeRO-1 and 2 cost no extra communication.

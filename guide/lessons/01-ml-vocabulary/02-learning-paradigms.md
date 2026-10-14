@@ -118,6 +118,80 @@ A sentence of $n$ tokens yields $n - 1$ examples. A trillion-token corpus yields
 
 ## 4. Implementation
 
+### Build it from scratch
+
+The point of this build: the same 200 points (two synthetic Gaussian blobs) are handled four ways, and the only thing that changes is the feedback signal. Each learner is a few lines of NumPy.
+
+**Supervised.** Every row has a label, so we can minimize a loss against it. Logistic regression by gradient descent on log loss: `X` is $[n, 2]$, a bias column makes it $[n, 3]$, and `w` is $[3]$.
+
+```python
+def fit_logistic(X, y, steps=2000, lr=0.1):
+    """Supervised: gradient descent on log loss. X is [n, 2], y is [n] of 0/1."""
+    Xb = np.c_[X, np.ones(len(X))]                # add a bias column -> [n, 3]
+    w = np.zeros(3)
+    for _ in range(steps):
+        p = 1 / (1 + np.exp(-Xb @ w))             # predicted P(y = 1)
+        w -= lr * Xb.T @ (p - y) / len(y)         # gradient of mean log loss
+    return w
+```
+
+*Predict:* the line `w -= lr * Xb.T @ (p - y) ...` uses `y`. Which line would you have to delete if the labels did not exist?
+
+**Unsupervised.** No `y` anywhere. K-means optimizes a structural objective (within-cluster distance) by alternating two steps. The `[n, k]` distance matrix is built by broadcasting `[n, 1, 2]` against `[1, k, 2]`.
+
+```python
+def kmeans(X, k, rng, iters=50):
+    """Unsupervised: alternate 'assign each point to nearest centre' and 'move centre to its points' mean'."""
+    centres = X[rng.choice(len(X), k, replace=False)]
+    for _ in range(iters):
+        d = ((X[:, None, :] - centres[None, :, :]) ** 2).sum(axis=2)   # [n, k] squared distances
+        assign = d.argmin(axis=1)
+        centres = np.array([X[assign == c].mean(axis=0) for c in range(k)])
+    return assign, centres
+```
+
+*Predict:* K-means returns cluster ids 0 and 1. Is cluster 0 guaranteed to be the blob with label 0? How should you compare clusters with labels?
+
+**Semi-supervised.** Only 6 rows are labeled (`-1` marks the rest). Self-training fits on the labeled rows. It then promotes unlabeled rows the model is at least 90% sure about to pseudo-labels, and refits.
+
+```python
+def self_train(X, y_partial, threshold=0.9, rounds=10):
+    """Semi-supervised: fit on labeled rows, pseudo-label confident unlabeled rows, refit. -1 = unlabeled."""
+    y = y_partial.copy()
+    for _ in range(rounds):
+        known = y != -1
+        w = fit_logistic(X[known], y[known])
+        p = predict_proba(w, X)
+        confident = (~known) & ((p > threshold) | (p < 1 - threshold))
+        if not confident.any():
+            break
+        y[confident] = (p[confident] > 0.5).astype(int)
+    return w
+```
+
+*Predict:* if the first model is confidently wrong on some points, what happens to those mistakes in later rounds?
+
+**Self-supervised.** The labels come from the data itself: each word's target is the next word. A bigram counter is the smallest "language model" trained this way.
+
+```python
+def next_word_pairs(text):
+    """Self-supervised: every position becomes a (previous word, next word) example. No human labels."""
+    words = text.split()
+    return list(zip(words[:-1], words[1:]))
+
+def fit_bigram(pairs):
+    counts = defaultdict(Counter)
+    for prev, nxt in pairs:
+        counts[prev][nxt] += 1
+    return {prev: c.most_common(1)[0][0] for prev, c in counts.items()}
+```
+
+*Predict:* a 33-word text gives how many training pairs? After training, `fit_bigram` is a supervised model. What made the setup *self*-supervised?
+
+### Use the library
+
+The scikit-learn versions do the same jobs with better solvers (L-BFGS for logistic regression, k-means++ initialization with several restarts for K-means).
+
 ```python
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LogisticRegression
@@ -137,7 +211,32 @@ tokens = text.split()
 pairs = [(tokens[:i], tokens[i]) for i in range(1, len(tokens))]
 ```
 
-Runnable script with the figure and all four comparisons: [`code/01-ml-vocabulary/paradigms.py`](../../code/01-ml-vocabulary/paradigms.py).
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/01-ml-vocabulary/paradigms_scratch.py
+```
+
+Key output:
+
+```
+Supervised, 200 labels:            accuracy 0.965
+Unsupervised, 0 labels:            clusters match hidden labels 0.970
+6 labels, supervised on those 6:   accuracy 0.965
+6 labels, self-training on 200:    accuracy 0.975
+
+Self-supervised: 33 words -> 32 (input, target) pairs, e.g. [('the', 'cat'), ('cat', 'sat'), ('sat', 'on')]
+Learned next word: sat -> 'on', on -> 'the', cat -> 'sat'
+
+scikit-learn, same data:
+  LogisticRegression, 200 labels:  accuracy 0.970
+  KMeans, 0 labels:                match 0.970
+  SelfTrainingClassifier, 6 labels: accuracy 0.975
+```
+
+All four paradigms land near 97% here, because the two blobs are well separated. That is the honest lesson: when the structure in $X$ already lines up with the labels, few or no labels go a long way. On overlapping classes, clusters and pseudo-labels drift away from the truth, and labels matter much more. (Accuracies are on the same 200 training points, to compare paradigms, not to estimate generalization.) The figure comes from [`code/01-ml-vocabulary/paradigms.py`](../../code/01-ml-vocabulary/paradigms.py).
 
 ## 5. Engineering
 
@@ -188,7 +287,7 @@ Runnable script with the figure and all four comparisons: [`code/01-ml-vocabular
 - Frame the problem first: decision, prediction unit, trustworthy target, available information, metric, baseline.
 - Clusters are hypotheses, not facts.
 
-**Next:** [The end-to-end ML workflow](../02-ml-workflow/01-ml-workflow.md)
+**Next:** [Workflow, splits, and leakage](../02-ml-workflow/01-ml-workflow.md)
 
 **Related:** [K-means](../07-unsupervised/01-k-means.md) · [Tokenization and pretraining](../15-llms/01-tokenization-and-pretraining.md) · [The language of ML](01-ml-vocabulary.md)
 

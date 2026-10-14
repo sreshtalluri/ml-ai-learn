@@ -1,0 +1,125 @@
+title: Gradient checkpointing
+lesson: gradient-checkpointing
+questions:
+  - id: ckpt-what
+    type: single
+    difficulty: easy
+    prompt: What does gradient checkpointing reduce?
+    options:
+      - Memory for weights.
+      - Memory for optimizer states.
+      - Memory for activations saved for the backward pass.
+      - Memory for gradients.
+    answer: 2
+    explanation: |
+      It keeps only segment inputs and recomputes the intermediates during backward. Weights, gradients, and optimizer state are unchanged.
+    why_not:
+      - Weights are needed in full for forward and backward; sharding (ZeRO-3) reduces them.
+      - Optimizer state is reduced by sharding or 8-bit optimizers.
+      - ""
+      - Gradients are reduced by ZeRO-2 sharding, not by checkpointing.
+  - id: ckpt-overhead
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A backward pass costs about twice a forward pass. With full checkpointing (every layer's forward recomputed once), what is the extra compute per step, as a percentage? (1 decimal)
+    answer: 33.3
+    tolerance: 0.1
+    explanation: |
+      Without: $1 + 2 = 3$ units. With: $1 + 1 + 2 = 4$ units. $4/3 - 1 = 33.3\%$.
+  - id: ckpt-mem-calc
+    type: numeric
+    difficulty: hard
+    prompt: |
+      A synthetic model has $L = 32$ layers, hidden size $d = 4096$, and processes 2,048 tokens. Using 34 bytes per token per hidden unit per layer without checkpointing, how many GB (decimal) of activations does it keep? (2 decimals)
+    answer: 9.13
+    tolerance: 0.01
+    explanation: |
+      $32 \times 34 \times 2{,}048 \times 4{,}096 = 1{,}088 \times 8{,}388{,}608 = 9{,}126{,}805{,}504$ bytes $\approx 9.13$ GB.
+  - id: ckpt-mem-k1
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Same model, checkpointing every layer: keep each layer's input at 2 bytes per value, plus one layer's full activations (34 bytes per token per hidden unit) during backward. How many GB? (3 decimals)
+    answer: 0.822
+    tolerance: 0.001
+    explanation: |
+      $T d = 8{,}388{,}608$. Inputs: $32 \times 2 \times 8{,}388{,}608 = 536{,}870{,}912$. One layer: $34 \times 8{,}388{,}608 = 285{,}212{,}672$. Sum $822{,}083{,}584$ bytes $\approx 0.822$ GB.
+  - id: ckpt-sqrt
+    type: single
+    difficulty: hard
+    prompt: |
+      The classic rule says checkpoint every $\sqrt{L}$ layers. Why do transformer frameworks usually checkpoint every block instead?
+    options:
+      - Because $\sqrt{L}$ is not an integer for most models.
+      - The rule assumes a stored checkpoint costs as much as a layer's full activations; a block's input is about 17 times smaller than everything the block saves, so small segments minimize memory.
+      - Because recompute cost grows with segment size.
+      - Because per-block checkpointing needs no recomputation.
+    answer: 1
+    explanation: |
+      Memory is $\lceil L/k \rceil \cdot b + k \cdot A$ (in units of $Td$). With $b = 2$ and $A = 34$, $k = 1$ gives 98 units for $L = 32$, while $k = 6$ gives 216.
+    why_not:
+      - Rounding would be trivial; it is not the reason.
+      - ""
+      - Each layer is recomputed once whatever the segment size, so compute does not depend on k.
+      - Every checkpointed block is recomputed during backward.
+  - id: ckpt-mismatch
+    type: single
+    difficulty: hard
+    prompt: |
+      After enabling checkpointing, your loss curve no longer matches the run without it, even with the same seed. Which cause is most likely?
+    options:
+      - Checkpointing always changes gradients slightly by design.
+      - Dropout draws a different random mask in the recomputed forward because the RNG state was not preserved.
+      - The optimizer state is now stored in 16-bit.
+      - Checkpointing halves the effective batch size.
+    answer: 1
+    explanation: |
+      Recomputation must reproduce the original forward exactly. PyTorch saves and restores RNG state by default (`preserve_rng_state=True`); custom code that reseeds or disables it breaks this.
+    why_not:
+      - With deterministic recomputation, gradients are identical (the lesson's script shows a difference of exactly 0).
+      - ""
+      - Checkpointing does not touch the optimizer.
+      - Batch size is unchanged.
+  - id: ckpt-one-segment
+    type: single
+    difficulty: medium
+    prompt: You wrap the entire 32-layer model in a single checkpoint call. What happens to peak memory?
+    options:
+      - It drops by 32 times.
+      - It drops to one layer's activations.
+      - It barely changes (slightly higher), because during backward the whole segment's activations are rebuilt at once, plus the stored input.
+      - Training fails because one segment is not allowed.
+    answer: 2
+    explanation: |
+      The recompute rebuilds all 32 layers' intermediates before backward through them, so peak memory matches no checkpointing, and you pay the extra forward too.
+    why_not:
+      - Savings come from having many segments, only one of which is live.
+      - That is per-layer checkpointing, not a single segment.
+      - ""
+      - It runs; it is just useless.
+  - id: ckpt-choose
+    type: single
+    difficulty: medium
+    prompt: |
+      Fine-tuning runs out of memory only when you raise the sequence length from 2K to 16K tokens. Weights, gradients, and optimizer state already fit with room to spare. What is the best first change?
+    options:
+      - Switch from ZeRO-2 to ZeRO-3.
+      - Turn on gradient checkpointing (selective if available) and keep FlashAttention on.
+      - Use 8-bit Adam.
+      - Increase the number of data-parallel GPUs.
+    answer: 1
+    explanation: |
+      Activations scale with tokens; the fixed per-parameter memory already fits. Checkpointing targets exactly the part that grew.
+    why_not:
+      - ZeRO shards per-parameter state, not activations.
+      - ""
+      - 8-bit Adam shrinks optimizer state, which already fits.
+      - Each GPU still processes its own 16K-token sequences; activations per GPU do not drop.
+  - id: ckpt-offload
+    type: short
+    difficulty: medium
+    prompt: When would you offload activations to CPU memory instead of recomputing them?
+    sample_answer: |
+      When the GPU is short on memory but has spare compute time hidden by overlap and the host link (PCIe or NVLink-C2C) has idle bandwidth, so the copies to and from CPU can overlap with compute. Offload costs no extra FLOPs, but every activation crosses the link twice, so it only pays when transfers are hidden; otherwise recomputation is usually faster.
+    explanation: Offload trades transfer bandwidth for recompute FLOPs.

@@ -1,0 +1,138 @@
+title: Model Context Protocol
+lesson: model-context-protocol
+questions:
+  - id: mcp-who-talks
+    type: single
+    difficulty: easy
+    prompt: In an MCP setup, which component sends `tools/call` to the server?
+    options:
+      - The language model, directly
+      - The MCP client inside the host application, after the model emits a tool call
+      - The server, to itself
+      - The user's browser
+    answer: 1
+    explanation: The model only emits a tool call in its output. The host decides whether to allow it and its MCP client sends the JSON-RPC request.
+    why_not:
+      - The model never talks to the server; it only produces text the host parses.
+      - Correct.
+      - Servers answer requests; clients send them.
+      - The browser is not part of the protocol path.
+  - id: mcp-primitives
+    type: match
+    difficulty: easy
+    prompt: Match each server primitive to who typically decides to use it.
+    pairs:
+      - [Tools, The model (with host approval)]
+      - [Resources, The application]
+      - [Prompts, The user]
+    explanation: Tools are model-controlled actions, resources are application-controlled data addressed by URI, and prompts are user-chosen templates.
+  - id: mcp-wire
+    type: single
+    difficulty: easy
+    prompt: What message format does MCP use?
+    options:
+      - gRPC with protobuf
+      - JSON-RPC 2.0 requests, responses, and notifications
+      - GraphQL queries
+      - Plain REST with one URL per tool
+    answer: 1
+    explanation: Every MCP message is JSON-RPC 2.0, carried over stdio or Streamable HTTP.
+    why_not:
+      - MCP does not use gRPC.
+      - Correct.
+      - MCP does not use GraphQL.
+      - Streamable HTTP uses one endpoint for all methods, with the method in the JSON body.
+  - id: mcp-stdio-stdout
+    type: single
+    difficulty: medium
+    prompt: A local stdio MCP server works in tests but the host reports parse errors after you add debug logging. What is the likely cause?
+    options:
+      - The server logs to stdout, which is reserved for protocol messages
+      - The server logs to stderr
+      - JSON-RPC forbids logging
+      - The server is missing an `initialize` handler
+    answer: 0
+    explanation: Under stdio every line on stdout must be a valid MCP message. Logs belong on stderr.
+    why_not:
+      - Correct.
+      - Stderr is the right place for logs and does not corrupt the stream.
+      - Logging is fine; only where it goes matters.
+      - That would produce an error response, not unparseable output, and 2026-07-28 servers don't use initialize.
+  - id: mcp-errors
+    type: single
+    difficulty: medium
+    prompt: A tool is called with a valid tool name but an order id that does not exist. How should the server report it?
+    options:
+      - A JSON-RPC error with code -32601
+      - A JSON-RPC error with code -32602
+      - A normal result with `isError` true and a message the model can act on
+      - Close the connection
+    answer: 2
+    explanation: The request was well-formed and the tool ran; the failure is something the model can fix, so it goes in a result the model reads.
+    why_not:
+      - -32601 means the method itself does not exist.
+      - Protocol errors are for broken requests such as an unknown tool; the host may not show them to the model.
+      - Correct.
+      - Nothing is wrong with the transport.
+  - id: mcp-stateless
+    type: single
+    difficulty: medium
+    prompt: In MCP revision 2026-07-28, where does a client put its protocol version and capabilities?
+    options:
+      - In an `initialize` request sent once per connection
+      - In `params._meta` on every request
+      - In a cookie set by the server
+      - Nowhere; versions are negotiated by the transport
+    answer: 1
+    explanation: The 2026-07-28 revision removed the initialize handshake. Every request carries `io.modelcontextprotocol/protocolVersion` and client capabilities in `_meta`, so any server instance can answer it.
+    why_not:
+      - That was how revisions up to 2025-11-25 worked.
+      - Correct.
+      - MCP does not use cookies for protocol state.
+      - Each request declares its version; on HTTP it is also mirrored in a header.
+  - id: mcp-state-handle
+    type: single
+    difficulty: medium
+    prompt: Your MCP server manages shopping carts and runs on several instances behind a load balancer. How should it keep each cart across calls?
+    options:
+      - Keep the cart in memory keyed by the TCP connection
+      - Return an opaque cart id from a create tool, accept it as an argument later, store carts in a shared store, and check authorization on every call
+      - Ask the model to resend the whole cart contents on every call
+      - Use the server's name from serverInfo as the key
+    answer: 1
+    explanation: The protocol has no session, so state lives behind an explicit handle passed as an ordinary tool argument.
+    why_not:
+      - Requests can land on any instance, and the protocol does not tie state to connections.
+      - Correct.
+      - That is fragile, wastes tokens, and lets the model alter the cart.
+      - serverInfo is self-reported identity of the server, not of a user's cart.
+  - id: mcp-adapters
+    type: numeric
+    difficulty: easy
+    prompt: Six host applications each need to reach nine systems. How many fewer integrations do you build with MCP (hosts + systems) than with custom adapters (hosts × systems)?
+    answer: 39
+    tolerance: 0
+    explanation: Custom $= 6 \times 9 = 54$. MCP $= 6 + 9 = 15$. Difference $= 54 - 15 = 39$.
+  - id: mcp-tool-tokens
+    type: numeric
+    difficulty: medium
+    prompt: An agent connects 4 servers with 8 tools each; each tool definition is about 125 tokens. How many input tokens go to tool definitions over a 10-call run, before caching?
+    answer: 40000
+    tolerance: 0
+    explanation: Per call $4 \times 8 \times 125 = 4{,}000$ tokens. Over 10 calls $10 \times 4{,}000 = 40{,}000$.
+  - id: mcp-injection
+    type: single
+    difficulty: hard
+    prompt: After installing a third-party MCP server, your coding agent starts including the contents of `~/.ssh/config` in summaries. No tool was called with that path by the user. What is the most likely mechanism?
+    options:
+      - The model was fine-tuned on SSH configs
+      - Instructions embedded in the server's tool descriptions or results, which land in the model's context as untrusted text
+      - A bug in JSON-RPC id matching
+      - Prefix caching leaked another user's prompt
+    answer: 1
+    explanation: Tool descriptions and outputs are text from the server. A malicious or compromised server can inject instructions; the host must treat them as untrusted and gate sensitive reads.
+    why_not:
+      - Training data does not explain behaviour that started after installing a server.
+      - Correct.
+      - Mismatched ids cause wrong pairing of replies, not new file reads.
+      - The file comes from this machine, read by the agent's own tools.

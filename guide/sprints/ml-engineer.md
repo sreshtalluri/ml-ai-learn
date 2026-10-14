@@ -22,6 +22,7 @@ summary: Seven days on what ML engineer loops test - modeling fundamentals, tree
 ## Day 1: How models fail
 
 - Read: [Workflow, splits, and leakage](../lessons/02-ml-workflow/01-ml-workflow.md), [Overfitting and bias-variance](../lessons/02-ml-workflow/02-overfitting-and-bias-variance.md), [Classification metrics](../lessons/04-classification/02-classification-metrics.md)
+- Also read: [Imbalanced data](../lessons/24-applied-ml/02-imbalanced-data.md)
 - Labs: underfitting vs overfitting, classification threshold
 - Cheat sheets: [classification metrics](../cheatsheets/classification-metrics.md), [failure modes](../cheatsheets/failure-modes.md)
 - Be ready to: explain leakage with a real example, choose a metric for an imbalanced problem, and pick a threshold from costs.
@@ -29,6 +30,7 @@ summary: Seven days on what ML engineer loops test - modeling fundamentals, tree
 ## Day 2: Models that win on tabular data
 
 - Read: [Linear regression](../lessons/03-regression/01-linear-regression.md), [Regularization](../lessons/03-regression/02-regularization-and-regression-metrics.md), [Logistic regression](../lessons/04-classification/01-logistic-regression.md), [Decision trees](../lessons/06-trees-and-ensembles/01-decision-trees.md), [Random forests and boosting](../lessons/06-trees-and-ensembles/02-random-forests-and-boosting.md)
+- Also read: [Feature engineering](../lessons/24-applied-ml/01-feature-engineering.md), [Hyperparameter tuning](../lessons/24-applied-ml/03-hyperparameter-tuning.md)
 - Labs: linear regression, decision-tree builder, gradient boosting
 - Cheat sheets: [model selection](../cheatsheets/model-selection.md), [regularization](../cheatsheets/regularization.md)
 - Be ready to: compare bagging and boosting, say why GBDTs beat neural nets on most tabular data, and derive the MSE gradient.
@@ -36,6 +38,7 @@ summary: Seven days on what ML engineer loops test - modeling fundamentals, tree
 ## Day 3: Training neural networks
 
 - Read: [Forward pass](../lessons/10-neural-networks/01-neural-network-forward-pass.md), [Gradient descent](../lessons/11-gradient-descent-backprop/01-gradient-descent.md), [Backpropagation](../lessons/11-gradient-descent-backprop/02-backpropagation.md), [Training and regularization](../lessons/12-training-regularization/01-training-and-regularization.md)
+- Also read: [Intro to PyTorch](../lessons/10-neural-networks/03-intro-to-pytorch.md), [Debugging neural networks](../lessons/12-training-regularization/02-debugging-neural-networks.md)
 - Labs: forward pass, gradient descent, backpropagation
 - Cheat sheets: [optimizers](../cheatsheets/optimizers.md), [loss functions](../cheatsheets/loss-functions.md)
 - Be ready to: debug a loss that goes to NaN, explain Adam versus SGD, and say what batch norm and dropout do.
@@ -43,6 +46,7 @@ summary: Seven days on what ML engineer loops test - modeling fundamentals, tree
 ## Day 4: Embeddings and transformers
 
 - Read: [Word embeddings](../lessons/09-classical-nlp/02-word-embeddings.md), [Self-attention](../lessons/14-transformers/01-self-attention.md), [Transformer architecture](../lessons/14-transformers/02-transformer-architecture.md), [Vector search](../lessons/16-rag/02-vector-search.md)
+- Also read: [BERT](../lessons/14-transformers/03-bert-masked-language-modeling.md)
 - Labs: self-attention, approximate nearest neighbors
 - Cheat sheets: [transformer architecture](../cheatsheets/transformer-architecture.md), [vector search](../cheatsheets/vector-search.md)
 - Be ready to: walk through Q, K, V with shapes, explain why attention is scaled by $\sqrt{d_k}$, and trade recall against latency in an ANN index.
@@ -50,6 +54,7 @@ summary: Seven days on what ML engineer loops test - modeling fundamentals, tree
 ## Day 5: ML system design
 
 - Read: [ML system design](../lessons/22-ml-system-design/01-ml-system-design.md), [Experimentation and A/B testing](../lessons/22-ml-system-design/02-experimentation-and-ab-testing.md)
+- Also read: [Time series](../lessons/24-applied-ml/04-time-series.md)
 - Labs: recommendation funnel, A/B test power and peeking
 - Cheat sheet: [ML system design](../cheatsheets/ml-system-design.md)
 - Be ready to: run the design framework end to end in 40 minutes on a feed, fraud, or search problem.
@@ -57,6 +62,7 @@ summary: Seven days on what ML engineer loops test - modeling fundamentals, tree
 ## Day 6: Production
 
 - Read: [Production architecture](../lessons/20-production-ai/01-production-architecture.md), [Reliability, cost, and observability](../lessons/20-production-ai/02-reliability-cost-and-observability.md), [Serving LLMs](../lessons/18-llm-inference/02-serving-llms.md)
+- Also read: [Monitoring and drift](../lessons/22-ml-system-design/03-model-monitoring-and-drift.md), [Distributed training](../lessons/27-training-at-scale/04-scaling-distributed.md)
 - Labs: production architecture, static vs continuous batching
 - Cheat sheet: [production reliability](../cheatsheets/production-reliability.md)
 - Be ready to: detect and respond to drift, design a safe rollout (shadow, canary, A/B), and size the serving cost.

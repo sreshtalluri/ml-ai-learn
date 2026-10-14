@@ -1,0 +1,140 @@
+title: Proximal policy optimization (PPO)
+lesson: ppo
+questions:
+  - id: ppo-clip-calc
+    type: numeric
+    difficulty: easy
+    prompt: |
+      With $\varepsilon = 0.2$, a sample has ratio $r = 1.5$ and advantage $\hat A = 2$. What is $\min(r \hat A, \operatorname{clip}(r, 0.8, 1.2)\, \hat A)$?
+    answer: 2.4
+    tolerance: 0.001
+    explanation: |
+      Unclipped $1.5 \times 2 = 3.0$; clipped $1.2 \times 2 = 2.4$; the min is $2.4$, the clipped term, so this sample has zero gradient.
+
+  - id: ppo-clip-neg-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Same $\varepsilon = 0.2$. A sample has $r = 1.5$ and $\hat A = -1$. What is the clipped objective for this sample?
+    answer: -1.5
+    tolerance: 0.001
+    explanation: |
+      Unclipped $-1.5$; clipped $1.2 \times (-1) = -1.2$; the min is $-1.5$, the unclipped term. A bad action was made more likely, so the gradient flows fully and pushes it back down.
+
+  - id: ppo-gae-calc
+    type: numeric
+    difficulty: hard
+    prompt: |
+      The last two steps of an episode have rewards $-1, -1$, critic values $V = -1.8, -0.9$, and the episode then terminates. With $\gamma = 0.99$, $\lambda = 0.95$, what is the GAE advantage of the second-to-last step?
+    answer: -0.18505
+    tolerance: 0.0005
+    explanation: |
+      $\delta_{\text{last}} = -1 + 0 + 0.9 = -0.1$. $\delta_{\text{prev}} = -1 + 0.99 \times (-0.9) + 1.8 = -0.091$. $\hat A = -0.091 + 0.9405 \times (-0.1) = -0.18505$.
+
+  - id: ppo-clip-purpose
+    type: single
+    difficulty: easy
+    prompt: What does the clip in PPO's objective accomplish?
+    options:
+      - It bounds the advantage estimates to $[-\varepsilon, \varepsilon]$.
+      - It removes the incentive to move a sampled action's probability more than about $\varepsilon$ (relative) in the direction its advantage favors, so one batch can be reused for several epochs without the policy running away.
+      - It guarantees the KL divergence between old and new policy stays below $\varepsilon$.
+      - It clips gradient norms to $\varepsilon$.
+    answer: 1
+    explanation: |
+      Outside the band, the min picks a constant term, so the gradient is zero for that sample. It is an approximate trust region.
+    why_not:
+      - The advantage isn't clipped; the ratio is.
+      - ""
+      - There's no hard KL guarantee; many epochs or shared weights can still move the policy far. That's why KL is monitored.
+      - Gradient-norm clipping is a separate, optional safeguard.
+
+  - id: ppo-frozen-old-diagnose
+    type: single
+    difficulty: hard
+    prompt: In your PPO code the clip fraction is exactly 0.00 on every update, even with 10 epochs and a large learning rate, and the policy is unstable. What is the most likely bug?
+    options:
+      - The clip range is too large.
+      - Advantages are normalized.
+      - "`logp_old` is recomputed from the current policy inside the epoch loop, so the ratio is always 1 and the clip never acts."
+      - The value loss coefficient is too small.
+    answer: 2
+    explanation: |
+      The old log-probs must be frozen from the policy that collected the data, before any update. If they track the current policy, $r = 1$ always and PPO degenerates into repeated vanilla policy-gradient steps on stale data.
+    why_not:
+      - A large $\varepsilon$ lowers the clip fraction but wouldn't make it exactly zero across all updates at a large learning rate.
+      - Normalization is standard and doesn't prevent clipping.
+      - ""
+      - A weak critic gives noisier advantages but doesn't affect the ratio.
+
+  - id: ppo-kl-diagnose
+    type: single
+    difficulty: medium
+    prompt: Approx KL per update jumps from about 0.02 to 0.5 and returns become erratic. Which change is the best first step?
+    options:
+      - Lower the learning rate and/or the number of epochs, and stop an update's epochs early once KL passes a target such as 0.02.
+      - Increase the clip range to 0.5 so fewer samples are clipped.
+      - Remove advantage normalization.
+      - Increase the discount factor to 0.999.
+    answer: 0
+    explanation: |
+      High KL means each update moves the policy too far for the ratio correction to be reliable. Step size and epoch count are the direct levers; early stopping on KL is a cheap guard.
+    why_not:
+      - ""
+      - A larger clip range lets the policy move even further per update.
+      - Without normalization, step sizes depend on reward scale, which usually makes things worse.
+      - The discount changes the horizon, not how far each update moves the policy.
+
+  - id: ppo-rlhf-models
+    type: single
+    difficulty: medium
+    prompt: In classic PPO-based RLHF for an LLM, which models are in play during the RL stage?
+    options:
+      - Only the policy; the reward is computed by a program.
+      - The policy and a frozen reference model only.
+      - The policy (trained), a frozen reference model for the KL penalty, a reward model scoring responses, and a value model (critic, trained).
+      - The policy and a replay buffer of human-written answers.
+    answer: 2
+    explanation: |
+      Four models: that memory and tuning cost is a main reason DPO and GRPO became popular.
+    why_not:
+      - That describes RL with a verifiable reward, and even then you usually keep a reference model.
+      - That is DPO's setup, which has no RL loop.
+      - ""
+      - PPO is on-policy; it samples fresh responses rather than replaying human answers.
+
+  - id: ppo-grpo-design
+    type: single
+    difficulty: medium
+    prompt: You're training a math-reasoning model where each final answer can be checked exactly. GPU memory is tight. Which approach fits best?
+    options:
+      - PPO with a learned reward model and a value model.
+      - GRPO, which samples a group of answers per prompt, uses group-normalized rewards as advantages (no critic), and keeps PPO's clip plus a KL term to a reference.
+      - DQN over the vocabulary.
+      - Supervised fine-tuning only, since RL can't use exact-match rewards.
+    answer: 1
+    explanation: |
+      A verifier replaces the reward model, and the group baseline replaces the critic, saving two large models' worth of memory.
+    why_not:
+      - A learned reward model is unnecessary with an exact checker, and the critic costs memory you don't have.
+      - ""
+      - A max over a 100k-token action space at every step is impractical; LLM RL uses policy gradients.
+      - Exact-match rewards are the setting where RL with verifiable rewards works best.
+
+  - id: ppo-truncation
+    type: single
+    difficulty: hard
+    prompt: Your episodes are cut off at 50 steps by a time limit. When computing GAE for a cut-off episode, what should the value of the state after the last step be?
+    options:
+      - The critic's estimate $V(s_{50})$, because the task didn't end; only your data collection stopped.
+      - Zero, because the episode is over.
+      - The mean return of the batch.
+      - The last reward, repeated.
+    answer: 0
+    explanation: |
+      Truncation is not termination. Treating it as terminal teaches the critic that the world ends at step 50, biasing values downward or upward depending on the reward sign.
+    why_not:
+      - ""
+      - Zero is right only for a true terminal state.
+      - The batch mean is unrelated to the value of that specific state.
+      - That has no basis in the Bellman equation.

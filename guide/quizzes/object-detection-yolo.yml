@@ -1,0 +1,131 @@
+title: Object detection and YOLO
+lesson: object-detection-yolo
+questions:
+  - id: det-tensor-shape
+    type: single
+    difficulty: easy
+    prompt: A YOLO-style head uses a 13 by 13 grid, 3 anchors per cell, and 20 classes. Its output is shaped `[13, 13, 3, 25]`. Why is the last dimension 25?
+    options:
+      - It is padded to a convenient size
+      - 25 is the number of classes in PASCAL VOC
+      - 4 box coordinates + 1 bias + 20 classes
+      - 4 box offsets + 1 objectness score + 20 class scores
+    answer: 3
+    explanation: Every anchor predicts $(t_x, t_y, t_w, t_h)$, one objectness logit, and one score per class, so the per-anchor size is $5 + C = 5 + 20 = 25$. With COCO's 80 classes it would be 85.
+    why_not:
+      - Nothing is padded; every number has a meaning.
+      - VOC has 20 classes, not 25.
+      - The fifth number is objectness ("is an object centred here?"), not a bias term.
+      - Correct.
+  - id: det-sigmoid-offset
+    type: single
+    difficulty: medium
+    prompt: Why does YOLO pass $t_x$ and $t_y$ through a sigmoid before adding the cell index?
+    options:
+      - Convolutions require a sigmoid on every output
+      - To prevent NaNs during training
+      - To keep the predicted centre inside the cell that owns the object
+      - To make the box larger
+    answer: 2
+    explanation: "$\\sigma(t_x) \\in (0, 1)$, so $(\\sigma(t_x) + c_x)\\,s$ always lies inside cell $c_x$. Each cell then only predicts objects centred in its own area, which keeps assignment and training stable."
+    why_not:
+      - Convolutions have no such requirement; the sigmoid is a design choice for this output.
+      - NaNs are not the issue; an unbounded offset would let cells predict objects anywhere.
+      - Correct.
+      - Box size comes from the exponential on $t_w, t_h$, not the sigmoid.
+  - id: det-iou-calc
+    type: numeric
+    difficulty: medium
+    prompt: Prediction $(0, 0, 40, 40)$ and ground truth $(10, 10, 50, 50)$, both as $(x_1, y_1, x_2, y_2)$. Compute the IoU to three decimals.
+    answer: 0.391
+    tolerance: 0.002
+    explanation: Intersection is $30 \times 30 = 900$. Each box is $1600$. Union $= 1600 + 1600 - 900 = 2300$. IoU $= 900/2300 = 0.391$, below the usual 0.5 threshold.
+  - id: det-nms-what
+    type: single
+    difficulty: easy
+    prompt: The head outputs 15 overlapping boxes around one object. After NMS with threshold 0.45 you get one box. What did NMS do?
+    options:
+      - Averaged the 15 boxes into one
+      - Kept the highest-scoring box and deleted every box overlapping it with IoU above 0.45
+      - Picked one box at random
+      - Merged boxes whose classes matched
+    answer: 1
+    explanation: NMS is greedy deletion. Sort by score, keep the top box, remove everything that overlaps it above the threshold, repeat on what remains. It never averages or merges.
+    why_not:
+      - Averaging is "weighted box fusion", a different technique.
+      - The choice is deterministic, by score.
+      - Correct.
+      - NMS does not merge. Class matters only in deciding which boxes may suppress each other (per-class NMS).
+  - id: det-map-gap
+    type: single
+    difficulty: medium
+    prompt: A detector scores mAP@0.5 = 0.75 but mAP@0.5:0.95 = 0.32. What is the most accurate reading?
+    options:
+      - The dataset has too many classes
+      - The model finds the right objects but its boxes are loose, so it fails the stricter IoU thresholds
+      - The model is broken; the two numbers should be equal
+      - The confidence threshold is too high
+    answer: 1
+    explanation: mAP@0.5 is lenient about localization. mAP@0.5:0.95 averages over thresholds up to 0.95. A large gap means objects are found but boxes are not tight. Fixes target localization, such as an IoU-based box loss or higher-resolution features.
+    why_not:
+      - Class count affects both numbers similarly.
+      - The stricter metric is always lower or equal; a gap is normal, its size is the signal.
+      - Correct.
+      - Evaluation uses a very low threshold and the full ranked list; this would not create a gap between IoU thresholds.
+  - id: det-loss-weights
+    type: single
+    difficulty: medium
+    prompt: YOLOv1 used $\lambda_{\text{coord}} = 5$ and $\lambda_{\text{noobj}} = 0.5$. What do these weights compensate for?
+    options:
+      - Most (cell, anchor) pairs are empty, so their objectness loss must be down-weighted or it dominates; the box loss is up-weighted so localization still gets gradient
+      - GPU memory limits
+      - The number of anchors per cell
+      - They were arbitrary
+    answer: 0
+    explanation: A 13 by 13 grid with 3 anchors has 507 pairs, and usually only a handful own objects. Without a small $\lambda_{\text{noobj}}$ the "stay silent" loss swamps everything else.
+    why_not:
+      - Correct.
+      - Loss weights do not change memory.
+      - Anchor count changes how many empty pairs exist, but the weights address the imbalance, not the count itself.
+      - They encode a real imbalance, explained in the paper.
+  - id: det-ap-calc
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Two ground-truth objects. Three detections sorted by score: rank 1 is a true positive, rank 2 a false positive, rank 3 a true positive. Using the precision envelope (best precision at that recall or higher), what is AP?
+    answer: 0.8333
+    tolerance: 0.002
+    explanation: |
+      Precision: $1/1, 1/2, 2/3$. Recall: $0.5, 0.5, 1.0$. Envelope: rank 1 keeps 1.0; rank 3 is $0.667$. Recall rises by 0.5 at rank 1 and 0.5 at rank 3, so AP $= 1.0 \times 0.5 + 0.667 \times 0.5 = 0.833$.
+  - id: det-crowd-diagnose
+    type: single
+    difficulty: hard
+    prompt: Recall is high for isolated people but low in dense crowds. Which change is the most direct first experiment?
+    options:
+      - Increase the learning rate
+      - Raise the NMS IoU threshold for the person class (or try Soft-NMS) and re-measure crowd recall
+      - Lower the confidence threshold for display
+      - Add more classes
+    answer: 1
+    explanation: Real people in a crowd can overlap with IoU above 0.5, so NMS deletes true detections as "duplicates". Testing a higher threshold or Soft-NMS directly checks that hypothesis. Assignment collisions and resolution are the next suspects.
+    why_not:
+      - Nothing points to an optimization problem.
+      - Correct.
+      - The boxes are being deleted by NMS, not hidden by the display threshold.
+      - Unrelated to crowd recall.
+  - id: det-design-edge
+    type: single
+    difficulty: medium
+    prompt: You must detect 15 product types on a shelf camera at 30 frames per second on a small edge device. Which plan fits best?
+    options:
+      - A large two-stage detector at full resolution
+      - A small one-stage detector fine-tuned on labelled shelf images, exported to an optimized runtime, with latency measured including decode and NMS
+      - A vision-language model prompted per frame
+      - Zero-shot CLIP on the whole frame
+    answer: 1
+    explanation: One-stage detectors are built for real-time boxes. Fine-tuning on your own images handles the domain, and end-to-end latency must include post-processing.
+    why_not:
+      - Too slow for 30 frames per second on an edge device.
+      - Correct.
+      - VLMs are far too slow per frame and poor at precise boxes and counting.
+      - CLIP scores whole images or crops; it does not output boxes.

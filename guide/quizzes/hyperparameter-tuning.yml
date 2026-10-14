@@ -1,0 +1,130 @@
+title: Hyperparameter tuning
+lesson: hyperparameter-tuning
+questions:
+  - id: hp-param-vs-hyper
+    type: single
+    difficulty: easy
+    prompt: Which of these is a hyperparameter rather than a parameter?
+    options:
+      - A weight in a logistic regression
+      - A split threshold chosen by a decision tree during training
+      - The maximum depth allowed for the tree
+      - A bias term in a neural network layer
+    answer: 2
+    explanation: Max depth is set before training and constrains what is learned. The others are learned from data.
+    why_not:
+      - Weights are learned by minimizing the loss.
+      - The tree learns thresholds from the data.
+      - Correct.
+      - Biases are learned along with weights.
+  - id: hp-random-vs-grid
+    type: single
+    difficulty: medium
+    prompt: Why does random search usually find better hyperparameters than grid search with the same number of trials?
+    options:
+      - Random search uses a smarter acquisition function
+      - Only a few hyperparameters usually matter, and random search tries more distinct values of each
+      - Grid search cannot run in parallel
+      - Random search trains each model for longer
+    answer: 1
+    explanation: A 3 by 3 grid tries 3 values of the important knob; 9 random trials try 9.
+    why_not:
+      - Random search ignores past results; acquisition functions belong to Bayesian optimization.
+      - Correct.
+      - Grid search parallelizes just as easily.
+      - Both use the same training procedure per trial.
+  - id: hp-prob-calc
+    type: numeric
+    difficulty: medium
+    prompt: The top 5% of a search space is "good enough". With 30 independent random trials, what is the probability that at least one lands in it? (3 decimals)
+    answer: 0.785
+    tolerance: 0.002
+    explanation: $1 - 0.95^{30} = 1 - 0.2146 = 0.785$.
+  - id: hp-sh-cost
+    type: numeric
+    difficulty: medium
+    prompt: Successive halving starts 27 configurations at 1 epoch with $\eta = 3$ and stops at 9 epochs (budgets 1, 3, 9). How many epochs does it use in total?
+    answer: 81
+    tolerance: 0
+    explanation: 27 × 1 + 9 × 3 + 3 × 9 = 27 + 27 + 27 = 81, versus 243 to train all 27 for 9 epochs.
+  - id: hp-log-scale
+    type: single
+    difficulty: easy
+    prompt: You sample a learning rate uniformly between 0.0001 and 1. About what fraction of samples fall below 0.01?
+    options:
+      - About 50%
+      - About 1%
+      - About 10%
+      - About 99%
+    answer: 1
+    explanation: The interval [0.0001, 0.01] is about 1% of [0.0001, 1] in linear length, though it spans 2 of the 4 decades. Sample log-uniformly instead, so each decade gets equal share.
+    why_not:
+      - That would be true on a log scale, which is the point of using one.
+      - Correct.
+      - 0.1 would be the cutoff for about 10%.
+      - That is the fraction above 0.01.
+  - id: hp-ei
+    type: single
+    difficulty: hard
+    prompt: "In expected improvement, two candidates have the same predicted mean, equal to the current best. Candidate A has σ = 0.04, candidate B has σ = 0.01. Which does EI prefer?"
+    options:
+      - A, because EI grows with uncertainty when the means tie
+      - B, because it is more certain
+      - Neither; EI is zero for both because the mean does not beat the best
+      - It depends only on the order they were sampled
+    answer: 0
+    explanation: With mean equal to the best (ignoring ξ), z = 0 and EI = σ φ(0) = 0.3989σ, so A scores 0.016 and B 0.004. This is the exploration term.
+    why_not:
+      - Correct.
+      - Certainty is rewarded only through the mean; with equal means, more uncertainty means more upside.
+      - EI is positive whenever σ > 0, because there is some chance of improvement.
+      - EI depends on the surrogate's mean and σ, not sampling order.
+  - id: hp-diagnose-optimism
+    type: single
+    difficulty: hard
+    prompt: A search over 200 configurations reports best_score_ = 0.91. The test set, touched once, gives 0.87. Preprocessing is inside a Pipeline and the split is correct. What is the most likely explanation?
+    options:
+      - The test set is corrupted
+      - Selection optimism; the best of 200 noisy CV scores is biased upward
+      - The model is underfitting
+      - Random search is broken; use grid search
+    answer: 1
+    explanation: Choosing the max over many noisy estimates selects for luck. Nested CV estimates the true performance of the whole tuning procedure.
+    why_not:
+      - Possible, but a gap of this size is expected after a large search, so check optimism first.
+      - Correct.
+      - Underfitting would hurt both scores similarly; the gap is the clue.
+      - Grid search has the same optimism, and more trials make it worse, not better.
+  - id: hp-design-boosting
+    type: single
+    difficulty: medium
+    prompt: You tune a gradient-boosting model whose training takes 20 minutes. Which plan is most efficient?
+    options:
+      - Grid search over learning rate, depth, number of trees, subsample, and column sample, 4 values each
+      - Fix a large number of trees with early stopping; random or TPE search over learning rate (log scale), depth, and regularization with a pruner
+      - Tune number of trees first with a fine grid, then everything else
+      - Use defaults; tuning never helps boosting
+    answer: 1
+    explanation: Early stopping chooses the number of trees for free, log-scale sampling covers the learning rate properly, and pruning stops bad trials early.
+    why_not:
+      - 4^5 = 1,024 trials × 20 minutes is about 14 days.
+      - Correct.
+      - The best number of trees depends on the learning rate, so tuning it alone first is wasted.
+      - Defaults are a good start, but the learning rate and regularization usually matter.
+  - id: hp-nested
+    type: order
+    difficulty: medium
+    prompt: Order the steps of nested cross-validation for one outer fold.
+    options:
+      - Hold out the outer test fold
+      - Run the hyperparameter search with inner cross-validation on the remaining data
+      - Refit the best configuration on all the remaining data
+      - Score that model on the outer test fold
+      - Average the outer-fold scores across all outer folds
+    explanation: The outer test fold never influences which configuration is chosen, so the averaged outer scores estimate how the whole tuning procedure generalizes.
+  - id: hp-sh-risk
+    type: short
+    difficulty: hard
+    prompt: Why can successive halving discard the configuration that would have been best at full budget, and how does Hyperband mitigate it?
+    sample_answer: Early scores are only a proxy. Configurations with small learning rates or strong regularization learn slowly and rank low after one epoch even if they finish best, and noise can also cut a good config. Hyperband runs several successive-halving brackets with different starting budgets, including one that trains a few configurations at full budget from the start, so slow starters get a chance.
+    explanation: Learning curves can cross; early ranking assumes they don't.

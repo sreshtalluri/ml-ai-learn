@@ -5,6 +5,7 @@ skill: llms
 minutes: 40
 prerequisites: [tokenization-and-pretraining, decoding, autoencoders-diffusion-and-transfer]
 related: [rag-pipeline, llm-evaluation, production-architecture]
+adapted_from: [phases/09-reinforcement-learning/09-reward-modeling-rlhf, phases/10-llms-from-scratch/07-rlhf, phases/10-llms-from-scratch/08-dpo, phases/18-ethics-safety-alignment/03-direct-preference-optimization-family, phases/19-capstone-projects/40-dpo-from-scratch]
 ---
 
 # Adapting LLMs
@@ -83,29 +84,139 @@ One attention projection is $4096 \times 4096$: $16{,}777{,}216$ parameters. LoR
 
 ## 4. Implementation
 
+Prompting and RAG need no training code; [RAG](../16-rag/01-rag-pipeline.md) has its own lesson. What hides the most mechanism is preference tuning, so the build below covers it: [`code/15-llms/preference_scratch.py`](../../code/15-llms/preference_scratch.py) (NumPy only) checks the LoRA arithmetic, trains a reward model on preference pairs, and trains a toy policy with DPO. The policy is a softmax over four whole responses instead of a token-by-token LLM, which keeps every gradient to one line while the loss stays exactly DPO's.
+
+### Build it from scratch
+
+**Step 1: LoRA's parameter count.** $A$ is $[r, d_{\text{in}}]$ and $B$ is $[d_{\text{out}}, r]$, so the adapter trains $r(d_{\text{in}} + d_{\text{out}})$ numbers instead of $d_{\text{in}} d_{\text{out}}$.
+
 ```python
-# Prompting with few-shot examples and an explicit format
+def lora_params(d_in, d_out, r):
+    return r * (d_in + d_out)                     # A: [r, d_in] plus B: [d_out, r]
+```
+
+*Predict:* doubling $r$ from 8 to 16 doubles the adapter. What does doubling $d$ from 4096 to 8192 do to the adapter, and to the full matrix?
+
+**Step 2: preference data.** Raters see two responses and pick one. They are noisy, so this script simulates them with the Bradley-Terry model: the better response wins with probability $\sigma(s_i - s_j)$, where $s$ is a hidden quality score (synthetic: 2, 1, 0, −1).
+
+```python
+RESPONSES = ["cites the policy and answers", "answers, no citation", "vague hedge", "confident but wrong"]
+TRUE_SCORE = np.array([2.0, 1.0, 0.0, -1.0])     # hidden quality, synthetic
+
+def sample_pairs(n, rng):
+    pairs = []
+    for _ in range(n):
+        i, j = rng.choice(4, size=2, replace=False)
+        p_i = 1 / (1 + np.exp(-(TRUE_SCORE[i] - TRUE_SCORE[j])))   # Bradley-Terry: noisy raters
+        pairs.append((i, j) if rng.random() < p_i else (j, i))     # (chosen, rejected)
+    return np.array(pairs)
+```
+
+*Predict:* when "answers, no citation" (score 1) meets "vague hedge" (score 0), how often does the rater pick the worse one?
+
+**Step 3: the reward model, the first stage of RLHF.** Learn a reward $r(y)$ so that $\sigma(r_w - r_l)$ matches the labels: logistic regression on the reward margin. Here each response gets one free scalar; a real reward model is an LLM with a scalar head, trained with this same loss.
+
+```python
+def train_reward_model(pairs, steps=2000, lr=0.5):
+    r = np.zeros(4)                               # one scalar reward per response (a real RM is a network)
+    w, l = pairs[:, 0], pairs[:, 1]
+    for _ in range(steps):
+        g = sigmoid(r[w] - r[l]) - 1              # d/dmargin of -log sigmoid(r_w - r_l)
+        grad = np.zeros(4)
+        np.add.at(grad, w, g); np.add.at(grad, l, -g)
+        r -= lr * grad / len(pairs)
+        r -= r.mean()                             # rewards are only defined up to a constant
+    return r
+```
+
+*Predict:* add 10 to every reward. Does the loss change?
+
+**Step 4: the DPO loss.** DPO skips the reward model. It scores each response by how much more likely the policy makes it than the frozen reference does (the log-ratio), and applies the same logistic loss to the gap, scaled by $\beta$.
+
+```python
+def dpo_loss(chosen_logratio, rejected_logratio, beta):
+    """Each log-ratio is log pi_theta(y|x) - log pi_ref(y|x), summed over the response's tokens."""
+    return -np.log(sigmoid(beta * (chosen_logratio - rejected_logratio)))
+```
+
+At step 0 the policy equals the reference, both log-ratios are 0, and the loss is $-\ln 0.5 = 0.693$ for every pair. With log-ratios $+2.0$ and $-1.0$ at $\beta = 0.1$, it is $0.554$, the numbers worked in [fine-tuning in practice](04-fine-tuning-in-practice.md).
+
+*Predict:* if the chosen and rejected log-ratios both fall by 5, what happens to the loss?
+
+**Step 5: DPO training.** The policy is logits $\theta$ over the four responses. The gradient of $\log \pi(y)$ with respect to $\theta$ is $\text{onehot}(y) - \pi$; in a chosen-minus-rejected difference the $\pi$ terms cancel, which is why the update is so short.
+
+```python
+def train_dpo(pairs, beta, steps=3000, lr=1.0):
+    theta = np.zeros(4)                           # policy logits; start equal to the reference
+    ref = log_softmax(theta)                      # frozen reference log-probs
+    w, l = pairs[:, 0], pairs[:, 1]
+    for _ in range(steps):
+        lp = log_softmax(theta)
+        h = beta * ((lp[w] - ref[w]) - (lp[l] - ref[l]))
+        g = beta * (sigmoid(h) - 1)               # d loss / d (log pi_w - log pi_l)
+        grad = np.zeros(4)                        # d log pi_w / d theta = onehot_w - pi; the pi terms cancel
+        np.add.at(grad, w, g); np.add.at(grad, l, -g)
+        theta -= lr * grad / len(pairs)
+    return np.exp(log_softmax(theta))
+```
+
+The script then checks DPO against the answer RLHF is aiming for. RLHF maximizes reward minus $\beta$ times the KL divergence from the reference, and that problem has a closed-form best policy:
+
+```math
+\pi^*(y) \propto \pi_{\text{ref}}(y)\, \exp\!\big(r(y)/\beta\big)
+```
+
+DPO is derived from this formula, so training on the pairs should land on it without ever building $r$.
+
+*Predict:* which $\beta$, 0.5 or 2.0, moves the policy further from the uniform reference?
+
+### Use the library
+
+Few-shot prompting needs only messages; LoRA and DPO come from Hugging Face PEFT and TRL:
+
+```python
 messages = [
     {"role": "system", "content": "Classify the ticket. Reply with JSON: {\"category\": ..., \"urgency\": 1-5}."},
-    {"role": "user", "content": "Ticket: 'Cannot log in since the update.'"},
+    {"role": "user", "content": "Ticket: 'Cannot log in since update.'"},
     {"role": "assistant", "content": "{\"category\": \"auth\", \"urgency\": 4}"},
     {"role": "user", "content": f"Ticket: '{ticket}'"},
 ]
 
-# LoRA with Hugging Face PEFT (pip install peft transformers)
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model        # pip install peft transformers trl
 config = LoraConfig(r=8, lora_alpha=16, target_modules=["q_proj", "k_proj", "v_proj", "o_proj"], lora_dropout=0.05)
 model = get_peft_model(base_model, config)
-model.print_trainable_parameters()     # e.g. "trainable params: 8,388,608 || all params: ~6.7B || trainable%: ~0.12"
+model.print_trainable_parameters()                  # e.g. "trainable params: 8,388,608 || all params: ~6.7B || trainable%: ~0.12"
 ```
 
-Runnable script (LoRA arithmetic and the figure): [`code/15-llms/llms.py`](../../code/15-llms/llms.py).
+TRL's `DPOTrainer` takes a dataset of `{"prompt", "chosen", "rejected"}` rows and computes step 4 with real token log-probabilities: it sums $\log \pi$ over each response's tokens for the policy and the frozen reference, usually precomputing the reference once. `RewardTrainer` implements step 3 on an LLM with a scalar head. The LoRA wrapper and the full SFT and memory story are in [fine-tuning in practice](04-fine-tuning-in-practice.md).
+
+### Run it
+
+```bash
+uv run code/15-llms/preference_scratch.py
+```
+
+Key lines of output (synthetic preference data):
+
+```text
+Q,K,V,O x 32 layers: 8,388,608 trainable; bf16 adapter 16.8 MB
+step 0 (policy = reference): 0.693
+chosen +2.0, rejected -1.0 : 0.554
+learned rewards: [ 1.56  0.54 -0.59 -1.51]  (true scores minus their mean: [ 1.5  0.5 -0.5 -1.5] )
+reward model agrees with 82.3% of rater labels (raters are noisy by design)
+beta=0.5: DPO [0.874 0.112 0.012 0.002]  closed form [0.874 0.112 0.012 0.002]
+beta=2.0: DPO [0.464 0.278 0.158 0.1  ]  closed form [0.464 0.278 0.158 0.1  ]
+```
+
+The reward model recovers the hidden scores from noisy labels; 82% agreement is the ceiling the raters' own noise allows, not a training failure. DPO lands on the closed-form RLHF policy to three decimals without a reward model, and smaller $\beta$ concentrates mass on the best response more aggressively.
 
 ## 5. Engineering
 
 **Decision order.** Try prompting first (cheapest, fastest to iterate). Add RAG when the model lacks knowledge or you need citations. Fine-tune (usually LoRA) when you need consistent behavior, format, or domain style that prompting can't reliably produce, or to make a smaller, cheaper model match a larger one on a narrow task. Every step needs an evaluation set to prove it helped.
 
 **Fine-tuning data.** Quality beats quantity: a few thousand clean, representative examples often beat a large noisy set. Hold out evaluation data. Watch for regressions on general capabilities (catastrophic forgetting) and safety behavior.
+
+**Preference tuning in practice.** RLHF (reward model, then PPO against it with a KL penalty) is powerful but runs several models at once and is touchy to tune. DPO optimizes the same objective directly from pairs and is the usual starting point; variants change the loss (IPO adds a margin target against overfitting, KTO learns from single thumbs-up or thumbs-down labels instead of pairs, ORPO and SimPO drop the reference model). Two failure modes to watch: **reward hacking**, where the policy finds what the reward model over-scores (length, confident tone) rather than what raters wanted, and DPO's tendency to push the chosen response's probability down too, as long as the rejected one falls faster.
 
 **Hallucination mitigations that work:** grounding answers in retrieved sources with citations; tool calls for facts that live in systems (prices, inventory, calculations); constrained output formats; verification steps (check claims against sources); allowing and rewarding "I don't know"; human review for consequential decisions; evaluation on realistic, adversarial cases.
 
@@ -150,6 +261,12 @@ $16 \times (2048 + 8192) = 16 \times 10{,}240 = 163{,}840$. Full matrix: $2048 \
 **Next:** [Fine-tuning in practice](04-fine-tuning-in-practice.md)
 
 **Related:** [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md) · [Transfer learning](../13-deep-architectures/03-autoencoders-diffusion-and-transfer.md) · [Model card: large language model](../../models/large-language-model.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Constitutional AI and Self-Improvement](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/09-constitutional-ai-self-improvement) · [STaR, V-STaR, Quiet-STaR — Self-Taught Reasoning](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/02-star-family-reasoning) · [Reward Hacking and Goodhart's Law](https://aiengineeringfromscratch.com/lesson?path=phases/18-ethics-safety-alignment/02-reward-hacking-goodhart) · [Sycophancy as RLHF Amplification](https://aiengineeringfromscratch.com/lesson?path=phases/18-ethics-safety-alignment/04-sycophancy-rlhf-amplification)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Reward Modeling & RLHF](https://aiengineeringfromscratch.com/lesson?path=phases/09-reinforcement-learning/09-reward-modeling-rlhf), [RLHF: Reward Model + PPO](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/07-rlhf), [DPO: Direct Preference Optimization](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/08-dpo), [The Direct Preference Optimization Family](https://aiengineeringfromscratch.com/lesson?path=phases/18-ethics-safety-alignment/03-direct-preference-optimization-family), [Capstone Lesson 40: Direct Preference Optimization from Scratch](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/40-dpo-from-scratch).*
+<!-- /deeper -->
 
 ## Interview angle
 

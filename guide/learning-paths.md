@@ -30,6 +30,19 @@ The complete sequence. Weeks 1 to 12 match the [12-week plan](lessons/23-project
 | 13 | [LLM inference](lessons/18-llm-inference/01-llm-inference.md), [serving LLMs](lessons/18-llm-inference/02-serving-llms.md), [tool use and agents](lessons/19-agents/01-tool-use-and-agents.md), [reliable agents](lessons/19-agents/02-reliable-agents.md) | KV cache, batching, agent loop |
 | 14 | [ML system design](lessons/22-ml-system-design/01-ml-system-design.md), [experimentation and A/B testing](lessons/22-ml-system-design/02-experimentation-and-ab-testing.md) | recommendation funnel, A/B test |
 
+### Extension: weeks 15 to 20 (the rest of the course)
+
+The course now goes beyond the core 14 weeks. Every lesson below pairs a picture or lab with code you build from scratch. Take the modules your goal needs, in any order once the core is done.
+
+| Week | Modules | Labs |
+|---|---|---|
+| 15 | [Information theory](lessons/00-foundations/05-information-theory.md), [numerical stability](lessons/00-foundations/06-numerical-stability.md), [loss functions](lessons/10-neural-networks/02-loss-functions.md), [PyTorch](lessons/10-neural-networks/03-intro-to-pytorch.md), [debugging neural networks](lessons/12-training-regularization/02-debugging-neural-networks.md) | |
+| 16 | [Module 24: Applied ML in practice](lessons/24-applied-ml/README.md): feature engineering, imbalanced data, tuning, time series, anomaly detection; [monitoring and drift](lessons/22-ml-system-design/03-model-monitoring-and-drift.md) | |
+| 17 | [BERT](lessons/14-transformers/03-bert-masked-language-modeling.md), [attention variants](lessons/14-transformers/04-attention-variants.md), [mixture of experts](lessons/15-llms/05-mixture-of-experts.md), [scaling laws](lessons/15-llms/06-scaling-laws.md), [open-model architectures](lessons/15-llms/07-open-models-architecture-walkthroughs.md) | attention masks, MoE routing |
+| 18 | [Module 28: Prompting and context engineering](lessons/28-prompting-and-context/README.md); [agent memory](lessons/19-agents/03-agent-memory.md), [MCP](lessons/19-agents/04-model-context-protocol.md), [multi-agent systems](lessons/19-agents/05-multi-agent-systems.md) | |
+| 19 | [Module 26: Reinforcement learning](lessons/26-reinforcement-learning/README.md), MDPs to PPO; [Module 27: Training at scale](lessons/27-training-at-scale/README.md) | Q-learning, ZeRO sharding |
+| 20 | [Module 25: Computer vision and multimodal](lessons/25-computer-vision/README.md); generative models ([GANs](lessons/13-deep-architectures/04-gans-generator-discriminator.md), [latent diffusion](lessons/13-deep-architectures/05-latent-diffusion-stable-diffusion.md), [flow matching](lessons/13-deep-architectures/06-flow-matching-rectified-flows.md)); optional [Module 29: Speech and audio](lessons/29-speech-and-audio/README.md); [fairness](lessons/21-safety-security/02-fairness.md) and [differential privacy](lessons/21-safety-security/03-differential-privacy.md) | CLIP matching |
+
 ## 2. AI-engineering fast track (about 5 weeks)
 
 For experienced software engineers who want to build LLM products and understand what's underneath. It skips most classical ML and keeps the ideas every AI engineer needs.

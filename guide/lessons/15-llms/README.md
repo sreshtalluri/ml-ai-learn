@@ -17,5 +17,8 @@ An LLM is a decoder-only transformer trained to predict the next token. Everythi
 | 2 | [Decoding](02-decoding.md) | turn logits into text with greedy, temperature, top-k, top-p, and beam search |
 | 3 | [Adapting LLMs](03-adapting-llms.md) | choose between prompting, RAG, fine-tuning, LoRA, and preference optimization, and explain hallucinations |
 | 4 | [Fine-tuning in practice](04-fine-tuning-in-practice.md) | build SFT data with loss masking, size GPU memory for full fine-tuning, LoRA, and QLoRA, and explain DPO and GRPO |
+| 5 | [Mixture of experts](05-mixture-of-experts.md) | route tokens with top-k gates, compute expert capacity and dropped tokens, balance load, and separate total from active parameters |
+| 6 | [Scaling laws](06-scaling-laws.md) | estimate training FLOPs with 6ND, find the compute-optimal model size and token count for a budget, and explain why served models are over-trained |
+| 7 | [Open models: architecture walkthroughs](07-open-models-architecture-walkthroughs.md) | read a config.json, compute total and active parameters and KV-cache memory, and name the design choices behind Llama, Mixtral, Gemma, Qwen and DeepSeek |
 
-**Interactive labs:** [Temperature, top-k, top-p](https://sreshtalluri.github.io/ml-ai-learn/labs/decoding/) · [LoRA fine-tuning memory](https://sreshtalluri.github.io/ml-ai-learn/labs/lora/)
+**Interactive labs:** [Temperature, top-k, top-p](https://sreshtalluri.github.io/ml-ai-learn/labs/decoding/) · [LoRA fine-tuning memory](https://sreshtalluri.github.io/ml-ai-learn/labs/lora/) · [Mixture-of-experts routing](https://sreshtalluri.github.io/ml-ai-learn/labs/moe-routing/)

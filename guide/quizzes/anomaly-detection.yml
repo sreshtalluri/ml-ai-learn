@@ -1,0 +1,126 @@
+title: Anomaly detection
+lesson: anomaly-detection
+questions:
+  - id: ad-unsupervised
+    type: single
+    difficulty: easy
+    prompt: Why is anomaly detection usually framed as an unsupervised problem rather than classification?
+    options:
+      - Unsupervised models are always more accurate
+      - Labeled anomalies are rare, and new anomaly types differ from the ones seen before
+      - Classification can't handle numeric features
+      - Anomalies never have labels by definition
+    answer: 1
+    explanation: Modeling normal data catches deviations of any kind, including novel ones a classifier was never shown.
+    why_not:
+      - With plenty of labels for a known pattern, supervised models usually win on that pattern.
+      - Correct.
+      - Classifiers handle numeric features fine.
+      - Some anomalies get labeled (chargebacks, incidents); they're just scarce.
+  - id: ad-contextual
+    type: single
+    difficulty: easy
+    prompt: A temperature of 90°F is normal in summer but anomalous in winter. What type of anomaly is this?
+    options:
+      - Point anomaly
+      - Contextual anomaly
+      - Collective anomaly
+      - Label noise
+    answer: 1
+    explanation: The value is only strange given its context (season). Adding context as a feature, or comparing within context, turns it into a detectable point anomaly.
+    why_not:
+      - 90°F on its own is not unusual.
+      - Correct.
+      - Collective anomalies are groups that are strange together.
+      - Nothing here is mislabeled.
+  - id: ad-z-fail
+    type: single
+    difficulty: medium
+    prompt: When does the rule "flag |z| > 3" fail?
+    options:
+      - Only when the data has more than one feature
+      - When data is skewed or multimodal, or when outliers inflate the mean and standard deviation
+      - When the data is perfectly Gaussian
+      - It never fails if there are more than 30 points
+    answer: 1
+    explanation: The rule assumes one roughly Gaussian bump, and outliers in the data distort the very statistics used to judge them.
+    why_not:
+      - It can fail even in 1-D, as the masking example shows.
+      - Correct.
+      - Gaussian data is the case it was designed for.
+      - Sample size doesn't fix masking or skew.
+  - id: ad-z-calc
+    type: numeric
+    difficulty: medium
+    prompt: For $x = [10, 11, 12, 12, 13, 14, 50]$ the median is 12 and the MAD is 1. What is the robust z-score $0.6745 (x - \tilde x)/\text{MAD}$ of 50? (2 decimals)
+    answer: 25.63
+    tolerance: 0.01
+    explanation: $0.6745 \times (50 - 12)/1 = 0.6745 \times 38 = 25.63$. The plain z-score of 50 is only 2.44.
+  - id: ad-if-score
+    type: numeric
+    difficulty: hard
+    prompt: "An isolation forest uses ψ = 256, so c(256) = 10.245. A point's average path length is 4. What is its score $s = 2^{-E[h]/c(\\psi)}$? (3 decimals)"
+    answer: 0.763
+    tolerance: 0.002
+    explanation: $4/10.245 = 0.3904$; $2^{-0.3904} = 0.763$. Scores near 1 are anomalous; 0.5 is average.
+  - id: ad-isolation
+    type: single
+    difficulty: medium
+    prompt: How does an isolation forest differ from distance-based detectors?
+    options:
+      - It computes distances to cluster centers
+      - It isolates points with random splits; anomalies need fewer splits because they are few and different
+      - It requires labeled anomalies to train
+      - It fits a Gaussian to each feature
+    answer: 1
+    explanation: No distances are computed; the anomaly score comes from average path length across random trees.
+    why_not:
+      - That describes centroid-distance scoring.
+      - Correct.
+      - It is unsupervised.
+      - That describes per-feature z-scores or Gaussian density models.
+  - id: ad-diagnose-lof
+    type: single
+    difficulty: hard
+    prompt: "You fit `LocalOutlierFactor(n_neighbors=20)` on last month's data and call `score_samples` on today's events. It raises an error. What's wrong?"
+    options:
+      - LOF can only score training data unless created with novelty=True
+      - n_neighbors must equal the number of features
+      - LOF requires labels
+      - Today's data must be scaled with a different scaler
+    answer: 0
+    explanation: By default LOF is for outlier detection within the fitted data (use negative_outlier_factor_). For scoring new points, set novelty=True.
+    why_not:
+      - Correct.
+      - n_neighbors is unrelated to the number of features.
+      - LOF is unsupervised.
+      - You should reuse the same fitted scaler, and it isn't the cause of the error.
+  - id: ad-budget
+    type: numeric
+    difficulty: medium
+    prompt: A detector flags its top 30 points; 20 of them are true anomalies, and there are 25 anomalies in total. What is the recall at this budget?
+    answer: 0.8
+    tolerance: 0.001
+    explanation: Recall = 20/25 = 0.8. Precision = 20/30 = 0.67.
+  - id: ad-design-unsup
+    type: single
+    difficulty: medium
+    prompt: You have both an unsupervised anomaly detector and a supervised fraud classifier trained on past chargebacks. When should you lean on the unsupervised detector?
+    options:
+      - When the fraud pattern is well represented in historical labels
+      - To catch novel fraud patterns that differ from the labeled history
+      - When you need the highest precision on known fraud types
+      - Never; supervised models dominate
+    answer: 1
+    explanation: The classifier learns known patterns; the detector flags anything unusual, including new attacks. Production systems often combine them.
+    why_not:
+      - That's where the supervised model is strongest.
+      - Correct.
+      - Supervised models usually win on known patterns.
+      - They miss what they were never shown.
+  - id: ad-eval
+    type: short
+    difficulty: hard
+    prompt: You have 50 labeled past incidents and analysts can review 200 alerts a day. How do you evaluate a new detector?
+    sample_answer: Fix the operating point at the top 200 scores per day and measure precision and recall of the labeled incidents within that budget on held-out days, plus AUPRC (whose random baseline is the incident rate). Don't tune and report on the same incidents. Run the detector in shadow mode and have analysts label a sample of its top alerts, since past labels only cover what the old system caught. Monitor alert volume and analyst precision after launch.
+    explanation: Evaluation follows the alert budget, not overall accuracy.

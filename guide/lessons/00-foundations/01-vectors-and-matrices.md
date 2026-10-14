@@ -5,6 +5,7 @@ skill: math
 minutes: 30
 prerequisites: []
 related: [calculus-for-ml, neural-network-forward-pass, self-attention]
+adapted_from: [phases/01-math-foundations/01-linear-algebra-intuition, phases/01-math-foundations/02-vectors-matrices-operations, phases/01-math-foundations/03-matrix-transformations]
 ---
 
 # Vectors and matrices
@@ -98,23 +99,117 @@ $a = [3, 1]$, $c = [1, 2]$: $a \cdot c = 3 + 2 = 5$, $\lVert a \rVert = \sqrt{10
 
 ## 4. Implementation
 
+You will build dot products, matrix products, and a rotation from plain Python lists, then check every answer against NumPy. Writing the loops once makes the shape rules stick.
+
+### Build it from scratch
+
+A dot product multiplies matching entries and adds them up. The `assert` is the shape check that NumPy does for you; failing loudly here beats silently dropping entries, which is what `zip` would do on its own.
+
+```python
+def dot(a, b):
+    assert len(a) == len(b), f"shape mismatch: {len(a)} vs {len(b)}"
+    return sum(ai * bi for ai, bi in zip(a, b))
+
+def norm(a):
+    return math.sqrt(dot(a, a))
+
+def cosine(a, b):
+    return dot(a, b) / (norm(a) * norm(b))
+```
+
+**Predict:** `cosine([3, 1], [6, 2])` versus `cosine([3, 1], [1, 2])`. Which is 1.0, and why does scaling a vector not change the result?
+
+Projection splits a vector into "the part along `a`" and "the rest". It is the geometric meaning of the dot product from the figure: scale `a` by how much of `c` points its way.
+
+```python
+def project(c, a):
+    """The part of c that points along a: (c·a / a·a) a."""
+    s = dot(c, a) / dot(a, a)
+    return [s * ai for ai in a]
+```
+
+**Predict:** what is `project([1, 2], [3, 1])`? Work it out by hand: c·a = 5 and a·a = 10.
+
+A matrix product is a grid of dot products: entry (i, j) is row i of `A` dotted with column j of `B`. Transposing `B` turns its columns into rows so `dot` can reuse them. The assert is the inner-dimension rule from section 3.
+
+```python
+def shape(M):
+    return (len(M), len(M[0]))
+
+def transpose(M):
+    return [list(col) for col in zip(*M)]
+
+def matmul(A, B):
+    (n, k), (k2, m) = shape(A), shape(B)
+    assert k == k2, f"inner dims differ: {shape(A)} @ {shape(B)}"
+    Bt = transpose(B)                                   # columns of B as rows
+    return [[dot(row, col) for col in Bt] for row in A]  # entry (i, j) = row i · column j
+```
+
+**Predict:** `matmul(A, A)` for the [3, 2] matrix `A` from worked example 2. Does it run? What about `matmul(transpose(A), A)`, and what shape comes out?
+
+A matrix is also a function that moves points. A rotation matrix turns every vector by the same angle, and multiplying two transformation matrices composes them.
+
+```python
+def rotation(theta):
+    c, s = math.cos(theta), math.sin(theta)
+    return [[c, -s], [s, c]]
+
+def apply(M, v):
+    return [dot(row, v) for row in M]
+```
+
+**Predict:** where does `apply(matmul(R, R), [1, 0])` land when `R = rotation(math.pi / 2)`?
+
+<details>
+<summary>Answers</summary>
+
+Both cosines: `[6, 2]` is `2 × [3, 1]`, so the angle is 0 and the cosine is exactly 1.0; scaling cancels because it multiplies the numerator and the norm by the same factor. `[1, 2]` gives 0.7071 (45°). Projection: s = 5/10 = 0.5, so the result is [1.5, 0.5]. `A @ A` fails: inner dims 2 and 3 differ. `Aᵀ @ A` is [2, 3] @ [3, 2] = [2, 2]. Two 90° rotations make a 180° rotation, so (1, 0) lands on (−1, 0).
+
+</details>
+
+### Use the library
+
+NumPy runs the same operations in compiled code, and `@` is the matrix product. Everything above becomes one line each.
+
 ```python
 import numpy as np
 
 x = np.array([2, 1.5])
 w = np.array([30, 120])
-print(x @ w + 50)                 # 290.0   (@ is matrix/dot product)
+print(x @ w + 50)                  # 290.0  (@ is the matrix/dot product)
 
 X = np.array([[2, 1.5], [3, 2.0], [1, 0.8]])   # [3 houses, 2 features]
-print(X @ w + 50)                 # [290. 380. 176.]  one prediction per row: [3,2] @ [2] -> [3]
+print(X @ w + 50)                  # [290. 380. 176.]  one prediction per row: [3,2] @ [2] -> [3]
 
 A = np.array([[1, 2], [3, 4], [5, 6]])
 B = np.array([[1, 0, 2], [0, 1, 1]])
-print((A @ B).shape)              # (3, 3)
-print(A * A)                      # element-wise, NOT a matrix product
+print((A @ B).shape)               # (3, 3)
+print(A * A)                       # element-wise, NOT a matrix product
 ```
 
-Runnable script with all of this module's examples and figures: [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py).
+What NumPy adds over the scratch version: speed (BLAS kernels, see [Python toolkit](04-python-toolkit.md)), broadcasting so `X @ w + 50` adds 50 to every row, and batched products over leading dimensions (`[batch, n, k] @ [batch, k, m]`). What it hides: `A * A` is legal and silently does the wrong thing if you meant `A @ A`.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/00-foundations/vectors_scratch.py
+```
+
+```text
+a·c = 5,  |a| = 3.1623,  cos θ = 0.7071
+projection of c on a = [1.5, 0.5]
+house price x·w + b = 290.0
+A (3, 2) @ B (2, 3) = (3, 3): [[1, 2, 4], [3, 4, 10], [5, 6, 16]]
+A @ A -> inner dims differ: (3, 2) @ (3, 2)
+rotate (1, 0) by 90°: [0.0, 1.0]
+two 90° rotations = one 180°: [-1.0, 0.0]
+all checks match NumPy
+```
+
+Full script: [`code/00-foundations/vectors_scratch.py`](../../code/00-foundations/vectors_scratch.py). The module's figures come from [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py).
 
 ## 5. Engineering
 
@@ -159,6 +254,10 @@ $4 + 0 - 3 = 1$. $[64, 10] \times [10, 3] = [64, 3]$.
 **Next:** [Calculus for ML](02-calculus-for-ml.md)
 
 **Related:** [Forward pass](../10-neural-networks/01-neural-network-forward-pass.md) · [Self-attention](../14-transformers/01-self-attention.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Linear Algebra Intuition](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/01-linear-algebra-intuition), [Vectors, Matrices & Operations](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/02-vectors-matrices-operations), [Matrix Transformations](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/03-matrix-transformations).*
+<!-- /deeper -->
 
 ## Interview angle
 

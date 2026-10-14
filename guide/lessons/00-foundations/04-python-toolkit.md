@@ -5,6 +5,7 @@ skill: math
 minutes: 25
 prerequisites: [vectors-and-matrices]
 related: [ml-workflow, linear-regression]
+adapted_from: [phases/01-math-foundations/12-tensor-operations]
 ---
 
 # The Python toolkit
@@ -61,23 +62,72 @@ $X = \begin{bmatrix}1 & 10\\3 & 30\end{bmatrix}$. Column means: $[2, 20]$. Popul
 
 ## 4. Implementation
 
+You will rebuild the two ideas that make NumPy fast and occasionally surprising: an array is a flat buffer plus a shape and strides, and broadcasting follows a three-rule shape check. Then the everyday NumPy, pandas, and matplotlib code you will write in every later lesson.
+
+### Build it from scratch
+
+Every n-dimensional array is stored as one flat run of numbers. Strides say how many elements to skip to move one step along each axis. In row-major (C) order the last axis is contiguous, so its stride is 1, and each earlier stride is the product of the sizes after it.
+
+```python
+def strides_for(shape):
+    """Row-major (C order): the last axis moves fastest, so its stride is 1 element."""
+    strides = [1] * len(shape)
+    for i in range(len(shape) - 2, -1, -1):
+        strides[i] = strides[i + 1] * shape[i + 1]
+    return strides
+
+def flat_index(index, strides):
+    return sum(i * s for i, s in zip(index, strides))
+```
+
+**Predict:** for shape (2, 3, 4), what are the strides, and at which flat position does element [1, 2, 3] live?
+
+This is why `reshape` and `transpose` are usually free: they write new shape and stride numbers and leave the buffer alone (a *view*). A transposed array is no longer contiguous, which is why some operations (`.view()` in PyTorch, for one) then demand a copy.
+
+Broadcasting is section 3's rule, written out. Walk the shapes from the right; each pair must match or contain a 1, and missing dimensions count as 1.
+
+```python
+def broadcast_shape(a, b):
+    """Align shapes from the right; each pair of dims must be equal or one of them must be 1."""
+    out = []
+    for i in range(1, max(len(a), len(b)) + 1):
+        da = a[-i] if i <= len(a) else 1
+        db = b[-i] if i <= len(b) else 1
+        if da != db and 1 not in (da, db):
+            raise ValueError(f"cannot broadcast {a} with {b}: {da} vs {db}")
+        out.append(max(da, db))
+    return tuple(reversed(out))
+```
+
+**Predict:** what do `(8, 1, 6)` with `(7, 1)` and `(3, 2)` with `(3,)` give? Which line of the table in section 3 does `(1000,)` with `(1000, 1)` match, and why is it usually a bug?
+
+<details>
+<summary>Answers</summary>
+
+Strides are [12, 4, 1], so [1, 2, 3] sits at 1·12 + 2·4 + 3·1 = 23. `(8, 1, 6)` with `(7, 1)`: right-align to (1, 7, 1), so the result is (8, 7, 6). `(3, 2)` with `(3,)` fails: the rightmost pair is 2 versus 3. `(1000,)` with `(1000, 1)` gives (1000, 1000): a million-entry matrix when you wanted 1,000 element-wise differences, typically from subtracting a column vector from a flat one.
+
+</details>
+
+### Use the library
+
+Real work uses NumPy for arrays, pandas for labelled tables, and matplotlib for plots. Seed the generator so every run gives the same numbers.
+
 ```python
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-rng = np.random.default_rng(42)                 # seeded: same numbers every run
+rng = np.random.default_rng(42)                     # seeded: same numbers every run
 
 # NumPy: vectorized standardization
 X = rng.normal(size=(1000, 3)) * [1, 10, 100] + [0, 50, 500]
-Z = (X - X.mean(axis=0)) / X.std(axis=0)        # [1000,3] - [3] broadcasts per row
+Z = (X - X.mean(axis=0)) / X.std(axis=0)            # [1000,3] - [3] broadcasts per row
 
 # pandas: load, inspect, clean, aggregate
-df = pd.DataFrame({"city": rng.choice(["A", "B", "C"], 1000),
-                   "price": rng.normal(300, 50, 1000)})
+df = pd.DataFrame({"city": rng.choice(["A", "B", "C"], 1000), "price": rng.normal(300, 50, 1000)})
 df.loc[rng.choice(1000, 20, replace=False), "price"] = np.nan
-print(df.describe())                            # summary statistics
-print(df.isna().sum())                          # missing values per column
+print(df.describe())                                # summary statistics
+print(df.isna().sum())                              # missing values per column
 df["price"] = df["price"].fillna(df["price"].median())
 print(df.groupby("city")["price"].agg(["mean", "count"]))
 
@@ -88,7 +138,31 @@ ax.set(xlabel="price ($k)", ylabel="count", title="Price distribution")
 fig.savefig("price.png", dpi=150)
 ```
 
-Runnable script: [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py). This repository pins its dependencies in [`pyproject.toml`](../../pyproject.toml); `uv run` creates the same environment on any machine.
+What the library adds: compiled loops over the flat buffer (the speed), `np.broadcast_shapes` (the scratch function above), and `arr.strides`, `np.shares_memory`, and `arr.flags` to inspect views. PyTorch tensors use the same shape, stride, and broadcasting model, so this transfers directly.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/00-foundations/tensors_scratch.py
+```
+
+```text
+shape (2, 3, 4) -> strides [12, 4, 1] (elements)
+element [1, 2, 3] lives at flat position 23 -> 23
+NumPy strides in bytes (96, 32, 8) = [12, 4, 1] × 8 bytes
+transpose is a view: shape (4, 2, 3), strides (8, 96, 32), shares memory: True
+contiguous after transpose? False
+broadcast (1000, 3) with (3,) -> (1000, 3)
+broadcast (4, 1) with (1, 5) -> (4, 5)
+broadcast (8, 1, 6) with (7, 1) -> (8, 7, 6)
+cannot broadcast (3, 2) with (3,): 2 vs 3
+python loop 0.118s, vectorized 0.0012s, same result: True
+all checks match NumPy
+```
+
+The timing line varies by machine; on a laptop the vectorized version is typically around 100× faster. Full script: [`code/00-foundations/tensors_scratch.py`](../../code/00-foundations/tensors_scratch.py). The figure comes from [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py). The repository pins its dependencies in [`pyproject.toml`](../../pyproject.toml); `uv run` creates the same environment on any machine.
 
 ## 5. Engineering
 
@@ -130,9 +204,15 @@ Align from the right: (5, 1, 4) and (_, 3, 1). Compare: 4 vs 1 gives 4; 1 vs 3 g
 - pandas handles loading, cleaning, missing values, and group-bys; plot with labeled axes.
 - Seed randomness and pin versions so experiments are reproducible.
 
-**Next:** [The language of ML](../01-ml-vocabulary/01-ml-vocabulary.md)
+**Next:** [Information theory](05-information-theory.md)
 
 **Related:** [The ML workflow](../02-ml-workflow/01-ml-workflow.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Debugging and Profiling](https://aiengineeringfromscratch.com/lesson?path=phases/00-setup-and-tooling/12-debugging-and-profiling) · [Python for AI Engineering](https://aiengineeringfromscratch.com/lesson?path=phases/00-setup-and-tooling/13-python-for-ai-engineering)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Tensor Operations](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/12-tensor-operations).*
+<!-- /deeper -->
 
 ## Interview angle
 

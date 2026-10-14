@@ -1,0 +1,121 @@
+title: Model monitoring and drift
+lesson: model-monitoring-and-drift
+questions:
+  - id: mmd-layers
+    type: single
+    difficulty: easy
+    prompt: Which monitoring layer is the only one that directly measures whether the model is still correct?
+    options:
+      - System health (latency, errors)
+      - Input distributions
+      - Prediction distributions
+      - Outcomes (accuracy, calibration on labelled events)
+    answer: 3
+    explanation: Only outcome metrics compare predictions with truth, and they arrive after the label delay.
+    why_not:
+      - A service can be fast and error-free while being wrong.
+      - Inputs can shift without hurting accuracy, and accuracy can fall with no input shift.
+      - Predictions show behaviour change, not correctness.
+      - Correct.
+  - id: mmd-concept
+    type: single
+    difficulty: easy
+    prompt: Fraudsters change tactics, so the same basket size now carries a different fraud risk. Which kind of drift is this?
+    options:
+      - Covariate drift
+      - Prior drift
+      - Concept drift
+      - Training-serving skew
+    answer: 2
+    explanation: $P(y \mid x)$ changed, so the same input now has a different correct answer.
+    why_not:
+      - Covariate drift changes $P(x)$ while $P(y \mid x)$ stays.
+      - Prior drift changes $P(y)$ while $P(x \mid y)$ stays.
+      - Correct.
+      - Skew is a mismatch between how features are computed offline and online.
+  - id: mmd-psi-bin
+    type: numeric
+    difficulty: medium
+    prompt: One of ten decile bins holds 10% of the reference and 30% of the current window. What does this bin add to PSI? Give three decimals.
+    answer: 0.220
+    tolerance: 0.002
+    explanation: $(0.30 - 0.10)\ln(0.30/0.10) = 0.20 \times 1.0986 = 0.2197$.
+  - id: mmd-false-alarms
+    type: numeric
+    difficulty: easy
+    prompt: A monitor checks 40 features every hour at α = 0.05 each, and nothing has changed. About how many false alarms per day?
+    answer: 48
+    tolerance: 0
+    explanation: Per hour $40 \times 0.05 = 2$. Per day $2 \times 24 = 48$.
+  - id: mmd-cramers-v
+    type: numeric
+    difficulty: medium
+    prompt: A chi-square test on a two-row table with 400 total events gives $\chi^2 = 16$. What is Cramér's V?
+    answer: 0.2
+    tolerance: 0.001
+    explanation: $V = \sqrt{\chi^2 / N} = \sqrt{16 / 400} = \sqrt{0.04} = 0.2$.
+  - id: mmd-big-n
+    type: single
+    difficulty: medium
+    prompt: With one million events per window, a KS test reports p = 2e-7 on a feature, with D = 0.004. What should the policy do?
+    options:
+      - Page the on-call engineer immediately
+      - Log at most a warning, because the effect size is tiny
+      - Retrain the model
+      - Disable the feature
+    answer: 1
+    explanation: Huge samples make trivial shifts significant. Require an effect-size threshold (for example D ≥ 0.1) as well as a small p-value.
+    why_not:
+      - Paging on tiny, significant-but-irrelevant shifts causes alert fatigue.
+      - Correct.
+      - A 0.004 gap in CDFs is unlikely to affect the model.
+      - Nothing suggests the feature is broken.
+  - id: mmd-quiet-inputs
+    type: single
+    difficulty: medium
+    prompt: Input monitors are quiet, but accuracy on newly labelled events drops from 0.95 to 0.75. What is the right next step?
+    options:
+      - Ignore it until input drift appears
+      - Treat it as likely concept drift, collect recent labels, investigate, and retrain on recent data
+      - Recalibrate thresholds only
+      - Widen the PSI bands
+    answer: 1
+    explanation: Unchanged inputs with falling accuracy point to $P(y \mid x)$ changing. Old labels teach the old concept, so retrain on fresh ones.
+    why_not:
+      - Concept drift never shows up in input monitors.
+      - Correct.
+      - Recalibration fits prior drift, where the base rate moved but the input-label relationship did not.
+      - Input bands are irrelevant to a change only labels can show.
+  - id: mmd-pipeline
+    type: single
+    difficulty: medium
+    prompt: Overnight, PSI on `transaction_amount` jumps to 4.8, and every value is now 100 times larger. What should you do first?
+    options:
+      - Retrain on the new data immediately
+      - Check the upstream pipeline for a unit change (for example dollars to cents) and fix it
+      - Lower the PSI alert threshold
+      - Switch the model to a bigger one
+    answer: 1
+    explanation: A sudden, exact scale change is almost always a pipeline bug, not real-world drift. Retraining on it would bake the bug into the model.
+    why_not:
+      - Retraining on broken data makes the bug permanent.
+      - Correct.
+      - The alert already fired; thresholds aren't the problem.
+      - Model capacity is unrelated to a unit error.
+  - id: mmd-delay
+    type: numeric
+    difficulty: hard
+    prompt: Concept drift begins at event 6,500. Labels arrive 500 events after each prediction, windows are 500 events and move by 250, and an alert needs 2 consecutive drifting windows. In the demo, the first window whose labelled slice is mostly post-drift ends at 7,250. At which window end does the alert fire?
+    answer: 7500
+    tolerance: 0
+    explanation: The window ending at 7,250 is the first drifting one; persistence needs a second, which is the window ending $7{,}250 + 250 = 7{,}500$. That is 1,000 events after the change, 500 of them label delay.
+  - id: mmd-actions
+    type: match
+    difficulty: medium
+    prompt: Match each finding to the most appropriate action.
+    pairs:
+      - [Unit change in an upstream column, Fix the pipeline; do not retrain]
+      - [Covariate drift with stable outcomes, Keep watching; usually no action]
+      - [Base rate doubled; inputs per class unchanged, Recalibrate scores or thresholds]
+      - [Accuracy falls with normal-looking inputs, Collect recent labels and retrain]
+    explanation: Different causes need different fixes; retraining is not the default answer to every alert.

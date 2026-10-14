@@ -1,0 +1,141 @@
+title: Intro to PyTorch
+lesson: intro-to-pytorch
+questions:
+  - id: pt-autograd
+    type: single
+    difficulty: easy
+    prompt: What is autograd in PyTorch?
+    options:
+      - A model-compression tool
+      - An automatic differentiation engine that records operations on tensors and computes gradients by running the chain rule backwards
+      - A hyperparameter tuning framework
+      - A data-loading library
+    answer: 1
+    explanation: Tensors with `requires_grad=True` record the operations applied to them; `backward()` walks that record in reverse.
+    why_not:
+      - Compression (pruning, quantization) is separate from gradient computation.
+      - Correct.
+      - Autograd computes gradients; it doesn't search hyperparameters.
+      - Data loading is `torch.utils.data`.
+  - id: pt-no-grad
+    type: single
+    difficulty: easy
+    prompt: What does `torch.no_grad()` do?
+    options:
+      - It prevents overfitting
+      - It enables GPU acceleration
+      - It stops autograd from recording operations, saving memory and time when you don't need gradients
+      - It freezes the model's weights permanently
+    answer: 2
+    explanation: No graph is built inside the context, so intermediate activations aren't kept for a backward pass.
+    why_not:
+      - It has no regularizing effect.
+      - Device placement is `.to(device)`.
+      - Correct.
+      - Weights are frozen per parameter with `requires_grad_(False)`; no_grad only affects operations inside the block.
+  - id: pt-linear-shape
+    type: single
+    difficulty: medium
+    prompt: What does `nn.Linear(784, 256)` create?
+    options:
+      - A batch-normalization layer
+      - A ReLU activation
+      - A dropout layer with rate 784/256
+      - A fully connected layer with a weight of shape (256, 784) and a bias of shape (256,)
+    answer: 3
+    explanation: "Weights are stored as [out_features, in_features] and the layer computes $xW^\\top + b$."
+    why_not:
+      - Batch norm is `nn.BatchNorm1d`.
+      - ReLU is `nn.ReLU` and has no parameters.
+      - Dropout is `nn.Dropout(p)` with p between 0 and 1.
+      - Correct.
+  - id: pt-params-calc
+    type: numeric
+    difficulty: medium
+    prompt: How many parameters does `nn.Sequential(nn.Linear(784, 256), nn.ReLU(), nn.Linear(256, 10))` have?
+    answer: 203530
+    tolerance: 0
+    explanation: |
+      $784 \times 256 + 256 = 200{,}960$. $256 \times 10 + 10 = 2{,}570$. ReLU has none. Total $203{,}530$.
+  - id: pt-grad-calc
+    type: numeric
+    difficulty: medium
+    prompt: With $x = 2$, $w = 3$, $b = 1$, $y = 10$ and $L = (wx + b - y)^2$, you call `backward()` on two separately computed copies of $L$ without zeroing. What is `w.grad`?
+    answer: -24
+    tolerance: 0
+    explanation: Each backward gives $\partial L/\partial w = 2(wx + b - y)\,x = 2 \times (-3) \times 2 = -12$, and gradients add into `.grad`, so $-12 + (-12) = -24$.
+  - id: pt-backward-step
+    type: order
+    difficulty: easy
+    prompt: Order the steps of one training iteration.
+    options:
+      - "Forward: `logits = model(x)`"
+      - "Loss: `loss = F.cross_entropy(logits, y)`"
+      - "`optimizer.zero_grad()`"
+      - "`loss.backward()`"
+      - "`optimizer.step()`"
+    explanation: zero_grad can also come first; what matters is that it runs before backward and that step comes after backward.
+  - id: pt-forgot-eval
+    type: single
+    difficulty: hard
+    prompt: Your model has dropout. Validation accuracy changes every time you evaluate the same checkpoint on the same data. What's the most likely bug?
+    options:
+      - The validation set is too small
+      - "`model.eval()` isn't called before evaluating, so dropout is still randomly zeroing units"
+      - "`torch.no_grad()` is missing"
+      - The optimizer state wasn't saved
+    answer: 1
+    explanation: In train mode dropout is active, so the same input gives different outputs. `model.eval()` turns it off (and makes batch norm use running statistics).
+    why_not:
+      - A small set gives a noisy estimate, but the same set and weights should give the same number every time.
+      - Correct.
+      - Missing no_grad wastes memory but doesn't change the outputs.
+      - Optimizer state matters for resuming training, not for evaluating fixed weights.
+  - id: pt-zero-grad-bug
+    type: single
+    difficulty: hard
+    prompt: Training with plain SGD, the loss drops for a few steps and then oscillates wildly and diverges. The gradient norm grows every step. Which missing line best explains this?
+    options:
+      - "`model.train()`"
+      - "`optimizer.zero_grad()`"
+      - "`torch.manual_seed(0)`"
+      - "`loss.item()`"
+    answer: 1
+    explanation: Without zero_grad, each step's `.grad` is the sum of all previous gradients, so updates keep growing.
+    why_not:
+      - Modules start in train mode by default, and the mode doesn't make gradients grow.
+      - Correct.
+      - Seeding affects reproducibility, not stability.
+      - "`.item()` is for logging; omitting it doesn't change the gradients."
+  - id: pt-speed
+    type: single
+    difficulty: medium
+    prompt: Why is a PyTorch training loop so much faster than the scratch `Value` engine?
+    options:
+      - It uses smaller data types by default
+      - It uses a different differentiation algorithm
+      - It skips the backward pass
+      - Each tensor operation runs as one optimized C++/CUDA kernel over a whole batch, while `Value` runs interpreted Python per number
+    answer: 3
+    explanation: Both use reverse-mode differentiation over a recorded graph. The difference is batching and compiled kernels.
+    why_not:
+      - The default is float32 in both cases (Python floats are 64-bit, but that isn't the main factor).
+      - Both are reverse-mode autodiff.
+      - Training always needs the backward pass.
+      - Correct.
+  - id: pt-memory-design
+    type: single
+    difficulty: hard
+    prompt: Your GPU fits a batch of 32 but the recipe calls for an effective batch of 128. What's the standard approach?
+    options:
+      - Use a learning rate 4 times smaller with batch 32
+      - Gradient accumulation - call `backward()` on `loss / 4` for 4 micro-batches, then `step()` and `zero_grad()` once
+      - Wrap training in `torch.no_grad()` to save memory
+      - Call `model.eval()` to disable dropout and save memory
+    answer: 1
+    explanation: Accumulating gradients over 4 micro-batches reproduces the batch-128 gradient (exactly, for layers without batch statistics), at the cost of 4 forward/backward passes per step.
+    why_not:
+      - That changes the optimization dynamics; it doesn't reproduce a batch-128 gradient.
+      - Correct.
+      - With no_grad there is no graph, so `backward()` fails.
+      - eval mode changes layer behaviour; it doesn't meaningfully cut memory and makes training wrong.

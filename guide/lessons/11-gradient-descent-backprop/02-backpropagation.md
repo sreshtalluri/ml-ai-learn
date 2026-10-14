@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 40
 prerequisites: [calculus-for-ml, gradient-descent, neural-network-forward-pass]
 related: [gradient-descent, training-and-regularization, recurrent-networks]
+adapted_from: [phases/01-math-foundations/05-chain-rule-and-autodiff, phases/03-deep-learning-core/03-backpropagation, phases/03-deep-learning-core/10-mini-framework]
 ---
 
 # Backpropagation
@@ -91,7 +92,100 @@ In a deep network, the gradient reaching layer 1 is a product of many factors: o
 
 ## 4. Implementation
 
-**From scratch, for a batch:**
+The full script is [`code/11-gradient-descent-backprop/autograd_scratch.py`](../../code/11-gradient-descent-backprop/autograd_scratch.py) (standard library only). Instead of deriving each gradient by hand, it builds a tiny reverse-mode autodiff engine, the same idea as PyTorch's autograd but for single numbers. Every operation records its inputs and its local derivative; `backward()` replays the graph in reverse and applies the chain rule.
+
+### Build it from scratch
+
+**Step 1: a number that remembers where it came from.** A `Value` holds its data, its gradient (starts at 0), the values it was computed from, and a function that will push its gradient back to them.
+
+```python
+class Value:
+    def __init__(self, data, parents=()):
+        self.data, self.grad = data, 0.0
+        self.parents = parents
+        self._backward = lambda: None           # how to push my grad to my parents
+
+    def __repr__(self):
+        return f"Value({self.data:.4f}, grad={self.grad:.4f})"
+```
+
+*Predict:* what should a leaf value's `_backward` do, given it has no parents?
+
+**Step 2: each operation stores its local chain-rule step.** For $c = a \times b$, $\partial c/\partial a = b$, so `a` receives `b * out.grad`. The `+=` matters: if a value feeds two operations, its gradient is the *sum* of both paths.
+
+```python
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other))
+        def _backward():
+            self.grad += other.data * out.grad  # d(ab)/da = b
+            other.grad += self.data * out.grad
+        out._backward = _backward
+        return out
+```
+
+*Predict:* for `a * a + a` at `a = 3`, what is `a.grad`? Would it be right if the code used `=` instead of `+=`?
+
+**Step 3: nonlinearities.** Each needs only its own derivative. The sigmoid's is $\sigma(1 - \sigma)$, which is at most 0.25 (the source of the vanishing gradient above). The log's is $1/a$.
+
+```python
+    def sigmoid(self):
+        s = 1 / (1 + math.exp(-self.data))
+        out = Value(s, (self,))
+        def _backward():
+            self.grad += s * (1 - s) * out.grad     # sigma' = sigma (1 - sigma)
+        out._backward = _backward
+        return out
+```
+
+*Predict:* at $z = 0$, what local factor does sigmoid multiply into the gradient?
+
+**Step 4: backward.** A node's gradient is complete only after every node that uses it has passed its share back. A depth-first topological sort puts every node after its inputs; walking that list in reverse guarantees the order. The seed is $\partial L/\partial L = 1$.
+
+```python
+    def backward(self):
+        order, seen = [], set()
+        def visit(v):
+            if id(v) not in seen:
+                seen.add(id(v))
+                for p in v.parents:
+                    visit(p)
+                order.append(v)                     # parents first, then v
+        visit(self)
+        self.grad = 1.0                             # dL/dL = 1
+        for v in reversed(order):
+            v._backward()
+```
+
+*Predict:* this recursion follows the graph's depth. What breaks if you build a graph thousands of operations deep, and how would you rewrite `visit` to avoid it?
+
+**Step 5: the nine-step example, automatically.** The forward pass is written as ordinary arithmetic. One call to `backward()` produces the gradients that section 3 derived by hand.
+
+```python
+    w1, w2, b = Value(0.5), Value(-1.0), Value(0.0)
+    z = w1 * 2.0 + w2 * 1.0 + b
+    y_hat = z.sigmoid()
+    L = bce(y_hat, 1.0)
+    L.backward()
+```
+
+*Predict:* the script also trains a 2-4-1 network on XOR with this engine. Why must it set every `p.grad = 0.0` before each `backward()`?
+
+### Use the library
+
+PyTorch's autograd is the same design over tensors: each operation records a `grad_fn`, and `loss.backward()` walks them in reverse. It adds what the scratch engine leaves out: vectorized kernels, GPU support, an iterative (not recursive) graph walk, and freeing the graph after backward unless you pass `retain_graph=True`. Gradients still accumulate, which is why training loops call `optimizer.zero_grad()`.
+
+```python
+import torch
+w = torch.tensor([0.5, -1.0], requires_grad=True)
+b = torch.tensor(0.0, requires_grad=True)
+x, y = torch.tensor([2.0, 1.0]), torch.tensor(1.0)
+loss = torch.nn.functional.binary_cross_entropy_with_logits(w @ x + b, y)
+loss.backward()
+print(w.grad, b.grad)        # tensor([-1.0000, -0.5000]) tensor(-0.5000)
+```
+
+For a whole batch you would not build one node per number. The vectorized NumPy version applies the same chain rule to matrices:
 
 ```python
 import numpy as np
@@ -108,19 +202,25 @@ def forward_backward(X, y, w, b):
     return loss, dw, db
 ```
 
-**In PyTorch** autograd builds the graph during the forward pass and runs it backward:
+### Run it
 
-```python
-import torch
-w = torch.tensor([0.5, -1.0], requires_grad=True)
-b = torch.tensor(0.0, requires_grad=True)
-x, y = torch.tensor([2.0, 1.0]), torch.tensor(1.0)
-loss = torch.nn.functional.binary_cross_entropy_with_logits(w @ x + b, y)
-loss.backward()
-print(w.grad, b.grad)        # tensor([-1.0000, -0.5000]) tensor(-0.5000)
+```bash
+uv run code/11-gradient-descent-backprop/autograd_scratch.py
 ```
 
-Runnable script (the nine steps, a finite-difference check, the vanishing-gradient experiment): [`code/11-gradient-descent-backprop/backprop_training.py`](../../code/11-gradient-descent-backprop/backprop_training.py).
+Key lines of the output:
+
+```text
+z = 0.0000, y_hat = 0.5000, L = 0.6931
+dL/dz = -0.5000, dL/dw1 = -1.0000, dL/dw2 = -0.5000, dL/db = -0.5000
+finite differences: [-1.0, -0.5, -0.5]
+d(a*a + a)/da at a = 3: 7.0
+step   0: loss 2.7984
+step 500: loss 0.0058
+predictions: [0.001, 0.999, 0.998, 0.002]  targets: [0, 1, 1, 0]  parameters: 17
+```
+
+The gradients match steps 4 to 7 of the worked example and the finite-difference check. The vanishing-gradient experiment and figure are in [`code/11-gradient-descent-backprop/backprop_training.py`](../../code/11-gradient-descent-backprop/backprop_training.py).
 
 ## 5. Engineering
 
@@ -167,6 +267,10 @@ $z = 0$, $\hat{y} = 0.5$, $L = -\ln 0.5 = 0.6931$. Error signal $0.5 - 0 = 0.5$.
 **Next:** [Training and regularization](../12-training-regularization/01-training-and-regularization.md)
 
 **Related:** [Gradient descent](01-gradient-descent.md) · [Calculus for ML](../00-foundations/02-calculus-for-ml.md) · [Recurrent networks](../13-deep-architectures/02-recurrent-networks.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Chain Rule & Automatic Differentiation](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/05-chain-rule-and-autodiff), [Backpropagation from Scratch](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/03-backpropagation), [Build Your Own Mini Framework](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/10-mini-framework).*
+<!-- /deeper -->
 
 ## Interview angle
 

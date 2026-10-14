@@ -5,6 +5,7 @@ skill: math
 minutes: 30
 prerequisites: [vectors-and-matrices]
 related: [gradient-descent, backpropagation, linear-regression]
+adapted_from: [phases/01-math-foundations/04-calculus-for-ml]
 ---
 
 # Calculus for ML
@@ -89,31 +90,98 @@ With $x = 2$, $y = 7$, $w = 1$, $b = 0$: $\hat{y} = 2$, so $\partial L/\partial 
 
 ## 4. Implementation
 
+You will compute derivatives numerically, use them to check an analytic gradient (the "gradient check" every framework author runs), and descend a loss surface. This is the core loop that [gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) and [backpropagation](../11-gradient-descent-backprop/02-backpropagation.md) scale up.
+
+### Build it from scratch
+
+A derivative is a slope, so measure it: nudge the input a tiny step each way and divide the change in output by the change in input. The central difference (x+h and x−h) is far more accurate than the one-sided version because the first-order errors cancel.
+
 ```python
-import numpy as np
-
-def numerical_grad(f, w, h=1e-5):
-    """Central finite differences: one partial derivative per coordinate."""
-    g = np.zeros_like(w, dtype=float)
-    for i in range(len(w)):
-        e = np.zeros_like(w, dtype=float); e[i] = h
-        g[i] = (f(w + e) - f(w - e)) / (2 * h)
-    return g
-
-L = lambda p: p[0] ** 2 + 2 * p[1] ** 2
-print(numerical_grad(L, np.array([1.0, 1.0])))   # ≈ [2. 4.]
+def derivative(f, x, h=1e-5):
+    """Central difference: slope of the chord from x-h to x+h."""
+    return (f(x + h) - f(x - h)) / (2 * h)
 ```
 
-With PyTorch, autograd does this exactly (not approximately):
+**Predict:** if you shrink `h` to `1e-15`, does the estimate get better or worse? (Think about floating-point rounding when you subtract two nearly equal numbers.)
+
+A gradient is one partial derivative per input. Nudge one coordinate at a time, holding the others fixed, exactly as in worked example 2.
+
+```python
+def gradient(f, w, h=1e-5):
+    """One central difference per coordinate: a vector of partial derivatives."""
+    w = np.asarray(w, dtype=float)
+    g = np.zeros_like(w)
+    for i in range(w.size):
+        e = np.zeros_like(w)
+        e[i] = h
+        g[i] = (f(w + e) - f(w - e)) / (2 * h)
+    return g
+```
+
+**Predict:** a model with 1 million parameters. How many evaluations of the loss does this function need for one gradient? Why does that rule it out for training but not for testing?
+
+Compare the numerical gradient to the analytic one you derived by hand. The relative error should be tiny (below about 1e-7); a value near 1e-2 means your formula has a bug.
+
+```python
+def L(p):
+    return p[0] ** 2 + 2 * p[1] ** 2
+
+def grad_L(p):
+    return np.array([2 * p[0], 4 * p[1]])            # analytic gradient
+```
+
+Gradient descent repeats one move: step against the gradient, scaled by the learning rate.
+
+```python
+def descend(grad, w0, lr=0.1, steps=50):
+    w = np.asarray(w0, dtype=float)
+    for _ in range(steps):
+        w = w - lr * grad(w)                         # step against the gradient
+    return w
+```
+
+**Predict:** on $L = x^2 + 2y^2$, each step multiplies $y$ by $(1 - 4\cdot\text{lr})$. What happens to $y$ with lr = 0.6?
+
+<details>
+<summary>Answers</summary>
+
+Tiny `h` makes it worse: `f(x+h)` and `f(x-h)` round to nearly the same float, and the difference is mostly rounding noise. Around 1e-5 is a good default for float64. One gradient costs 2 million loss evaluations (two per parameter), which is why training uses backpropagation (one forward and one backward pass) and numerical gradients only to test it. With lr = 0.6 the factor is 1 − 2.4 = −1.4: $y$ flips sign and grows 1.4× per step, so after 50 steps it is about 1.4⁵⁰ ≈ 2×10⁷. That is divergence; $x$ still converges because its factor is 1 − 1.2 = −0.2.
+
+</details>
+
+### Use the library
+
+Autograd frameworks compute exact gradients (up to float rounding), not approximations, by applying the chain rule through every operation you ran:
 
 ```python
 import torch
+
 p = torch.tensor([1.0, 1.0], requires_grad=True)
 (p[0] ** 2 + 2 * p[1] ** 2).backward()
-print(p.grad)    # tensor([2., 4.])
+print(p.grad)                     # tensor([2., 4.])
 ```
 
-Runnable script: [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py).
+PyTorch records each operation in a graph during the forward pass, then walks it backward multiplying local derivatives. That is worked example 3 automated. `torch.autograd.gradcheck` runs the same numerical-versus-analytic comparison you just built.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/00-foundations/derivatives_scratch.py
+```
+
+```text
+f'(3): numerical 2.000000, analytic 2
+∇L(1, 1): numerical [2. 4.], analytic [2. 4.], relative error 1.5e-12
+chain rule dL/dw at w=1: -20.0, numerical -20.000000
+one step, lr=0.1: w = 3.0, new prediction 6.0
+gradient descent lr=0.1: from (1, 1) to [0. 0.]
+gradient descent lr=0.6: from (1, 1) to [       0.     20248916.2398]
+all checks pass
+```
+
+The chain-rule line reproduces worked example 3. Full script: [`code/00-foundations/derivatives_scratch.py`](../../code/00-foundations/derivatives_scratch.py). Figures: [`code/00-foundations/foundations.py`](../../code/00-foundations/foundations.py).
 
 ## 5. Engineering
 
@@ -158,6 +226,10 @@ Chain rule: $\frac{1}{1 + e^{w}} \cdot e^{w} = \frac{e^w}{1+e^w} = \sigma(w)$. A
 **Next:** [Probability and statistics](03-probability-and-statistics.md)
 
 **Related:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Backpropagation](../11-gradient-descent-backprop/02-backpropagation.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Calculus for Machine Learning](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/04-calculus-for-ml).*
+<!-- /deeper -->
 
 ## Interview angle
 

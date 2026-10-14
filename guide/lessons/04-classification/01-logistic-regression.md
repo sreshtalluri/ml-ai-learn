@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 35
 prerequisites: [linear-regression, probability-and-statistics]
 related: [classification-metrics, neural-network-forward-pass, decoding]
+adapted_from: [phases/02-ml-fundamentals/03-logistic-regression]
 ---
 
 # Logistic regression
@@ -95,35 +96,104 @@ Logits $[2, 1, 0.1]$. Exponentials $[7.389, 2.718, 1.105]$, sum $11.212$. Probab
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+You will build binary logistic regression and its multi-class form (softmax regression) from scratch in NumPy, with the two numerical guards every real implementation has, then confirm the probabilities match scikit-learn.
+
+### Build it from scratch
+
+The sigmoid from section 3, written so it never overflows. `np.exp(1000)` is infinity, so the naive `1 / (1 + np.exp(-z))` warns for large negative `z`. Computing `exp(-|z|)` keeps the exponent at or below zero for every input.
 
 ```python
-import numpy as np
+def sigmoid(z):
+    # Stable for large |z|: never calls exp on a large positive number
+    e = np.exp(-np.abs(z))                                 # always in (0, 1]
+    return np.where(z >= 0, 1 / (1 + e), e / (1 + e))
 
-def sigmoid(z): return 1 / (1 + np.exp(-z))
+def bce(y, p, eps=1e-12):
+    p = np.clip(p, eps, 1 - eps)                           # log(0) guard
+    return -np.mean(y * np.log(p) + (1 - y) * np.log(1 - p))
+```
 
-def fit_logistic(X, y, lr=0.1, steps=2000):
-    w, b = np.zeros(X.shape[1]), 0.0
+**Predict:** without the clip, what is the loss on one example where the model outputs p = 1.0 exactly but the label is 0?
+
+Training is gradient descent on mean binary cross-entropy. The gradient is the tidy $(p - y)\,x$ from worked example 1, averaged over rows: the same shape as linear regression's, with a probability in place of a raw prediction.
+
+```python
+def fit_logistic(X, y, lr=0.5, steps=3000):
+    n, d = X.shape
+    w, b = np.zeros(d), 0.0
     for _ in range(steps):
-        p = sigmoid(X @ w + b)                 # [n]
-        w -= lr * X.T @ (p - y) / len(y)       # average gradient (p - y) x
+        p = sigmoid(X @ w + b)                              # [n] probabilities
+        w -= lr * X.T @ (p - y) / n                         # gradient of mean BCE: (p - y) x
         b -= lr * np.mean(p - y)
     return w, b
 ```
 
-**With scikit-learn:**
+**Predict:** if the training data is perfectly separable (some line puts every 0 on one side and every 1 on the other), what happens to `w` as you keep training?
+
+Softmax turns `k` logits into `k` probabilities. Subtracting each row's maximum first changes nothing mathematically (it cancels in the ratio) but keeps `exp` from overflowing.
+
+```python
+def softmax(Z):
+    Z = Z - Z.max(axis=1, keepdims=True)                   # subtract row max: same result, no overflow
+    E = np.exp(Z)
+    return E / E.sum(axis=1, keepdims=True)
+```
+
+Softmax regression has one weight column per class, `W` of shape `[d, k]`. With one-hot labels `Y`, the gradient has exactly the binary form, `(P − Y)` times the inputs.
+
+```python
+def fit_softmax(X, y, k, lr=0.5, steps=3000):
+    n, d = X.shape
+    W, b = np.zeros((d, k)), np.zeros(k)
+    Y = np.eye(k)[y]                                        # one-hot, [n, k]
+    for _ in range(steps):
+        P = softmax(X @ W + b)                              # [n, k]
+        W -= lr * X.T @ (P - Y) / n                         # same (p - y) x shape as the binary case
+        b -= lr * (P - Y).mean(axis=0)
+    return W, b
+```
+
+**Predict:** `softmax([[1000, 1001, 1002]])` with and without the max subtraction. What does each return?
+
+<details>
+<summary>Answers</summary>
+
+Without the clip, p = 1.0 with y = 0 gives −log(0) = infinity, and one bad example turns the whole mean loss into `inf`; with eps = 1e-12 it is a large but finite 27.6. On separable data, `w` grows without bound: making |z| larger always lowers the loss a little, so plain gradient descent never stops. That is one reason libraries add L2 regularization by default. Without the shift, `exp(1000)` overflows to `inf` and you get `inf / inf = nan`. With it, the logits become [−2, −1, 0] and the output is [0.090, 0.245, 0.665].
+
+</details>
+
+### Use the library
 
 ```python
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-clf = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=1000))  # C = 1/λ (L2)
+clf = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=1000))   # C = 1/λ (L2)
 clf.fit(X_train, y_train)
-proba = clf.predict_proba(X_test)[:, 1]        # probabilities; choose a threshold separately
+proba = clf.predict_proba(X_test)[:, 1]   # probabilities; choose the threshold separately
 ```
 
-Runnable script (worked examples, figures, and metrics): [`code/04-classification/classification.py`](../../code/04-classification/classification.py).
+What the library adds: L2 regularization on by default (`C` is the inverse strength, so smaller `C` means stronger shrinkage, the fix for the separable case), a second-order solver (L-BFGS) that needs no learning rate, and automatic softmax when `y` has more than two classes. To compare with the scratch code, the script turns the penalty off with `C=np.inf`.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/04-classification/logistic_scratch.py
+```
+
+```text
+sigmoid(-1000), sigmoid(0), sigmoid(1000) = [0.  0.5 1. ]
+binary: BCE 0.4567, accuracy 0.824, w = [ 2.636 -0.871  0.114  1.285]
+sklearn (no penalty): w = [ 2.636 -0.871  0.114  1.285]
+softmax: rows sum to 1: True, accuracy 0.963
+sklearn multinomial accuracy 0.958
+checks pass: scratch probabilities match scikit-learn
+```
+
+Both datasets are synthetic (`make_classification`, `make_blobs`). The worked examples, the decision-boundary figure, and the cross-entropy figure come from [`code/04-classification/classification.py`](../../code/04-classification/classification.py). Full scratch script: [`code/04-classification/logistic_scratch.py`](../../code/04-classification/logistic_scratch.py).
 
 ## 5. Engineering
 
@@ -174,6 +244,10 @@ $z = 2 - 3 + 0.5 = -0.5$. $\hat{p} = 1/(1 + e^{0.5}) = 1/2.6487 = 0.3775$. Loss 
 **Next:** [Classification metrics and thresholds](02-classification-metrics.md)
 
 **Related:** [Linear regression](../03-regression/01-linear-regression.md) · [Forward pass](../10-neural-networks/01-neural-network-forward-pass.md) · [Model card: logistic regression](../../models/logistic-regression.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Logistic Regression](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/03-logistic-regression).*
+<!-- /deeper -->
 
 ## Interview angle
 

@@ -1,0 +1,136 @@
+title: Feature engineering
+lesson: feature-engineering
+questions:
+  - id: fe-why
+    type: single
+    difficulty: easy
+    prompt: Why is feature engineering often more impactful than choosing a fancier algorithm on tabular data?
+    options:
+      - It makes the code run faster
+      - It removes the need for a test set
+      - Fancy algorithms cannot process raw data
+      - Good features expose patterns that raw columns hide, so even simple models can use them
+    answer: 3
+    explanation: A feature like BMI (weight / height²) or debt-to-income hands the model the relationship directly; a linear model cannot build a ratio from two separate columns.
+    why_not:
+      - Speed is a side effect at best; added features can make training slower.
+      - Every model still needs held-out evaluation, however good its features are.
+      - Many algorithms train fine on raw numeric columns; the question is how well they generalize.
+      - Correct.
+  - id: fe-onehot
+    type: single
+    difficulty: easy
+    prompt: What does one-hot encoding do?
+    options:
+      - Replaces each category with its frequency in the dataset
+      - Creates one 0/1 column per category, with exactly one column set to 1 in each row
+      - Encodes the label as a probability
+      - Rescales all features to between 0 and 1
+    answer: 1
+    explanation: "color = red/green/blue becomes three columns: is_red, is_green, is_blue. No fake ordering is introduced."
+    why_not:
+      - That is frequency (count) encoding.
+      - Correct.
+      - Encoding the label is a different topic; one-hot encodes input categories.
+      - That is min-max scaling of numeric features.
+  - id: fe-te-leak
+    type: single
+    difficulty: medium
+    prompt: You target-encode a high-cardinality ID column using a table built from all training rows, then train on those same rows. What is the risk?
+    options:
+      - Training becomes too slow
+      - Each row's own label is inside its encoding, so the model over-trusts the column and generalizes worse
+      - It only works with binary labels
+      - It creates too many columns
+    answer: 1
+    explanation: For a rare category the encoding is mostly the row's own label. Encode out of fold (cross-fitting) so each training row's encoding never saw its label.
+    why_not:
+      - Target encoding is cheap; one pass per category.
+      - Correct.
+      - Target encoding works for regression and multiclass targets too.
+      - Target encoding produces one column (per class for multiclass), which is why it is used instead of one-hot.
+  - id: fe-te-calc
+    type: numeric
+    difficulty: medium
+    prompt: A category appears in 4 training rows with 3 positives. The global positive rate is 0.2. What is its smoothed target encoding with $m = 6$? (Round to 2 decimals.)
+    answer: 0.42
+    tolerance: 0.005
+    explanation: |
+      $\text{enc} = (n_c \bar y_c + m \bar y)/(n_c + m) = (3 + 6 \times 0.2)/(4 + 6) = (3 + 1.2)/10 = 0.42$.
+  - id: fe-zscore-calc
+    type: numeric
+    difficulty: easy
+    prompt: Training values are $[2, 4, 4, 4, 5, 5, 7, 9]$ (mean 5, population std 2). A new row has value 10. What is its standardized value?
+    answer: 2.5
+    tolerance: 0.001
+    explanation: Use the training statistics, not the new row's. $(10 - 5)/2 = 2.5$.
+  - id: fe-corr
+    type: single
+    difficulty: medium
+    prompt: Two features have correlation 0.98 (square feet and square meters, say). Why might you drop one?
+    options:
+      - Highly correlated features always make the model crash
+      - They carry nearly the same information, so keeping both adds dimensions and instability without new signal
+      - Correlated features make the data non-stationary
+      - A correlation above 0.5 means the features measure different things
+    answer: 1
+    explanation: Near-duplicates inflate coefficient variance in linear models (multicollinearity) and split importance between two columns in trees, while adding no information.
+    why_not:
+      - Models train fine; the problem is unstable coefficients and wasted capacity, not crashes.
+      - Correct.
+      - Stationarity is a time-series property, unrelated to correlation between two columns.
+      - High correlation means they move together, so they measure nearly the same thing.
+  - id: fe-diagnose-scaler
+    type: single
+    difficulty: hard
+    prompt: "A teammate's notebook does: `X = StandardScaler().fit_transform(X_all)`, then `train_test_split(X, y)`, then trains and reports test accuracy. What is wrong?"
+    options:
+      - Nothing; scaling is unsupervised, so it cannot leak
+      - The test rows influenced the mean and standard deviation, so the test score is slightly optimistic; fit the scaler on the training split inside a Pipeline
+      - StandardScaler should be replaced with MinMaxScaler
+      - The split should come after model training
+    answer: 1
+    explanation: Any statistic fit on data that includes the test set leaks information about it. For a scaler the effect is usually small, but the same habit with target encoding or feature selection gives large, fake gains. Put preprocessing inside a Pipeline.
+    why_not:
+      - Unsupervised statistics still describe the test rows; it is leakage, if mild.
+      - Correct.
+      - The choice of scaler does not fix the order of operations.
+      - Splitting after training would mean evaluating on training data.
+  - id: fe-mi-vs-corr
+    type: single
+    difficulty: medium
+    prompt: "The label depends on a feature as $y = x^2$, with $x$ symmetric around 0. Which filter would keep this feature?"
+    options:
+      - Pearson correlation with the label
+      - Mutual information with the label
+      - Variance threshold alone tells you it is predictive
+      - Neither; filters cannot detect it
+    answer: 1
+    explanation: Correlation measures linear association, which is about 0 for a symmetric parabola. Mutual information is positive whenever the feature reduces uncertainty about the label, linear or not.
+    why_not:
+      - Correlation is near 0 here because positive and negative x cancel.
+      - Correct.
+      - Variance says the column varies, not that it relates to the label.
+      - Mutual information detects it.
+  - id: fe-design-cardinality
+    type: single
+    difficulty: medium
+    prompt: You have a merchant ID column with 200,000 values for a fraud model trained with logistic regression. Which encoding is the best first choice?
+    options:
+      - One-hot encoding
+      - Label encoding (merchant_id → integer)
+      - Cross-fitted target encoding (or frequency/hashing), with a fallback for unseen merchants
+      - Drop the column
+    answer: 2
+    explanation: One-hot would add 200,000 sparse columns, most seen a handful of times. Label encoding imposes a meaningless order on a linear model. A cross-fitted target encoding compresses it to one informative column; unseen merchants get the global mean.
+    why_not:
+      - Workable with sparse matrices and strong regularization, but huge and very noisy for rare merchants.
+      - A linear model would treat merchant 150,000 as "more" than merchant 3.
+      - Correct.
+      - Merchant identity is often among the strongest fraud signals.
+  - id: fe-indicator
+    type: short
+    difficulty: medium
+    prompt: Why add a "was_missing" column when you impute a numeric feature with its median?
+    sample_answer: Missingness is often not random (a blank income field may mean self-employed or refused). After imputation the model can no longer tell a real median value from a filled one, so the indicator preserves that signal. It also makes the model robust to changes in missing rates at serving time, which you can monitor.
+    explanation: Imputation hides the fact that the value was missing; the indicator keeps it.

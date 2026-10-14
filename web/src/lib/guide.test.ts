@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getGlossary, getLessons, getModels, getSprints, GUIDE_DIR, slugify } from "./content";
+import { getGlossary, getLessons, getModels, getModules, getSprints, GUIDE_DIR, slugify } from "./content";
 import { LABS } from "./labs";
 
 const stripCode = (s: string) => s.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
@@ -101,5 +101,13 @@ describe("model cards", () => {
   it("slugify matches GitHub anchors", () => {
     expect(slugify("Context window")).toBe("context-window");
     expect(slugify("RAG (retrieval-augmented generation)")).toBe("rag-retrieval-augmented-generation");
+  });
+});
+
+describe("learning path phases", () => {
+  it("place every module in exactly one phase", async () => {
+    const { PHASES } = await import("./phases");
+    const listed = PHASES.flatMap((p) => p.modules).sort((a: number, b: number) => a - b);
+    expect(listed).toEqual(getModules().map((m) => m.number).sort((a, b) => a - b));
   });
 });
