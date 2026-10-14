@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 35
 prerequisites: [vectors-and-matrices, probability-and-statistics]
 related: [k-means, word-embeddings, k-nearest-neighbors]
+adapted_from: [phases/01-math-foundations/10-dimensionality-reduction, phases/01-math-foundations/11-singular-value-decomposition]
 ---
 
 # PCA, t-SNE, and UMAP
@@ -94,6 +95,65 @@ Both build a graph of which points are near which in the original space, then ar
 
 ## 4. Implementation
 
+### Build it from scratch
+
+Six short NumPy functions cover PCA two ways, plus projection and reconstruction. The full script is [`code/08-dimensionality-reduction/pca.py`](../../code/08-dimensionality-reduction/pca.py).
+
+**PCA by eigendecomposition.** This is the math section line for line: center, form the sample covariance (divide by $n - 1$), and take its eigenvectors. `eigh` is for symmetric matrices and returns eigenvalues in ascending order, so reverse them.
+
+```python
+def pca_eig(X):
+    """PCA via the covariance matrix: center, covariance, eigendecomposition, sort largest first."""
+    mu = X.mean(axis=0)                                  # [p]
+    Xc = X - mu                                          # [n, p] centered data
+    C = Xc.T @ Xc / (len(X) - 1)                         # [p, p] sample covariance, as scikit-learn uses
+    vals, vecs = np.linalg.eigh(C)                       # eigh: C is symmetric; returns ascending order
+    order = np.argsort(vals)[::-1]
+    return mu, C, vals[order], vecs[:, order]            # columns of vecs are the components v_k
+```
+
+*Predict:* if you forgot to center (used `X.T @ X` directly) on the worked example, roughly which direction would the first eigenvector point?
+
+**PCA by SVD.** Factor the centered data as $\tilde{X} = U S V^\top$. Then $\tilde{X}^\top \tilde{X} = V S^2 V^\top$, so the columns of $V$ are the same components and $\lambda_k = s_k^2/(n-1)$. This route never forms $\tilde{X}^\top \tilde{X}$, which squares the condition number and loses precision, so it is the safer default when features are nearly collinear.
+
+```python
+def pca_svd(X):
+    """PCA via SVD of the centered data: Xc = U S V^T, components are rows of V^T, variances s^2 / (n - 1)."""
+    mu = X.mean(axis=0)
+    U, s, Vt = np.linalg.svd(X - mu, full_matrices=False)   # never forms X^T X, so better conditioned
+    return mu, s ** 2 / (len(X) - 1), Vt.T
+```
+
+*Predict:* for the five worked-example points, the singular values are $s_1, s_2$. What is $s_1^2$, given $\lambda_1 = 3.771$ and $n = 5$?
+
+**Project and reconstruct.** Projecting keeps the first $k$ coordinates in the rotated system: $Z = \tilde{X} V_k$, shape $[n, k]$. Reconstructing rotates back and adds the mean: $\hat{X} = Z V_k^\top + \mu$, shape $[n, p]$. The squared error you lose equals the sum of the dropped eigenvalues (times $n - 1$).
+
+```python
+def project(X, mu, V, k):
+    """Scores: coordinates of each centered point along the first k components."""
+    return (X - mu) @ V[:, :k]                           # [n, p] @ [p, k] -> [n, k]
+
+def reconstruct(Z, mu, V):
+    """Map k-dimensional scores back to the original p features."""
+    return Z @ V[:, :Z.shape[1]].T + mu                  # [n, k] @ [k, p] -> [n, p]
+```
+
+*Predict:* reconstruct the worked example from PC1 alone. Where does the point $(4, 3)$ land, and why?
+
+**Sign convention.** If $v$ is an eigenvector, so is $-v$. Different routes (and library versions) can return either, so flip each component to make its largest entry positive before comparing.
+
+```python
+def sign_fix(V):
+    """Eigenvectors are only defined up to sign: make the largest-magnitude entry of each column positive."""
+    return V * np.sign(V[np.abs(V).argmax(axis=0), range(V.shape[1])])
+```
+
+*Predict:* after flipping PC1, what happens to the scores $[-2.819, -0.763, 0, 2.056, 1.526]$, and does the explained variance change?
+
+### Use the library
+
+scikit-learn's `PCA` centers the data and picks a solver with `svd_solver="auto"`: in version 1.5 and later, the covariance eigendecomposition (the first route above) when there are at least 10 times more rows than features and at most 1,000 features, a full SVD for small inputs, and a randomized SVD when you keep only a few components of a large matrix. Put it in a pipeline with the scaler so both are fit on training data only. t-SNE has no from-scratch version here; use the library.
+
 ```python
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -109,13 +169,35 @@ emb = TSNE(n_components=2, perplexity=30, init="pca", random_state=0).fit_transf
 # UMAP: pip install umap-learn; umap.UMAP(n_neighbors=15, min_dist=0.1).fit_transform(X_scaled)
 ```
 
-From scratch: `vals, vecs = np.linalg.eigh(np.cov(X.T))`, sort by `vals` descending, and project with `(X - X.mean(0)) @ vecs[:, :k]`. In practice libraries use the SVD of the centered data, which is more stable.
+### Run it
 
-Runnable script (the worked example, digits explained variance, PCA vs t-SNE): [`code/07-unsupervised/clustering_pca.py`](../../code/07-unsupervised/clustering_pca.py).
+From `guide/`:
+
+```bash
+uv run code/08-dimensionality-reduction/pca.py
+```
+
+Key lines of output:
+
+```text
+eigenvalues [3.7707 0.7293], explained variance ratio [0.8379 0.1621]
+PC1 direction [0.763  0.6464], projections (scores) [-2.8188 -0.763   0.      2.0558  1.526 ]
+SVD route: variances [3.7707 0.7293], PC1 [0.763  0.6464]
+rank-1 reconstruction: squared error / (n - 1) = 0.7293  (dropped eigenvalue λ2 = 0.7293)
+scikit-learn explained_variance_ratio_ [0.8379 0.1621], PC1 [0.763  0.6464]
+
+digits (64 dims): components for 90% variance = 31
+  k= 5: variance kept 0.414, reconstruction MSE 0.559
+  k=15: variance kept 0.709, reconstruction MSE 0.277
+  k=31: variance kept 0.900, reconstruction MSE 0.095
+scikit-learn agrees on digits variances: True
+```
+
+Both routes reproduce the worked example, and the rank-1 reconstruction error is exactly the dropped eigenvalue $\lambda_2$. On the standardized digits, reconstruction error falls as you keep more components, and 31 components hold 90% of the variance.
 
 ## 5. Engineering
 
-**Uses.** Compression before a downstream model (fewer features, less overfitting, faster); removing multicollinearity; denoising by reconstructing from top components; visualization; speeding up nearest-neighbor search.
+**Uses.** Compression before a downstream model (fewer features, less overfitting, faster); removing multicollinearity; denoising by reconstructing from top components; anomaly detection (a point with high reconstruction error does not fit the learned subspace); visualization; speeding up nearest-neighbor search.
 
 **Preprocessing.** Center always; standardize when features have different units, or PCA will just find the feature with the largest scale.
 
@@ -159,9 +241,13 @@ The matrix is already diagonal, so the components are the original axes: PC1 = $
 - Components mix features; high variance is not the same as predictive value.
 - t-SNE and UMAP preserve neighborhoods for exploration; their clusters, sizes, and gaps are hypotheses, not facts.
 
-**Next:** [From text to vectors](../09-classical-nlp/01-text-to-vectors.md)
+**Next:** [Feature engineering](../24-applied-ml/01-feature-engineering.md)
 
 **Related:** [K-means](../07-unsupervised/01-k-means.md) · [Word embeddings](../09-classical-nlp/02-word-embeddings.md) · [Model card: PCA](../../models/pca.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Dimensionality Reduction](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/10-dimensionality-reduction), [Singular Value Decomposition](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/11-singular-value-decomposition).*
+<!-- /deeper -->
 
 ## Interview angle
 

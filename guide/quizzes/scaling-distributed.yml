@@ -1,0 +1,126 @@
+title: Scaling and distributed training
+lesson: scaling-distributed
+questions:
+  - id: sd-bytes
+    type: numeric
+    difficulty: easy
+    prompt: |
+      With mixed-precision AdamW (bf16 weights and gradients, fp32 master copy and two fp32 Adam moments), how many bytes per parameter does training state take, before activations?
+    answer: 16
+    tolerance: 0
+    explanation: |
+      $2 + 2 + 4 + 4 + 4 = 16$.
+  - id: sd-7b
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A model has $7 \times 10^9$ parameters. How many GB (decimal) of training state does it need with mixed-precision AdamW?
+    answer: 112
+    tolerance: 0
+    explanation: |
+      $16 \times 7 \times 10^9 = 112 \times 10^9$ bytes $= 112$ GB. (Leaving out the fp32 master copy would give 84 GB, a common mistake.)
+  - id: sd-dp-memory
+    type: single
+    difficulty: easy
+    prompt: What does plain data parallelism (DDP) do to memory per GPU as you add GPUs?
+    options:
+      - Divides it by the number of GPUs.
+      - Nothing; every GPU still holds the full weights, gradients, and optimizer state.
+      - Halves it.
+      - Doubles it, because of communication buffers.
+    answer: 1
+    explanation: |
+      DDP replicates the model; it scales throughput, not capacity. Sharding (ZeRO, FSDP) is what divides memory.
+    why_not:
+      - That is ZeRO-3 / FSDP.
+      - ""
+      - No part is split under DDP.
+      - Buffers add a little, not a doubling.
+  - id: sd-parallelism-types
+    type: match
+    difficulty: medium
+    prompt: Match each strategy to what it splits across GPUs.
+    pairs:
+      - [Data parallelism, the batch]
+      - [Tensor parallelism, each weight matrix]
+      - [Pipeline parallelism, the layers]
+      - [ZeRO-3 / FSDP, "weights, gradients, and optimizer state (gathered when needed)"]
+    explanation: |
+      DP splits data, TP splits matrices inside a layer, PP splits the stack of layers, and FSDP shards all per-parameter state while keeping the data-parallel structure.
+  - id: sd-bubble
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A GPipe pipeline has $p = 4$ stages and $m = 12$ micro-batches. What fraction of the schedule time is bubble (idle)? (3 decimals)
+    answer: 0.2
+    tolerance: 0.001
+    explanation: |
+      $(p - 1)/(m + p - 1) = 3/15 = 0.200$.
+  - id: sd-tp-row
+    type: single
+    difficulty: medium
+    prompt: In a Megatron-style MLP, $W_{\text{up}}$ is split by columns and $W_{\text{down}}$ by rows. Why this order?
+    options:
+      - It halves the number of parameters.
+      - Each GPU applies the activation to its own slice of the hidden layer, and the row split of $W_{\text{down}}$ lines up with those slices, so only one all-reduce is needed at the end.
+      - Row splits need no communication at all.
+      - Column splits are only allowed for the first layer.
+    answer: 1
+    explanation: |
+      Column split gives hidden slices (no communication); elementwise activation is local; the row split multiplies each slice by matching rows and sums the partial outputs with one all-reduce.
+    why_not:
+      - The parameter count is unchanged; it is just split.
+      - ""
+      - Row splits produce partial sums that must be added, which is an all-reduce.
+      - Either split can be used for any matrix; the order matters for communication.
+  - id: sd-tp-across-nodes
+    type: single
+    difficulty: hard
+    prompt: |
+      A team runs 16-way tensor parallelism across two 8-GPU servers connected by Ethernet, and GPU utilization is poor. What is the most likely reason?
+    options:
+      - Tensor parallelism is not exact, so it recomputes layers.
+      - Tensor parallelism all-reduces inside every block on the critical path; across a slow inter-node link these all-reduces dominate step time.
+      - The pipeline bubble is too large.
+      - The optimizer state is replicated.
+    answer: 1
+    explanation: |
+      Keep TP within the NVLink domain (one server), and use pipeline or (sharded) data parallelism across servers.
+    why_not:
+      - TP is mathematically exact.
+      - ""
+      - There is no pipeline here.
+      - Replicated optimizer state is a memory issue, not a utilization issue.
+  - id: sd-3d
+    type: numeric
+    difficulty: easy
+    prompt: A run uses 8-way tensor, 16-way pipeline, and 128-way data parallelism. How many GPUs?
+    answer: 16384
+    tolerance: 0
+    explanation: |
+      $8 \times 16 \times 128 = 16{,}384$. This is the shape reported for Llama 3 405B pre-training.
+  - id: sd-uneven
+    type: single
+    difficulty: hard
+    prompt: |
+      Data-parallel training on 8 GPUs gives slightly different results from single-GPU training on the same 60-example batch. Shard sizes are 7 or 8. Why?
+    options:
+      - Floating-point non-associativity alone.
+      - A plain mean of shard-mean gradients weights the smaller shards' examples more; with unequal shards it is not the full-batch mean.
+      - Tensor parallelism changed the matmul order.
+      - The learning rate must be multiplied by 8.
+    answer: 1
+    explanation: |
+      Weight each shard gradient by its size (or all-reduce sums and counts). The lesson's script shows a difference of 0.067 here, far above rounding noise of about $10^{-16}$.
+    why_not:
+      - Rounding differences are around $10^{-16}$, not $10^{-2}$.
+      - ""
+      - No tensor parallelism is involved.
+      - The global batch is the same 60 examples; no rescaling is needed.
+  - id: sd-design
+    type: short
+    difficulty: hard
+    prompt: You must fully fine-tune a 70B model on 64 GPUs with 80 GB each. Sketch a parallelism plan and justify it with numbers.
+    sample_answer: |
+      Training state is 16 bytes per parameter, about 1.1 TB, so DDP is impossible. ZeRO-3 / FSDP across all 64 GPUs gives about 17 GB per GPU plus a few GB of checkpointed activations, comfortably under 80 GB, with about 1.5 times DDP's communication. If inter-node bandwidth is the bottleneck, use hybrid sharding within groups of at least 16 GPUs (about 69 GB each) or add 8-way tensor parallelism inside each server with sharded data parallelism across servers. Turn on gradient checkpointing and bf16; profile a few steps before committing.
+    explanation: Start from bytes per parameter, then pick the least communication-heavy plan that fits.

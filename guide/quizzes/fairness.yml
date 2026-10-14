@@ -1,0 +1,126 @@
+title: Fairness
+lesson: fairness
+questions:
+  - id: fair-dp-def
+    type: single
+    difficulty: easy
+    prompt: Which condition is demographic parity?
+    options:
+      - Equal selection rates, $P(\hat Y = 1 \mid A = a)$, across groups
+      - Equal true positive and false positive rates across groups
+      - Equal precision across groups
+      - Equal base rates across groups
+    answer: 0
+    explanation: Demographic parity equalizes how often each group gets a positive decision, regardless of the true outcome.
+    why_not:
+      - Correct.
+      - That is equalized odds.
+      - That is predictive parity.
+      - Base rates are a property of the population, not a constraint on the model.
+  - id: fair-match
+    type: match
+    difficulty: easy
+    prompt: Match each criterion to the quantity it equalizes across groups.
+    pairs:
+      - [Demographic parity, Selection rate]
+      - [Equal opportunity, True positive rate]
+      - [Equalized odds, True positive rate and false positive rate]
+      - [Predictive parity, Precision (PPV)]
+    explanation: Each criterion holds a different ratio from the per-group confusion matrix equal.
+  - id: fair-impossibility
+    type: single
+    difficulty: medium
+    prompt: Two groups have different base rates. For an imperfect classifier, which statement is true?
+    options:
+      - All group criteria can be satisfied with enough data
+      - Equal precision and equal error rates (FPR and FNR) cannot all hold at once
+      - Demographic parity implies equalized odds
+      - Removing the group attribute satisfies all criteria
+    answer: 1
+    explanation: |
+      $\text{FPR} = \frac{p}{1-p}\cdot\frac{1-\text{PPV}}{\text{PPV}}\cdot\text{TPR}$ ties them together; different $p$ forces at least one gap (Chouldechova 2017).
+    why_not:
+      - More data does not change the arithmetic linking the rates to the base rate.
+      - Correct.
+      - With different base rates, equal selection rates usually force unequal error rates.
+      - The disparity usually survives through proxies, and you lose the ability to measure it.
+  - id: fair-ppv-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A group of 100 has 40 true positives in reality. The model has TPR 0.75 and FPR 0.10 in this group. What is its precision (PPV)? Give a decimal to three places.
+    answer: 0.833
+    tolerance: 0.002
+    explanation: |
+      $\text{TP} = 0.75 \times 40 = 30$. $\text{FP} = 0.10 \times 60 = 6$. $\text{PPV} = 30 / 36 = 0.833$.
+  - id: fair-fourfifths
+    type: numeric
+    difficulty: easy
+    prompt: Group A is selected at 0.36 and group B at 0.48. What is the selection-rate ratio (lower over higher)?
+    answer: 0.75
+    tolerance: 0.005
+    explanation: $0.36 / 0.48 = 0.75$, below the four-fifths (0.8) rule of thumb used for adverse impact in US employment.
+  - id: fair-unaware
+    type: single
+    difficulty: medium
+    prompt: A team removed gender from a hiring model's features and claims the model is now fair. What is the best response?
+    options:
+      - Agree; the model cannot discriminate on a feature it never sees
+      - Ask for a per-group audit, because proxies like name, school, and work history can carry the same information
+      - Remove all features to be safe
+      - Retrain with a higher learning rate
+    answer: 1
+    explanation: Fairness through unawareness rarely removes disparity, and it makes measurement harder. Collect the attribute for auditing and compute per-group rates.
+    why_not:
+      - Correlated features let the model reconstruct much of the removed attribute.
+      - Correct.
+      - A model with no features is useless and still not "fair" by any useful criterion.
+      - Optimization settings don't address proxy features.
+  - id: fair-fraud-choice
+    type: single
+    difficulty: medium
+    prompt: For a model that flags transactions and blocks customers' cards for review, which criterion best targets the main harm to customers?
+    options:
+      - Equal false positive rates across groups
+      - Equal selection rates across groups
+      - Equal precision across groups
+      - Equal base rates
+    answer: 0
+    explanation: The direct harm is innocent customers being blocked. Equal FPR means innocent customers in each group face the same chance of that.
+    why_not:
+      - Correct.
+      - If fraud rates differ by group, equal flag rates would add false flags in one group or miss fraud in another.
+      - Precision matters for review cost, but the customer harm is false flags among the innocent.
+      - Base rates describe the world; the model cannot set them.
+  - id: fair-counterfactual
+    type: single
+    difficulty: hard
+    prompt: In the causal model X = U + 2A, a person has A = 1 and X = 7. Under counterfactual fairness, what is their counterfactual X if A had been 0?
+    options:
+      - "7"
+      - "5"
+      - "3"
+      - "9"
+    answer: 1
+    explanation: Abduction gives $U = 7 - 2 = 5$. Flip $A$ to 0 and recompute, $X = 5 + 0 = 5$. A predictor using raw $X$ would change; one using $U$ would not.
+    why_not:
+      - That assumes A has no effect on X.
+      - Correct.
+      - That subtracts the effect twice.
+      - That adds the effect instead of removing it.
+  - id: fair-small-groups
+    type: single
+    difficulty: medium
+    prompt: An audit shows a TPR of 0.80 for one group based on 40 positives and 0.86 for another based on 4,000. What should the report say?
+    options:
+      - The model is clearly unfair to the first group
+      - The gap is within noise for the small group (95% interval roughly ±0.12), so report intervals and collect more data before concluding
+      - The second group is being favoured by 6 points
+      - TPR should not be reported per group
+    answer: 1
+    explanation: Small groups give noisy rates. Report confidence intervals and avoid chasing gaps smaller than the noise.
+    why_not:
+      - A 6-point gap on 40 positives is not distinguishable from chance.
+      - Correct.
+      - Same problem; the difference is not statistically clear.
+      - Per-group TPR is exactly what equal opportunity requires.

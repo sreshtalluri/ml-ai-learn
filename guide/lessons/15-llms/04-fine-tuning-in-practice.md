@@ -5,6 +5,7 @@ skill: llms
 minutes: 45
 prerequisites: [adapting-llms, tokenization-and-pretraining, gradient-descent]
 related: [transformer-architecture, llm-evaluation, training-and-regularization]
+adapted_from: [phases/10-llms-from-scratch/06-instruction-tuning-sft, phases/11-llm-engineering/08-fine-tuning-lora, phases/19-capstone-projects/46-gradient-accumulation]
 ---
 
 # Fine-tuning in practice
@@ -189,6 +190,81 @@ Example: $G = 4$, rewards $[1, 0, 0, 1]$. Mean $= 0.5$. Standard deviation $= \s
 
 ## 4. Implementation
 
+The full script is [`code/15-llms/finetune_scratch.py`](../../code/15-llms/finetune_scratch.py) (NumPy only, no GPU). It builds the three mechanisms every fine-tuning library hides: the SFT loss mask, a LoRA layer with its own backward pass and merge, and gradient accumulation done right.
+
+### Build it from scratch
+
+**Step 1: the loss mask.** The model still predicts every next token, but only response positions count. Dividing by `mask.sum()` instead of the sequence length makes the loss an average over response tokens, matching the formula in section 3.
+
+```python
+def masked_nll(logp_true, mask):
+    """logp_true: log-prob of each actual next token [T]; mask: 1 on response tokens, 0 on prompt."""
+    return -(logp_true * mask).sum() / mask.sum()   # average over response tokens only
+```
+
+The script uses section 3's shape: 300 prompt tokens the model finds hard (probability 0.05 each) and 100 response tokens at 0.5. Masked, the loss is $-\ln 0.5 = 0.693$. Unmasked it is $(300 \times 2.996 + 100 \times 0.693)/400 = 2.420$, and three quarters of the gradient would go into predicting the user's prompt.
+
+*Predict:* if you divided by the sequence length (400) but kept the mask, what loss would you report, and why is that misleading when responses vary in length?
+
+**Step 2: a LoRA layer.** The frozen $W_0$ plus a low-rank path $\frac{\alpha}{r} B A$. $B$ starts at zero so step 0 reproduces the base model exactly; $A$ is random so gradients can reach $B$. `merged()` folds the adapter back into one matrix.
+
+```python
+class LoRALinear:
+    def __init__(self, W0, r, alpha, rng):
+        d_out, d_in = W0.shape
+        self.W0 = W0                                    # frozen
+        self.A = rng.normal(0, 1 / np.sqrt(d_in), (r, d_in))   # random
+        self.B = np.zeros((d_out, r))                   # zero, so B @ A = 0 at step 0
+        self.s = alpha / r
+
+    def forward(self, X):                               # X: [n, d_in]
+        self.X, self.XA = X, X @ self.A.T               # [n, r]: the low-rank bottleneck
+        return X @ self.W0.T + self.s * self.XA @ self.B.T
+
+    def merged(self):
+        return self.W0 + self.s * self.B @ self.A       # same shape as W0: no extra latency
+```
+
+*Predict:* what goes wrong if both $A$ and $B$ start at zero?
+
+**Step 3: LoRA's backward pass.** Only $A$ and $B$ get gradients; $W_0$ is never touched, which is where LoRA's memory savings come from (no gradient or optimizer state for $W_0$). The chain rule runs through the bottleneck `XA`.
+
+```python
+def lora_step(layer, X, Y, lr):
+    pred = layer.forward(X)
+    dP = 2 * (pred - Y) / len(X)                        # mean squared error gradient, [n, d_out]
+    dB = layer.s * dP.T @ layer.XA                      # [d_out, r]
+    dA = layer.s * (dP @ layer.B).T @ layer.X           # [r, d_in]  (zero while B is zero)
+    layer.B -= lr * dB
+    layer.A -= lr * dA
+    return ((pred - Y) ** 2).sum(1).mean()
+```
+
+The demo gives a 64×64 layer a synthetic task that needs a rank-4 change to its weights. LoRA with $r = 4$ trains 512 numbers (12.5% of 4,096) and fits it.
+
+*Predict:* if the task needed a rank-16 change and you kept $r = 4$, would the loss reach zero?
+
+**Step 4: gradient accumulation.** When a batch does not fit in memory, run several micro-batches, add their gradients, and step once. The trap in SFT: with loss masking, micro-batches hold different numbers of response tokens. Averaging each micro-batch's mean weights a 1-token micro-batch as much as an 8-token one. Sum the gradients, then divide by the total token count.
+
+```python
+def grad_sum(w, X, y, mask):
+    """Gradient of the SUM of masked squared errors for a linear model, and the token count."""
+    err = (X @ w - y) * mask
+    return 2 * X.T @ err, mask.sum()
+
+parts = [grad_sum(w, Xb[i:i + 8], yb[i:i + 8], mb[i:i + 8]) for i in range(0, 32, 8)]
+naive = sum(g / n for g, n in parts) / 4                        # mean of per-micro-batch means
+right = sum(g for g, _ in parts) / sum(n for _, n in parts)     # sum, then divide by total tokens
+```
+
+A linear model stands in for the LLM so the gradient is one line; the bookkeeping is identical.
+
+*Predict:* if every micro-batch had exactly the same number of response tokens, would `naive` and `right` agree?
+
+### Use the library
+
+The production version of all four steps, with QLoRA:
+
 ```python
 # SFT with loss masking and QLoRA (pip install transformers peft bitsandbytes trl)
 import torch
@@ -213,9 +289,30 @@ model = get_peft_model(model, LoraConfig(
 model.print_trainable_parameters()
 ```
 
-Libraries such as TRL wrap this (`SFTTrainer` with assistant-only loss, `DPOTrainer`, `GRPOTrainer`), but the masking above is what they do. After training, `model.merge_and_unload()` folds the adapter into a 16-bit copy of the base for deployment.
+The `-100` labels are step 1's mask: PyTorch's cross-entropy ignores that label. PEFT wraps each target `nn.Linear` in step 2's layer, and autograd replaces step 3. `gradient_accumulation_steps` in the Trainer is step 4; recent versions of Hugging Face Transformers normalize by the total token count across micro-batches, after older versions had exactly the averaging bug shown above. Libraries such as TRL wrap the whole thing (`SFTTrainer` with assistant-only loss, `DPOTrainer`, `GRPOTrainer`). After training, `model.merge_and_unload()` is step 2's `merged()`: it folds the adapter into a 16-bit copy of the base for deployment.
 
-Runnable script (parameter counts, LoRA arithmetic, memory table, DPO and GRPO numbers, figure; no GPU needed): [`code/15-llms/fine_tuning_memory.py`](../../code/15-llms/fine_tuning_memory.py).
+### Run it
+
+```bash
+uv run code/15-llms/finetune_scratch.py
+```
+
+Key lines of output (synthetic weights and data):
+
+```text
+masked loss (response only): 0.693
+unmasked loss (all tokens) : 2.420  <- dominated by the prompt
+step 0 output equals base model: True
+trainable 512 vs full 4,096 (12.5%)
+step   0  loss 4.2323
+step 400  loss 0.0019
+merged weights give the same outputs: True
+tokens per micro-batch: [8, 2, 8, 1]
+naive  (average of means) matches full batch: False  max error 1.138
+correct (divide by total) matches full batch: True
+```
+
+The memory arithmetic of section 3 (parameter counts, the per-method memory table, DPO and GRPO numbers, and the figure) is in [`code/15-llms/fine_tuning_memory.py`](../../code/15-llms/fine_tuning_memory.py).
 
 ## 5. Engineering
 
@@ -242,6 +339,7 @@ Runnable script (parameter counts, LoRA arithmetic, memory table, DPO and GRPO n
 - Fine-tuning to add knowledge, then being surprised by confident wrong answers on facts just outside the training set.
 - Mixing up DPO's $\beta$ with a learning rate. $\beta$ is the strength of the pull toward the reference.
 - Running RL with a verifier that can be gamed (for example, tests that pass on empty output). The model will find the loophole.
+- Averaging per-micro-batch losses under gradient accumulation when micro-batches hold different numbers of response tokens. Sum, then divide by the total token count (section 4, step 4).
 
 ## 6. Knowledge check
 
@@ -277,9 +375,15 @@ Render the conversation prefix after each turn with the chat template, tokenize 
 - LoRA trains $r(d_{\text{in}} + d_{\text{out}})$ parameters per matrix (0.59% at $r = 16$ on all linear layers), starts at $BA = 0$, and merges into $W_0$ for free inference. QLoRA stores the base in NF4 and brings the job to about 5.3 GB.
 - DPO optimizes preferences directly against a frozen reference; GRPO normalizes verifier rewards within a group of samples. Always run regression evals for forgetting.
 
-**Next:** [The RAG pipeline](../16-rag/01-rag-pipeline.md)
+**Next:** [Mixture of experts](05-mixture-of-experts.md)
 
 **Related:** [Adapting LLMs](03-adapting-llms.md) · [Evaluating LLM systems](../17-llm-evaluation/01-llm-evaluation.md) · [Training and regularization](../12-training-regularization/01-training-and-regularization.md) · [Cheat sheet: fine-tuning](../../cheatsheets/fine-tuning.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [ControlNet, LoRA & Conditioning](https://aiengineeringfromscratch.com/lesson?path=phases/08-generative-ai/08-controlnet-lora-conditioning) · [Loading Pretrained Weights](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/37-loading-pretrained-weights) · [Capstone Lesson 38: Classifier Fine-Tuning by Head Swap](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/38-classifier-finetuning)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Instruction Tuning (SFT)](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/06-instruction-tuning-sft), [Fine-Tuning with LoRA & QLoRA](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/08-fine-tuning-lora), [Gradient Accumulation](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/46-gradient-accumulation).*
+<!-- /deeper -->
 
 ## Interview angle
 

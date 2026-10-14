@@ -1,0 +1,137 @@
+title: CLIP and contrastive image-text pretraining
+lesson: clip-contrastive-pretraining
+questions:
+  - id: clip-diagonal
+    type: single
+    difficulty: easy
+    prompt: In CLIP's $N \times N$ similarity matrix for one batch, where are the correct image-caption pairs?
+    options:
+      - On the diagonal
+      - In the first row
+      - Wherever the cosine is highest
+      - Off the diagonal
+    answer: 0
+    explanation: Image $i$ was paired with caption $i$, so the targets for both softmaxes are the diagonal entries.
+    why_not:
+      - Correct.
+      - The first row holds image 1 against every caption.
+      - Early in training the highest cosine is often wrong; the label comes from the pairing.
+      - Off-diagonal cells are the negatives.
+  - id: clip-two-directions
+    type: single
+    difficulty: medium
+    prompt: Why does CLIP average an image-to-text loss (row softmax) and a text-to-image loss (column softmax)?
+    options:
+      - The two are always equal, so averaging is harmless
+      - Each direction catches different confusions; a "hub" image close to many captions can win its row yet steal other captions' columns
+      - It halves the compute
+      - Only the text-to-image loss is used at inference
+    answer: 1
+    explanation: In the lesson's worked example image 1 picks its caption with 0.88, but caption 1 prefers image 2 with 0.81. Training both directions penalises such asymmetries.
+    why_not:
+      - They differ (0.287 versus 0.692 in the worked example).
+      - Both softmaxes come from the same matrix; no compute is saved.
+      - Correct.
+      - Both directions are used in practice (search and classification).
+  - id: clip-row-softmax
+    type: numeric
+    difficulty: medium
+    prompt: An image's cosines with three captions are $(0.96, 1.00, 0.80)$, and its own caption is the second. At $\tau = 0.1$, what probability does the row softmax give its own caption? (Four decimals.)
+    answer: 0.5538
+    tolerance: 0.0005
+    explanation: Logits $(9.6, 10, 8)$. Relative to 10 the exponentials are $e^{-0.4} = 0.6703$, $1$, $e^{-2} = 0.1353$; sum $1.8057$; probability $1/1.8057 = 0.5538$.
+  - id: clip-loss-calc
+    type: numeric
+    difficulty: hard
+    prompt: Two pairs, $\tau = 0.5$, cosines $C_{11} = 0.9$, $C_{12} = 0.5$, $C_{21} = 0.3$, $C_{22} = 0.7$. Compute the symmetric contrastive loss. (Three decimals.)
+    answer: 0.380
+    tolerance: 0.003
+    explanation: |
+      Rows: logits $(1.8, 1.0)$ and $(0.6, 1.4)$; both diagonal probabilities are $1/(1 + e^{-0.8}) = 0.690$, so $L_{\text{i2t}} = 0.371$. Columns: $(1.8, 0.6)$ gives $0.769$; $(1.0, 1.4)$ gives $0.599$; $L_{\text{t2i}} = (0.263 + 0.513)/2 = 0.388$. Average $0.380$.
+  - id: clip-temperature
+    type: single
+    difficulty: medium
+    prompt: What happens to CLIP's softmax as the temperature $\tau$ decreases toward 0.01?
+    options:
+      - Probabilities become more uniform
+      - Probabilities become nearly one-hot, so remaining confusions are punished very hard
+      - Nothing; temperature only affects inference
+      - The cosines change
+    answer: 1
+    explanation: Dividing by a smaller $\tau$ stretches cosine gaps. Correct pairs become cheap and any confusion becomes very expensive (loss 2.67 at $\tau = 0.01$ in the worked example).
+    why_not:
+      - That happens as $\tau$ increases.
+      - Correct.
+      - CLIP learns $\tau$ during training.
+      - Temperature scales logits; the cosines stay the same.
+  - id: clip-chance
+    type: numeric
+    difficulty: easy
+    prompt: With a batch of 1024 pairs, what symmetric contrastive loss does a model with uniform softmaxes get? (Natural log, two decimals.)
+    answer: 6.93
+    tolerance: 0.01
+    explanation: Both directions give $\ln 1024 = 6.931$, so the average is $6.93$.
+  - id: clip-zero-shot
+    type: single
+    difficulty: easy
+    prompt: How does CLIP classify an image into classes it was never trained on?
+    options:
+      - It fine-tunes a new head for the classes
+      - It embeds a text prompt per class (such as "a photo of a dog") and picks the class whose prompt embedding is most similar to the image embedding
+      - It looks up the class in an ImageNet table
+      - It generates a caption and parses it
+    answer: 1
+    explanation: Classification becomes retrieval among the prompts you supply; no weights change.
+    why_not:
+      - That would be a linear probe or fine-tuning, not zero-shot.
+      - Correct.
+      - CLIP has no fixed label table.
+      - CLIP cannot generate text.
+  - id: clip-siglip
+    type: single
+    difficulty: medium
+    prompt: What is the main practical advantage of SigLIP's sigmoid loss over CLIP's softmax loss?
+    options:
+      - It needs no text encoder
+      - Each pair is an independent binary decision, so there is no normalisation across the whole batch; this distributes more cheaply and works well at smaller batches too
+      - It removes the need for negatives
+      - It produces captions
+    answer: 1
+    explanation: The softmax couples every entry in a row and column, which requires the full matrix. Sigmoids do not.
+    why_not:
+      - SigLIP keeps two towers.
+      - Correct.
+      - Off-diagonal pairs are still negatives, with label $-1$.
+      - Neither model generates text.
+  - id: clip-search-diagnose
+    type: single
+    difficulty: hard
+    prompt: CLIP-based product search returns red shirts for "a blue shirt with red stripes" and leather bags for "bag, not leather". What is the best fix?
+    options:
+      - Lower the temperature
+      - Retrieve candidates with CLIP for recall, then rerank with a model that reads image and text jointly, and handle attributes and negations with structured filters where catalogue metadata exists
+      - Use a larger batch at inference
+      - Normalise the query twice
+    answer: 1
+    explanation: Pooled dual-encoder embeddings bind attributes weakly and largely ignore negation. Joint rerankers and metadata filters handle these cases.
+    why_not:
+      - Temperature scales scores; it does not change the ranking.
+      - Correct.
+      - Batch size at inference does not change the embeddings.
+      - Normalisation is idempotent.
+  - id: clip-design-moderation
+    type: single
+    difficulty: medium
+    prompt: You want to flag unsafe images using CLIP zero-shot with prompts "a safe photo" and "an unsafe photo". What is the most important step before launch?
+    options:
+      - Nothing; the softmax gives a calibrated probability
+      - Build a labelled evaluation set, choose prompts and a threshold on it, and audit errors across groups of people and content types
+      - Add more prompts until the probabilities look confident
+      - Switch to a lower temperature
+    answer: 1
+    explanation: Zero-shot scores are relative to the prompts offered and not calibrated; CLIP also inherits web biases. Decisions need a measured threshold and an audit.
+    why_not:
+      - The softmax over two prompts always picks one; it is not a calibrated probability.
+      - Correct.
+      - Confidence is not accuracy.
+      - That makes outputs more extreme, not more correct.

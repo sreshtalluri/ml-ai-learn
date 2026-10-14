@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 30
 prerequisites: [ml-workflow, overfitting-and-bias-variance]
 related: [random-forests-and-boosting, k-nearest-neighbors, logistic-regression]
+adapted_from: [phases/02-ml-fundamentals/04-decision-trees]
 ---
 
 # Decision trees
@@ -97,6 +98,77 @@ The tree splits on age. With entropy instead, A gives weighted entropy 0.722 bit
 
 ## 4. Implementation
 
+### Build it from scratch
+
+The full tree takes about 40 lines of NumPy. Start with the impurity. `np.bincount` counts each class label, so the class fractions $p_k$ come from one division.
+
+```python
+def gini(y):
+    """1 - sum_k p_k^2 for the integer labels in y. 0 = pure node."""
+    if len(y) == 0:
+        return 0.0
+    p = np.bincount(y) / len(y)
+    return 1.0 - np.sum(p**2)
+```
+
+*Predict:* what does `gini(np.array([0, 0, 0, 0, 1]))` return? (The age < 35 left child from the worked example.)
+
+The split search is the heart of the algorithm. For every feature it tries the midpoint between each pair of neighbouring sorted values. It scores each candidate by the weighted child impurity and keeps the largest decrease. `min_leaf` rejects splits that would leave a tiny child.
+
+```python
+def best_split(X, y, min_leaf=1):
+    """Try every feature and every midpoint between sorted unique values; keep the biggest Gini decrease."""
+    best = (None, None, 0.0)                      # (feature, threshold, decrease)
+    parent = gini(y)
+    for j in range(X.shape[1]):
+        values = np.unique(X[:, j])
+        for t in (values[:-1] + values[1:]) / 2:  # midpoints
+            left = X[:, j] <= t
+            n_l, n_r = left.sum(), (~left).sum()
+            if n_l < min_leaf or n_r < min_leaf:
+                continue
+            child = (n_l * gini(y[left]) + n_r * gini(y[~left])) / len(y)
+            if parent - child > best[2]:
+                best = (j, t, parent - child)
+    return best
+```
+
+*Predict:* with $n$ rows and $d$ features, roughly how many candidate splits does one call score? Why does multiplying a feature by 10 not change which split wins?
+
+Growing is recursion. A node becomes a leaf when it is pure, when it reaches `max_depth`, or when no split lowers impurity. Leaves store the majority class. Internal nodes store a feature, a threshold, and two children.
+
+```python
+def grow(X, y, depth=0, max_depth=None, min_leaf=1):
+    """Split until the node is pure, max_depth is hit, or no split lowers impurity. Leaves store the majority class."""
+    leaf = {"value": int(np.bincount(y).argmax())}
+    if gini(y) == 0 or (max_depth is not None and depth >= max_depth):
+        return leaf
+    j, t, gain = best_split(X, y, min_leaf)
+    if j is None:
+        return leaf
+    mask = X[:, j] <= t
+    return {"feature": j, "threshold": t,
+            "left": grow(X[mask], y[mask], depth + 1, max_depth, min_leaf),
+            "right": grow(X[~mask], y[~mask], depth + 1, max_depth, min_leaf)}
+```
+
+*Predict:* with `max_depth=None` on noisy data, when does recursion stop? What training accuracy will the tree reach?
+
+Prediction walks one root-to-leaf path. That is why inference costs $O(\text{depth})$, not $O(\text{number of nodes})$.
+
+```python
+def predict_one(node, x):
+    while "feature" in node:                      # walk down until a leaf
+        node = node["left"] if x[node["feature"]] <= node["threshold"] else node["right"]
+    return node["value"]
+```
+
+*Predict:* a point lies far outside the training range, for example $x_1 = 100$. What does the tree return, and why can't it "continue the trend"?
+
+### Use the library
+
+scikit-learn's `DecisionTreeClassifier` runs the same greedy search (CART) in optimized C. It adds pruning controls, class weights, and readable rule export. On the same data it grows trees of the same size and reaches the same scores (see the run below).
+
 ```python
 from sklearn.tree import DecisionTreeClassifier, export_text
 
@@ -106,9 +178,31 @@ print(export_text(tree, feature_names=feature_names))   # the learned rules, rea
 print(tree.feature_importances_)                         # total impurity decrease per feature
 ```
 
-From scratch, the core is a search: for each feature, sort its values, try each midpoint between consecutive values, compute the weighted child impurity, keep the best, and recurse.
+### Run it
 
-Runnable script (split arithmetic, depth comparison, and figures): [`code/06-trees-and-ensembles/trees.py`](../../code/06-trees-and-ensembles/trees.py).
+From `guide/`:
+
+```bash
+uv run code/06-trees-and-ensembles/tree_scratch.py
+```
+
+Key output (synthetic two moons, 300 train / 300 test):
+
+```
+age < 35: weighted Gini 0.32, decrease 0.18
+income < 50k: weighted Gini 0.48, decrease 0.02
+
+From scratch on two moons (300 train / 300 test):
+  max_depth=1    leaves=  2 train 0.833 test 0.817
+  max_depth=3    leaves=  6 train 0.910 test 0.903
+  max_depth=6    leaves= 18 train 0.970 test 0.913
+  max_depth=None leaves= 31 train 1.000 test 0.887
+
+scikit-learn, same data:
+  max_depth=None leaves= 31 train 1.000 test 0.890
+```
+
+The unlimited tree hits 100% training accuracy and still loses to depth 6 on test data. The scratch and library trees match at every depth. At unlimited depth they differ by one test point, because tied splits can be broken differently. The figure and the depth table in section 2 come from [`code/06-trees-and-ensembles/trees.py`](../../code/06-trees-and-ensembles/trees.py), which uses a different random sample, so its numbers differ slightly.
 
 ## 5. Engineering
 
@@ -155,6 +249,10 @@ Parent: $1 - (0.75^2 + 0.25^2) = 1 - 0.625 = 0.375$. Both children are pure (0),
 **Next:** [Random forests and gradient boosting](02-random-forests-and-boosting.md)
 
 **Related:** [Overfitting and bias-variance](../02-ml-workflow/02-overfitting-and-bias-variance.md) · [Model card: decision tree](../../models/decision-tree.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Decision Trees and Random Forests](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/04-decision-trees).*
+<!-- /deeper -->
 
 ## Interview angle
 

@@ -1,6 +1,6 @@
 ---
 title: Classical NLP
-summary: Turn text into numbers with tokenization, bag-of-words, n-grams, TF-IDF, and word embeddings.
+summary: Turn text into numbers with tokenization, bag-of-words, n-grams, TF-IDF, and word embeddings, then extract entities and discover topics.
 skill: nlp
 ---
 
@@ -12,5 +12,7 @@ Models need numbers. This module turns text into vectors two ways: sparse counts
 |---|---|---|
 | 1 | [From text to vectors](01-text-to-vectors.md) | tokenize, build a document-term matrix, and compute TF-IDF and cosine similarity by hand |
 | 2 | [Word embeddings](02-word-embeddings.md) | explain Word2Vec's skip-gram and CBOW objectives and the difference between static and contextual embeddings |
+| 3 | [Named entity recognition](03-named-entity-recognition.md) | tag entities with BIO labels, decode valid sequences with Viterbi, and score with entity-level F1 |
+| 4 | [Topic modeling](04-topic-modeling.md) | implement collapsed Gibbs LDA, choose the number of topics, and pick between LDA, NMF, and BERTopic |
 
 **Interactive lab:** [TF-IDF calculator](https://sreshtalluri.github.io/ml-ai-learn/labs/tfidf/)

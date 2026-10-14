@@ -1,0 +1,160 @@
+title: Named entity recognition
+lesson: named-entity-recognition
+questions:
+  - id: ner-bio
+    type: single
+    difficulty: easy
+    prompt: What is BIO tagging?
+    options:
+      - A tree representation of entities
+      - A binary entity versus non-entity label per token
+      - Per-token labels B-TYPE for the first token of an entity, I-TYPE for following tokens, O for outside
+      - A tokenization scheme for subwords
+    answer: 2
+    explanation: BIO turns span extraction into token classification. B starts an entity, I continues it, O is outside any entity.
+    why_not:
+      - BIO is a flat sequence of labels, one per token, not a tree.
+      - A binary label loses both the entity type and where one entity ends and the next begins.
+      - ""
+      - BIO labels tokens after tokenization; it does not split text.
+  - id: ner-gazetteer
+    type: single
+    difficulty: easy
+    prompt: Why are gazetteer (name-list) lookups brittle as the only NER method?
+    options:
+      - They are slow to run
+      - They cannot match multi-token names
+      - They have no coverage of names missing from the list and cannot use context to disambiguate (Apple the company versus the fruit)
+      - They require a GPU
+    answer: 2
+    explanation: Lookups only match known strings. In the course script a gazetteer of training names scored 0 entity F1 on a test set of unseen names.
+    why_not:
+      - Hash lookups are very fast; speed is their strength.
+      - Matching the longest known token sequence first handles multi-token names.
+      - ""
+      - A lookup table runs anywhere.
+  - id: ner-viterbi-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Tags O, B-LOC, I-LOC. Token "New": P(O) = 0.6, P(B-LOC) = 0.4, P(I-LOC) = 0. Token "York": P(O) = 0.2, P(B-LOC) = 0.3, P(I-LOC) = 0.5. I-LOC may only follow B-LOC or I-LOC. What is the probability product of the best **valid** two-tag sequence?
+    answer: 0.2
+    tolerance: 0.001
+    explanation: |
+      Valid sequences: O O = 0.12, O B-LOC = 0.18, B-LOC O = 0.08, B-LOC B-LOC = 0.12, B-LOC I-LOC = 0.4 × 0.5 = 0.20. O I-LOC (0.30) is forbidden. Best is B-LOC I-LOC at 0.20.
+  - id: ner-entity-f1
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Gold tags: B-LOC I-LOC I-LOC O B-ORG. Predicted: B-LOC I-LOC O O B-ORG. What is the entity-level F1 (exact span and type match)?
+    answer: 0.5
+    tolerance: 0.001
+    explanation: |
+      Gold spans {(0,3,LOC), (4,5,ORG)}; predicted {(0,2,LOC), (4,5,ORG)}. One exact match. P = 1/2, R = 1/2, F1 = 0.5. Token accuracy is 4/5 = 0.8, which overstates quality.
+  - id: ner-crf-role
+    type: single
+    difficulty: medium
+    prompt: In a BiLSTM-CRF or a feature-based linear-chain CRF, what does the CRF part add over an independent per-token classifier?
+    options:
+      - It tokenizes the text
+      - It learns transition scores between tags and decodes the best whole sequence, so invalid sequences like O followed by I-ORG become very unlikely
+      - It replaces word embeddings
+      - It makes training unsupervised
+    answer: 1
+    explanation: The CRF scores entire tag sequences with emission plus transition terms and normalizes over all sequences; Viterbi finds the best one.
+    why_not:
+      - Tokenization happens before any tagger.
+      - ""
+      - The CRF sits on top of features or embeddings; it does not replace them.
+      - A CRF is trained on labeled tag sequences.
+  - id: ner-diagnose-accuracy
+    type: single
+    difficulty: hard
+    prompt: A team reports 96% token accuracy for their NER model, but users say it misses about half the entities. What is the most likely explanation?
+    options:
+      - The model is underfitting and needs more layers
+      - Token accuracy is dominated by easy O tokens; entity-level recall with exact span match is much lower
+      - The tokenizer is too fast
+      - Users are mislabeling entities
+    answer: 1
+    explanation: Most tokens are O. Report entity-level precision, recall, and F1 per type with exact span match, on entities unseen in training.
+    why_not:
+      - Possibly true, but you can't conclude it before measuring the right metric.
+      - ""
+      - Tokenizer speed doesn't affect accuracy.
+      - Blaming users skips checking whether the metric matches what users care about.
+  - id: ner-memorize
+    type: single
+    difficulty: hard
+    prompt: In the course script, adding the word itself as a feature lowered entity F1 on the test set from 0.73 to 0.56. Why?
+    options:
+      - The word feature is buggy
+      - Test names never appear in training, so word-identity weights are useless there, and the model relied on them instead of shape and context
+      - More features always hurt logistic regression
+      - Viterbi cannot handle more features
+    answer: 1
+    explanation: The model memorized the training name list. Evaluate on unseen entities to measure generalization.
+    why_not:
+      - The feature is computed correctly; it just doesn't transfer to new names.
+      - ""
+      - Extra features often help; here they encourage memorization because names don't recur.
+      - Viterbi only sees the per-tag probabilities; the feature count doesn't matter to it.
+  - id: ner-nested
+    type: single
+    difficulty: medium
+    prompt: Why can standard BIO not represent "Bank of America Stadium" as a FACILITY that contains the ORG "Bank of America"?
+    options:
+      - BIO assigns exactly one tag per token, so a token can't belong to two overlapping spans
+      - BIO cannot represent multi-token entities
+      - BIO has no way to store the entity type
+      - BIO only works with transformers
+    answer: 0
+    explanation: Nested entities need span-based models that score every candidate span, or one tagging pass per type.
+    why_not:
+      - ""
+      - B followed by I tags represent multi-token entities.
+      - The type is part of every B-TYPE and I-TYPE tag.
+      - BIO works with any token classifier, including CRFs.
+  - id: ner-aggregation
+    type: single
+    difficulty: easy
+    prompt: What does `aggregation_strategy="simple"` do in the Hugging Face token-classification pipeline?
+    options:
+      - Returns only the most confident entity
+      - Merges consecutive word pieces and B-/I- tokens of the same type into whole entity spans
+      - Lowercases the output
+      - Skips tokenization
+    answer: 1
+    explanation: Without aggregation you get one prediction per subword token and must merge them yourself.
+    why_not:
+      - It returns all entities, grouped into spans.
+      - ""
+      - It does not change text case.
+      - The model still needs its subword tokenizer.
+  - id: ner-design
+    type: single
+    difficulty: hard
+    prompt: You must redact names and account numbers from 50 million support tickets a day, on your own infrastructure. Which design fits best?
+    options:
+      - Send every ticket to a hosted LLM with a redaction prompt
+      - Regex with checksums for account numbers plus a small fine-tuned encoder for names, tuned for high recall and measured with entity-level recall on unseen names
+      - A gazetteer of customer names only
+      - Token accuracy monitoring on a fixed test set
+    answer: 1
+    explanation: Structured IDs suit regex; names need context. A small encoder meets cost and latency at this volume, and recall matters most for PII.
+    why_not:
+      - About 580 calls per second is costly and slow, and sending PII to an external API may break policy.
+      - ""
+      - Names not in the list (new customers, family members) would leak.
+      - That's a metric, not a design, and token accuracy hides missed entities.
+  - id: ner-classical-wins
+    type: multi
+    difficulty: medium
+    prompt: When is a classical CRF or small encoder usually a better choice than prompting a large LLM for NER? Select all that apply.
+    options:
+      - A strict latency budget of a few milliseconds per sentence
+      - Thousands of labeled examples and a stable label set
+      - Data that must stay on-premises on CPU-only machines
+      - No labeled data at all and a label set that changes weekly
+    answer: [0, 1, 2]
+    explanation: Small trained models are fast, cheap, and accurate when labels exist and the ontology is stable. With no labels and a moving schema, LLM prompting is the faster start.

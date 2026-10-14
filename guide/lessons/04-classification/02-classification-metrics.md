@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 40
 prerequisites: [logistic-regression, probability-and-statistics]
 related: [ml-workflow, logistic-regression, llm-evaluation]
+adapted_from: [phases/02-ml-fundamentals/09-model-evaluation]
 ---
 
 # Classification metrics and thresholds
@@ -103,6 +104,94 @@ Precision $= 4/8 = 0.500$; recall $= 4/5 = 0.800$; F1 $= \frac{2(0.5)(0.8)}{1.3}
 
 ## 4. Implementation
 
+You will compute every metric in this lesson from raw labels and scores, including the ROC curve, its area two different ways, and average precision. Then you will pick a threshold by cost. Each function is checked against scikit-learn at the end.
+
+### Build it from scratch
+
+The confusion matrix is four counts. Precision, recall, and F1 come straight from them; the guards return 0 instead of dividing by zero when a threshold flags nothing.
+
+```python
+def confusion(y, pred):
+    tp = int(np.sum((pred == 1) & (y == 1)))
+    fp = int(np.sum((pred == 1) & (y == 0)))
+    fn = int(np.sum((pred == 0) & (y == 1)))
+    tn = int(np.sum((pred == 0) & (y == 0)))
+    return tp, fp, fn, tn
+
+def prf(tp, fp, fn):
+    precision = tp / (tp + fp) if tp + fp else 0.0         # of flagged, how many real
+    recall = tp / (tp + fn) if tp + fn else 0.0            # of real, how many flagged
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return precision, recall, f1
+```
+
+**Predict:** at threshold 1.01 (nothing flagged), what are precision and recall? At threshold 0 (everything flagged)?
+
+An ROC curve is every threshold at once. Sort by score, highest first; lowering the threshold past each example adds it to the predicted positives, so cumulative sums of the labels give TP and FP at every cut.
+
+```python
+def roc_points(y, s):
+    """Sweep the threshold from high to low; each step lets one more example through as positive."""
+    # ponytail: assumes no tied scores; sklearn merges tied scores into one ROC point
+    order = np.argsort(-s, kind="stable")
+    y = y[order]
+    tps = np.cumsum(y)                                     # true positives above each cut
+    fps = np.cumsum(1 - y)
+    tpr = np.r_[0, tps / y.sum()]
+    fpr = np.r_[0, fps / (len(y) - y.sum())]
+    return fpr, tpr
+```
+
+AUC two ways. The trapezoid rule integrates the curve. The ranking form is the definition from section 3: the probability that a random positive outscores a random negative. They agree exactly, which is the best way to remember what AUC means.
+
+```python
+def auc_trapezoid(fpr, tpr):
+    return float(np.sum(np.diff(fpr) * (tpr[1:] + tpr[:-1]) / 2))
+
+def auc_ranking(y, s):
+    """AUC = P(random positive scores higher than random negative), ties count half."""
+    pos, neg = s[y == 1], s[y == 0]
+    wins = (pos[:, None] > neg[None, :]).sum() + 0.5 * (pos[:, None] == neg[None, :]).sum()
+    return wins / (len(pos) * len(neg))
+```
+
+**Predict:** for the 10-example worked case (5 positives, 5 negatives), count the positive-negative pairs the model ranks correctly. What AUC does that give?
+
+Average precision summarizes the PR curve: walk down the ranking and average the precision at each position where a positive appears.
+
+```python
+def average_precision(y, s):
+    """Mean of precision at the rank of each positive."""
+    order = np.argsort(-s, kind="stable")
+    y = y[order]
+    hits = np.cumsum(y)
+    precision_at_k = hits / np.arange(1, len(y) + 1)
+    return float(np.sum(precision_at_k * y) / y.sum())
+```
+
+Finally, choose the threshold by cost rather than defaulting to 0.5. Sweep thresholds on validation data, price each error type, and keep the cheapest.
+
+```python
+    c_fp, c_fn = 1, 10                                     # a missed positive costs 10x a false alarm
+    ts = np.linspace(0, 1, 101)
+    costs = []
+    for t in ts:
+        tp, fp, fn, tn = confusion(y, (s >= t).astype(int))
+        costs.append(c_fp * fp + c_fn * fn)
+    t_best = ts[int(np.argmin(costs))]
+```
+
+**Predict:** on the imbalanced synthetic set (5% positive), ROC AUC is 0.947. Will average precision be close to that, or much lower? Will the cost-minimizing threshold be above or below 0.5?
+
+<details>
+<summary>Answers</summary>
+
+Flag nothing: TP = FP = 0, so precision is 0 by the guard (undefined, strictly) and recall is 0. Flag everything: recall 1 and precision equal to the base rate. For the 10 examples: positives at ranks 1, 2, 4, 6, 9. They beat 5, 5, 4, 3, and 1 negatives, so 18 of 25 pairs are correct and AUC = 0.72. On the imbalanced set, AP is 0.683, far below 0.947: ROC's false-positive rate is diluted by the huge negative class, while precision is not. The threshold drops to 0.46, because misses cost 10× more, so it pays to flag more. Cost falls from 708 at 0.5 to 643.
+
+</details>
+
+### Use the library
+
 ```python
 import numpy as np
 from sklearn.metrics import (average_precision_score, classification_report, confusion_matrix,
@@ -111,18 +200,37 @@ from sklearn.metrics import (average_precision_score, classification_report, con
 proba = clf.predict_proba(X_val)[:, 1]
 print(roc_auc_score(y_val, proba), average_precision_score(y_val, proba))
 
-# Choose the threshold that minimizes expected cost on VALIDATION data
+# The threshold that minimizes expected cost on VALIDATION data
 c_fp, c_fn = 1, 10
 thresholds = np.linspace(0, 1, 101)
-costs = [c_fp * ((proba >= t) & (y_val == 0)).sum() + c_fn * ((proba < t) & (y_val == 1)).sum() for t in thresholds]
+costs = [c_fp * ((proba >= t) & (y_val == 0)).sum() + c_fn * ((proba < t) & (y_val == 1)).sum()
+         for t in thresholds]
 t_best = thresholds[int(np.argmin(costs))]
-
 pred = proba >= t_best
 print(confusion_matrix(y_val, pred))
 print(classification_report(y_val, pred, digits=3))
 ```
 
-Runnable script (worked example, imbalanced comparison, ROC/PR, calibration): [`code/04-classification/classification.py`](../../code/04-classification/classification.py).
+What the library handles that the scratch code skipped: tied scores (merged into one ROC point), `zero_division` control for undefined precision, multi-class averaging (`average="macro"`, `"micro"`, `"weighted"`), and `TunedThresholdClassifierCV` (scikit-learn 1.5+) to tune the threshold with cross-validation instead of one split.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/04-classification/metrics_scratch.py
+```
+
+```text
+t=0.5: TP=3 FP=2 FN=2 TN=3  precision 0.600 recall 0.600 F1 0.600
+t=0.3: TP=4 FP=4 FN=1 TN=1  precision 0.500 recall 0.800 F1 0.615
+AUC: trapezoid 0.720, ranking 0.720, AP 0.794
+imbalanced: ROC AUC 0.947, AP 0.683, base rate 0.053
+cost-minimizing threshold 0.46 (cost 643), cost at 0.5: 708
+checks pass: all metrics match scikit-learn
+```
+
+The first two lines reproduce the worked example. Scores in the imbalanced case are synthetic. Full script: [`code/04-classification/metrics_scratch.py`](../../code/04-classification/metrics_scratch.py). The ROC/PR, imbalance, and calibration figures come from [`code/04-classification/classification.py`](../../code/04-classification/classification.py).
 
 ## 5. Engineering
 
@@ -172,6 +280,10 @@ TP = 32, FP = 68, FN = 8, TN = 892. Precision $= 32/100 = 0.32$. Recall $= 32/40
 **Next:** [K-nearest neighbors](../05-instance-and-probabilistic/01-k-nearest-neighbors.md)
 
 **Related:** [Logistic regression](01-logistic-regression.md) · [The ML workflow](../02-ml-workflow/01-ml-workflow.md) · [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Model Evaluation](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/09-model-evaluation).*
+<!-- /deeper -->
 
 ## Interview angle
 

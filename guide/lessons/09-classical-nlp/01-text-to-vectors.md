@@ -5,6 +5,7 @@ skill: nlp
 minutes: 40
 prerequisites: [vectors-and-matrices, naive-bayes]
 related: [word-embeddings, tokenization-and-pretraining, rag-pipeline]
+adapted_from: [phases/05-nlp-foundations-to-advanced/02-bag-of-words-tfidf]
 ---
 
 # From text to vectors
@@ -108,6 +109,70 @@ $a = [1, 2, 0]$ and $b = [2, 1, 1]$: $a \cdot b = 2 + 2 + 0 = 4$; $\lVert a\rVer
 
 ## 4. Implementation
 
+### Build it from scratch
+
+The whole pipeline is about 40 lines of NumPy. We build it on the three-document corpus from worked example 3, so you can check every number against section 3.
+
+**Tokenize.** A regular expression keeps runs of letters (with one optional apostrophe part, so "don't" stays one token) and runs of digits. Everything else, including punctuation, is dropped. Then lowercase.
+
+```python
+TOKEN_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?|[0-9]+")
+
+def tokenize(text):
+    return [t.lower() for t in TOKEN_RE.findall(text)]
+```
+
+*Predict:* what does `tokenize("Don't pay $40.99!")` return?
+
+**Vocabulary and counts.** The vocabulary maps each training word to a column index. Sorting it matches scikit-learn's column order, which makes the comparison at the end easy. The count matrix has shape $[N, V]$: one row per document, one column per vocabulary word.
+
+```python
+def build_vocab(docs):
+    return {w: j for j, w in enumerate(sorted({t for doc in docs for t in doc}))}
+
+def count_matrix(docs, vocab):
+    X = np.zeros((len(docs), len(vocab)))
+    for i, doc in enumerate(docs):
+        for t in doc:
+            if t in vocab:                    # words unseen at fit time are silently dropped
+                X[i, vocab[t]] += 1
+    return X
+```
+
+*Predict:* a query contains a word that never appeared in training. What does it contribute to the query vector?
+
+**Document frequency and IDF.** DF counts the documents with a nonzero count in each column. We support both the course formula $\ln(N/\text{DF})$ and scikit-learn's smoothed $\ln\frac{1+N}{1+\text{DF}} + 1$.
+
+```python
+def idf(X, smooth=False):
+    N = X.shape[0]
+    df = (X > 0).sum(axis=0)                  # [V] number of documents containing each term
+    if smooth:
+        return np.log((1 + N) / (1 + df)) + 1
+    return np.log(N / df)
+```
+
+*Predict:* with `smooth=True`, what is the IDF of "the", which is in all 3 documents? Is it still zero?
+
+**TF-IDF rows and search.** Multiply each column by its IDF, then scale each row to unit length. After that, cosine similarity is a plain dot product, so ranking all documents against a query is one matrix-vector product.
+
+```python
+def tfidf(X, idf_vec):
+    W = X * idf_vec                           # [N, V] broadcast: column j scaled by idf[j]
+    norms = np.linalg.norm(W, axis=1, keepdims=True)
+    return W / np.where(norms == 0, 1, norms)
+
+def search(query, vocab, idf_vec, D):
+    q = tfidf(count_matrix([tokenize(query)], vocab), idf_vec)[0]
+    return D @ q                              # [N] cosine scores (both sides unit length)
+```
+
+*Predict:* a query shares no words with any document. What scores come back, and why doesn't the code divide by zero?
+
+### Use the library
+
+scikit-learn's `TfidfVectorizer` does the same steps, with the smoothed IDF and L2 rows by default. The script checks that our matrix matches it to the last bit. In practice you pair it with a linear model:
+
 ```python
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -125,7 +190,33 @@ top = clf.coef_[0].argsort()[-15:]
 print(vec.get_feature_names_out()[top])
 ```
 
-Runnable script (bag-of-words, bigrams, TF-IDF by hand and in scikit-learn, cosine similarity, embedding preview): [`code/09-classical-nlp/nlp.py`](../../code/09-classical-nlp/nlp.py).
+What the library adds over our version: a sparse matrix (a real vocabulary has 10⁵ or more columns, almost all zero), n-grams, `min_df`/`max_df` pruning, sublinear TF ($1 + \ln \text{TF}$), and a fitted object you can save and apply to new text with exactly the training vocabulary.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/09-classical-nlp/tfidf_scratch.py
+```
+
+Key output:
+
+```
+  'the': TF in doc 2 = 1, DF = 3, IDF = 0.000, TF-IDF = 0.000
+  'model': TF in doc 2 = 1, DF = 2, IDF = 0.405, TF-IDF = 0.405
+  'gradient': TF in doc 2 = 1, DF = 1, IDF = 1.099, TF-IDF = 1.099
+max |scratch - sklearn| = 0.00e+00
+cosine similarity matrix:
+ [[1.    0.236 0.152]
+ [0.236 1.    0.152]
+ [0.152 0.152 1.   ]]
+query scores: [0.182 0.81  0.   ] -> best doc 2
+```
+
+The first three lines are worked example 3. The similarity matrix is the one in the figure. The query "how does gradient descent train a model" scores 0 against the cat document because they share no words. Note that "train" does not match "trains": without stemming, they are different columns.
+
+The figure script (bag-of-words, bigrams, the course example, the embedding preview) is [`code/09-classical-nlp/nlp.py`](../../code/09-classical-nlp/nlp.py).
 
 ## 5. Engineering
 
@@ -160,7 +251,23 @@ Runnable script (bag-of-words, bigrams, TF-IDF by hand and in scikit-learn, cosi
 IDF $= \ln(50/2) = \ln 25 = 3.219$. TF-IDF $= 4 \times 3.219 = 12.88$.
 </details>
 
-**Implementation challenge.** Implement TF-IDF from scratch with NumPy (vocabulary, counts, DF, IDF, L2 row normalization), match scikit-learn's output with `smooth_idf=True`, and use it to retrieve the most similar document to a query by cosine similarity.
+**Implementation challenge.** Extend `code/09-classical-nlp/tfidf_scratch.py` with a BM25 scorer: for each query term $t$ in document $d$, add $\text{IDF}(t) \cdot \frac{\text{TF}(t,d)\,(k_1 + 1)}{\text{TF}(t,d) + k_1\,(1 - b + b\,|d|/\text{avgdl})}$ with $k_1 = 1.5$, $b = 0.75$, where $|d|$ is the document's token count and avgdl the average. Rank the three documents for the same query and compare with the TF-IDF ranking.
+
+<details>
+<summary>Solution sketch</summary>
+
+```python
+def bm25(query, docs, vocab, X, k1=1.5, b=0.75):
+    idf_vec = idf(X, smooth=True)
+    lens = X.sum(axis=1)                      # [N] document lengths
+    q = [vocab[t] for t in tokenize(query) if t in vocab]
+    tf = X[:, q]                              # [N, |q|]
+    norm = k1 * (1 - b + b * lens / lens.mean())
+    return (idf_vec[q] * tf * (k1 + 1) / (tf + norm[:, None])).sum(axis=1)
+```
+
+Document 2 still ranks first. The difference shows on longer corpora: a term repeated 20 times scores far less than 20 times a single occurrence (saturation), and long documents are not favored just for being long.
+</details>
 
 ## Summary
 
@@ -172,6 +279,12 @@ IDF $= \ln(50/2) = \ln 25 = 3.219$. TF-IDF $= 4 \times 3.219 = 12.88$.
 **Next:** [Word embeddings](02-word-embeddings.md)
 
 **Related:** [Naive Bayes](../05-instance-and-probabilistic/02-naive-bayes.md) · [The RAG pipeline](../16-rag/01-rag-pipeline.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Text Processing — Tokenization, Stemming, Lemmatization](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/01-text-processing) · [Sentiment Analysis](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/05-sentiment-analysis) · [POS Tagging and Syntactic Parsing](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/07-pos-tagging-parsing)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Bag of Words, TF-IDF, and Text Representation](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/02-bag-of-words-tfidf).*
+<!-- /deeper -->
 
 ## Interview angle
 

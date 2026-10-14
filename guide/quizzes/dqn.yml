@@ -1,0 +1,152 @@
+title: Deep Q-networks (DQN)
+lesson: dqn
+questions:
+  - id: dqn-target-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A non-terminal transition has $r = -1$ and $\gamma = 0.99$. The target network's Q-values at $s'$ are $[-5.6, -4.9, -5.8, -5.0]$. What is the DQN target $y$?
+    answer: -5.851
+    tolerance: 0.001
+    explanation: |
+      $y = r + \gamma \max_{a'} Q(s', a'; \theta^-) = -1 + 0.99 \times (-4.9) = -1 - 4.851 = -5.851$.
+
+  - id: dqn-huber-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      The TD error for one transition is $\delta = -2.5$. What is the Huber loss with threshold 1?
+    answer: 2.0
+    tolerance: 0.001
+    explanation: |
+      $|\delta| = 2.5 > 1$, so the loss is linear: $|\delta| - 0.5 = 2.5 - 0.5 = 2.0$. Its gradient is clipped to $-1$, while squared error would give $\tfrac12 \times 6.25 = 3.125$ with gradient $-2.5$.
+
+  - id: dqn-double-calc
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Same transition: $r = -1$, $\gamma = 0.99$. The online network's Q-values at $s'$ are $[-5.5, -5.1, -5.7, -4.95]$; the target network's are $[-5.6, -4.9, -5.8, -5.0]$. What is the Double DQN target?
+    answer: -5.95
+    tolerance: 0.001
+    explanation: |
+      The online network selects the action: the largest of its values is $-4.95$ (index 3). The target network evaluates that action: $-5.0$. So $y = -1 + 0.99 \times (-5.0) = -5.95$, lower than the vanilla target $-5.851$.
+
+  - id: dqn-replay-why
+    type: single
+    difficulty: medium
+    prompt: Why can DQN train on transitions collected many episodes ago, under a more random policy?
+    options:
+      - Because old transitions are only used during the warmup phase.
+      - Because Q-learning is off-policy; its target uses a max over next actions, not the action the old policy took.
+      - Because the replay buffer reweights old transitions by how likely the current policy is to take them.
+      - Because the target network is a copy of the old policy that collected the data.
+    answer: 1
+    explanation: |
+      The Q-learning target $r + \gamma \max_{a'} Q(s', a')$ evaluates the greedy policy no matter which policy generated $(s, a, r, s')$, so any past transition is valid training data.
+    why_not:
+      - After warmup, minibatches keep sampling the whole buffer, old and new transitions alike.
+      - ""
+      - Uniform replay does no reweighting; prioritized replay uses importance weights for its own sampling bias, not to correct for the behaviour policy.
+      - The target network is a recent copy of the Q-network, synced every C steps, and has nothing to do with which policy collected the data.
+
+  - id: dqn-target-net-diagnose
+    type: single
+    difficulty: hard
+    prompt: |
+      A teammate's DQN uses the same network to compute both $Q(s, a)$ and the target $r + \gamma \max_{a'} Q(s', a')$. Q-values oscillate and sometimes blow up. What is the most direct fix?
+    options:
+      - Switch the loss from Huber to mean squared error.
+      - Remove the replay buffer and train on each transition as it arrives.
+      - Add a target network, a copy of the weights synced every C steps, and compute targets from it.
+      - Increase epsilon so the agent explores more.
+    answer: 2
+    explanation: |
+      With one network, every gradient step moves the regression label too, so the fit chases itself. Freezing the target weights between syncs holds the label still.
+    why_not:
+      - Squared error gives larger gradients for large TD errors, which makes instability worse, not better.
+      - Training on the stream in order adds correlated updates on top of the moving target, the other cause of instability DQN was built to remove.
+      - ""
+      - More exploration changes which data is collected but leaves the moving-target feedback loop in place.
+
+  - id: dqn-terminal-diagnose
+    type: single
+    difficulty: medium
+    prompt: |
+      In a task with reward -1 per step, a DQN's Q-values for states next to the goal keep drifting more negative than the true value of -1, and the error spreads to earlier states. Which bug is most likely?
+    options:
+      - The replay buffer is too large.
+      - Epsilon decays too slowly.
+      - The target network is synced too often.
+      - The target bootstraps past terminal states (the $(1 - d)$ mask is missing).
+    answer: 3
+    explanation: |
+      At the goal the target should be just $r = -1$. Without the mask it becomes $-1 + \gamma \max Q(s_{\text{goal}}, \cdot)$, adding a meaningless value for the terminal state, and that error propagates backward through bootstrapping.
+    why_not:
+      - A large buffer means older data is replayed, which slows adaptation but does not bias values near the goal in a consistent direction.
+      - Slow epsilon decay means more random actions, which lowers episode returns but does not change what the target is for a goal transition.
+      - Frequent syncing can cause oscillation, but it does not create a consistent bias in states that end the episode.
+      - ""
+
+  - id: dqn-action-space
+    type: single
+    difficulty: medium
+    prompt: You need to control a robot arm whose action is 7 continuous joint torques. Which choice fits best?
+    options:
+      - Tabular Q-learning over the joint angles.
+      - An actor-critic such as SAC or TD3, which keeps replay and target networks but learns a policy network that outputs continuous actions.
+      - DQN with one output per action, after discretizing each torque into 100 levels.
+      - DQN with a single output, the torque value.
+    answer: 1
+    explanation: |
+      DQN needs a max over actions, which is only cheap for a small discrete set. Actor-critic methods replace the max with a learned policy and handle continuous actions directly.
+    why_not:
+      - Continuous joint angles give an infinite state space, so there is no table to fill.
+      - ""
+      - 100 levels for each of 7 joints is $100^7 = 10^{14}$ joint actions, far too many outputs to enumerate.
+      - A Q-network scores actions; it does not output one. Picking the action still requires a max over all possible torques.
+
+  - id: dqn-huber-why
+    type: single
+    difficulty: easy
+    prompt: What does the Huber loss do that squared error does not?
+    options:
+      - It makes the Q-network's outputs bounded between -1 and 1.
+      - It corrects the upward bias of the max in the target.
+      - It caps the gradient magnitude at the threshold, so a rare large TD error cannot produce a huge update.
+      - It removes the need for a target network.
+    answer: 2
+    explanation: |
+      Huber is quadratic for $|\delta| \le 1$ and linear beyond, so $\partial \ell / \partial \delta = \operatorname{clip}(\delta, -1, 1)$.
+    why_not:
+      - It clips the gradient of the loss, not the outputs. Q-values can be any size.
+      - Overestimation comes from the max operator; Double DQN addresses it.
+      - ""
+      - Huber limits step size but the label still moves with the network; the target network is a separate fix.
+
+  - id: dqn-params
+    type: numeric
+    difficulty: easy
+    prompt: |
+      A Q-network takes a one-hot state of length 16, has one hidden layer of 32 units, and outputs 4 action values. Counting weights and biases, how many parameters does it have?
+    answer: 676
+    tolerance: 0
+    explanation: |
+      $16 \times 32 + 32 = 544$ for the hidden layer and $32 \times 4 + 4 = 132$ for the output: $544 + 132 = 676$.
+
+  - id: dqn-loss-monitor
+    type: single
+    difficulty: hard
+    prompt: Your DQN's TD loss falls steadily, but evaluation returns are flat. What is the best interpretation?
+    options:
+      - Training has converged to the optimal policy, and the evaluation episodes are too short to show it.
+      - The learning rate is too low; raise it until the returns improve.
+      - The replay buffer is working correctly, so the problem must be in the environment.
+      - The loss only measures agreement with the network's own bootstrapped targets, so it can fall while values stay wrong; trust evaluation return.
+    answer: 3
+    explanation: |
+      TD loss is not a metric of task success. The network can become self-consistent with wrong targets (for example, an agent that never reached the reward). Watch greedy evaluation returns and compare predicted Q with actual returns.
+    why_not:
+      - A falling loss says nothing about optimality, and flat returns are evidence against it.
+      - The loss is falling, so learning is happening; a higher learning rate tends to destabilize bootstrapped training rather than fix wrong targets.
+      - A working buffer does not rule out bad exploration, wrong targets, or a missing terminal mask.
+      - ""

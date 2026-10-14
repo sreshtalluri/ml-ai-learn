@@ -1,0 +1,121 @@
+title: Multi-agent systems
+lesson: multi-agent-systems
+questions:
+  - id: mas-ceiling
+    type: multi
+    difficulty: easy
+    prompt: Which are limits of a single agent that motivate splitting work across agents? Select all that apply.
+    options:
+      - The context fills with tool results and early details get lost
+      - One prompt covering several roles does each role less well
+      - Independent subtasks run one after another
+      - A single agent cannot call tools
+    answer: [0, 1, 2]
+    explanation: Context saturation, role confusion, and sequential execution are the three limits. Single agents call tools fine.
+    why_not:
+      - Correct.
+      - Correct.
+      - Correct.
+      - Tool calling is what makes it an agent.
+  - id: mas-pipeline
+    type: single
+    difficulty: easy
+    prompt: When is a pipeline (A then B then C) a better fit than parallel fan-out?
+    options:
+      - When each stage needs the previous stage's output
+      - When the subtasks are fully independent
+      - When you want the lowest possible latency
+      - When there is no clear order of work
+    answer: 0
+    explanation: Pipelines suit staged work such as research, then draft, then review, where each step consumes the last.
+    why_not:
+      - Correct.
+      - Independent subtasks should run in parallel.
+      - Pipelines are sequential, so they do not minimize latency.
+      - Without an order, a fixed pipeline does not apply.
+  - id: mas-orchestrator
+    type: single
+    difficulty: easy
+    prompt: What distinguishes the orchestrator-worker pattern from a fixed fan-out?
+    options:
+      - The workers share one context window
+      - A model decides at run time which subtasks to create and delegates them
+      - There is no synthesis step
+      - Workers talk to each other with no coordinator
+    answer: 1
+    explanation: In fan-out your code fixes the split; in orchestrator-worker an LLM plans the subtasks, writes briefs, and merges the results.
+    why_not:
+      - Each worker has its own fresh context; that is the point.
+      - Correct.
+      - The orchestrator synthesizes the workers' reports.
+      - That describes a peer or swarm design.
+  - id: mas-single-tokens
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A single agent does $k = 5$ subtasks of $s = 2$ steps each in one loop. Base context $B = 1{,}000$ tokens, and each step appends $D = 500$ tokens. Using $C = TB + D\,T(T-1)/2$ with $T = ks$, how many input tokens are billed?
+    answer: 32500
+    tolerance: 0
+    explanation: |
+      $T = 10$. $C = 10 \times 1{,}000 + 500 \times \frac{10 \times 9}{2} = 10{,}000 + 500 \times 45 = 10{,}000 + 22{,}500 = 32{,}500$.
+  - id: mas-critical-path
+    type: numeric
+    difficulty: easy
+    prompt: An orchestrator plans (1 call), runs 8 workers in parallel with 4 steps each, then synthesizes (1 call). How many model calls are on the critical path?
+    answer: 6
+    tolerance: 0
+    explanation: Workers run concurrently, so the critical path is $1 + 4 + 1 = 6$ calls, versus $8 \times 4 = 32$ for one agent doing it all.
+  - id: mas-fair-baseline
+    type: single
+    difficulty: medium
+    prompt: A team reports their multi-agent design uses 65% fewer tokens than their single agent. What is the most important thing to check?
+    options:
+      - Whether the single agent compacted or summarized finished subtasks, since most of that saving can come from clean contexts alone
+      - Whether the workers used the same model
+      - Whether the dashboard rounds numbers
+      - Whether the orchestrator's prompt is long
+    answer: 0
+    explanation: Against a single agent that never compacts, the multi-agent design looks cheap. A compacting single agent often closes most of the gap without coordination code.
+    why_not:
+      - Correct.
+      - Model choice matters for cost, but it does not explain the comparison's fairness.
+      - Rounding cannot create a 65% difference.
+      - Orchestrator prompt length is a small, fixed cost.
+  - id: mas-duplication
+    type: single
+    difficulty: medium
+    prompt: A research orchestrator's final reports repeat the same findings several times and miss obvious sources. Where do you look first?
+    options:
+      - The temperature of the synthesis call
+      - The briefs. Overlapping, unbounded scopes cause duplicates; unowned areas cause gaps
+      - The embedding model
+      - The number of GPUs
+    answer: 1
+    explanation: Workers only know their brief. Partition the space explicitly, list what is known, and set an output contract with citations.
+    why_not:
+      - Temperature affects wording, not which sources workers search.
+      - Correct.
+      - The duplication comes from overlapping assignments, not from retrieval vectors.
+      - Hardware does not decide what each worker searches.
+  - id: mas-coding
+    type: single
+    difficulty: medium
+    prompt: For a multi-file refactor where each edit depends on decisions made in earlier edits, which design is usually best?
+    options:
+      - A swarm of peer agents editing files in parallel
+      - Fan-out with one worker per file and a merge step
+      - One agent with good tools and context management, optionally using subagents for read-only searches
+      - A pipeline with a separate agent per file, run in sequence with summaries in between
+    answer: 2
+    explanation: Tightly coupled edits lose decisions at every handoff. Keep writes in one agent; use subagents for broad, read-only work like searching the codebase.
+    why_not:
+      - Parallel writers create conflicts and inconsistent decisions.
+      - Per-file workers can't see each other's design choices.
+      - Correct.
+      - Each handoff compresses context, so later files lose earlier decisions.
+  - id: mas-cost-tradeoff
+    type: short
+    difficulty: hard
+    prompt: In two or three sentences, explain why an orchestrator-worker design reliably wins on latency for independent subtasks but does not reliably win on total tokens.
+    sample_answer: Latency depends on the critical path, and parallel workers keep it at roughly plan + one worker's steps + synthesis regardless of how many subtasks there are. Total tokens depend on how much each worker reads and re-explores; every worker re-reads its own brief and tools and may re-discover context, so against a single agent that compacts its history the token saving is small, and duplicated exploration can make multi-agent more expensive.
+    explanation: The latency win needs only independence; the token win needs workers to explore efficiently and the baseline to be a non-compacting single agent.

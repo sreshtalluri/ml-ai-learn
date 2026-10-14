@@ -1,0 +1,122 @@
+title: Q-learning and SARSA
+lesson: q-learning-sarsa
+questions:
+  - id: ql-update
+    type: numeric
+    difficulty: easy
+    prompt: |
+      $Q(s,a) = -5$, reward $r = -1$, next-state values $[-4, -3, -6, -5]$, $\alpha = 0.1$, $\gamma = 1$. What is the new $Q(s,a)$ after one **Q-learning** update?
+    answer: -4.9
+    tolerance: 0.001
+    explanation: Target $= -1 + \max(-4,-3,-6,-5) = -1 - 3 = -4$. New $= -5 + 0.1 \times (-4 - (-5)) = -5 + 0.1 = -4.9$.
+  - id: ql-sarsa-update
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Same transition as before ($Q(s,a) = -5$, $r = -1$, next values $[-4, -3, -6, -5]$, $\alpha = 0.1$, $\gamma = 1$), but the agent's next action is the one with value $-5$. What is the new $Q(s,a)$ under **SARSA**?
+    answer: -5.1
+    tolerance: 0.001
+    explanation: Target $= -1 + (-5) = -6$. New $= -5 + 0.1 \times (-6 - (-5)) = -5 - 0.1 = -5.1$.
+  - id: ql-greedy-prob
+    type: numeric
+    difficulty: medium
+    prompt: With ε-greedy, ε = 0.2, and 4 actions with a unique best action, what is the probability the agent takes the best action?
+    answer: 0.85
+    tolerance: 0.001
+    explanation: $(1 - 0.2) + 0.2 / 4 = 0.8 + 0.05 = 0.85$. A random move can also pick the best action.
+  - id: ql-onpolicy
+    type: single
+    difficulty: easy
+    prompt: Why is SARSA called on-policy?
+    options:
+      - It only works with a deterministic policy.
+      - Its target uses the action the current (exploring) policy actually takes next, so it learns that policy's values.
+      - It updates the policy directly with gradients.
+      - It needs a model of the environment.
+    answer: 1
+    explanation: Q-learning's max makes it learn the greedy policy's values while behaving differently (off-policy).
+    why_not:
+      - SARSA typically runs a stochastic ε-greedy policy.
+      - ""
+      - That describes policy-gradient methods.
+      - SARSA is model-free.
+  - id: ql-cliff
+    type: single
+    difficulty: medium
+    prompt: On a cliff grid with ε = 0.1 held fixed, Q-learning's greedy path runs along the cliff edge and SARSA's runs one row away. Which statement is true during training?
+    options:
+      - Q-learning earns a higher average return because its path is shorter.
+      - SARSA earns a higher average return, because Q-learning sometimes explores off the edge.
+      - Both earn exactly the optimal return.
+      - SARSA never reaches the goal.
+    answer: 1
+    explanation: While exploring, Q-learning pays −100 now and then; SARSA's longer path costs a couple of extra steps but avoids most falls. Evaluated greedily (ε = 0), Q-learning's path is better.
+    why_not:
+      - A shorter path doesn't help when random steps next to the cliff cost 100.
+      - ""
+      - Exploration costs both of them; neither achieves −6 on every episode.
+      - SARSA reaches the goal reliably via its safer path.
+  - id: ql-flat
+    type: single
+    difficulty: hard
+    prompt: A tabular Q-learning agent on a large maze shows a flat learning curve at the minimum return after 5,000 episodes. Logs show it never once reached the goal. What is the best first fix?
+    options:
+      - Lower the learning rate.
+      - Make sure exploration can reach the goal. Use a higher ε or optimistic initial values, a curriculum, or a shaped reward, since no reward signal has ever propagated.
+      - Switch to SARSA.
+      - Increase γ to 1.
+    answer: 1
+    explanation: TD learning can only spread value backward from rewards the agent has seen. If the goal was never found, every Q-value reflects only step costs.
+    why_not:
+      - A smaller α slows learning further and doesn't create a reward signal.
+      - ""
+      - SARSA has the same problem; neither has seen the goal.
+      - Discounting doesn't matter if the goal is never reached.
+  - id: ql-maxbias
+    type: single
+    difficulty: medium
+    prompt: Rewards are noisy, and Q-learning's estimates come out consistently higher than the true values. What causes this, and what fixes it?
+    options:
+      - The discount is too low; raise γ.
+      - Maximization bias. The max over noisy estimates picks values that happen to be too high. Double Q-learning picks the action with one table and evaluates it with another.
+      - ε is too small; increase exploration.
+      - The table was initialized at zero; initialize it at −100.
+    answer: 1
+    explanation: $\mathbb{E}[\max_a \hat Q] \ge \max_a \mathbb{E}[\hat Q]$. Decoupling selection from evaluation removes the upward bias. Double DQN is the deep version.
+    why_not:
+      - The bias comes from the max, not the discount.
+      - Exploration doesn't remove the max's bias.
+      - ""
+      - Pessimistic initialization hurts exploration and doesn't address noise in the max.
+  - id: ql-terminal
+    type: single
+    difficulty: medium
+    prompt: Episodes are cut off at 100 steps by a time limit. How should the update treat the transition at step 100?
+    options:
+      - As terminal. The target is just $r$.
+      - As non-terminal. Still bootstrap from $s'$, because the world didn't end, only the episode was truncated.
+      - Skip the update entirely.
+      - Set the target to $-100$ to discourage long episodes.
+    answer: 1
+    explanation: Treating truncation as termination teaches the agent that states near step 100 have no future. Gymnasium separates `terminated` from `truncated` for this reason.
+    why_not:
+      - That's correct only for real terminal states such as the goal or a pit.
+      - ""
+      - Dropping the transition throws away valid experience.
+      - This invents a penalty that is not part of the task.
+  - id: ql-choose
+    type: single
+    difficulty: hard
+    prompt: You train a warehouse robot in the real building, not a simulator. It must keep exploring a little after deployment, and collisions are expensive. Which tabular method fits best?
+    options:
+      - Q-learning, because it converges to the optimal policy.
+      - SARSA or Expected SARSA, because it optimizes the return of the exploring policy actually being run, so it keeps a margin from hazards.
+      - Pure random exploration with ε = 1.
+      - Value iteration, because it is exact.
+    answer: 1
+    explanation: When exploration continues and mistakes are costly, on-policy methods account for their own randomness.
+    why_not:
+      - Q-learning's plan is optimal only for a greedy agent; with continued exploration it walks close to hazards.
+      - ""
+      - Random behavior never exploits what it has learned.
+      - Value iteration needs a known transition model, which you don't have for a real building.

@@ -1,0 +1,140 @@
+title: Policy gradients and REINFORCE
+lesson: policy-gradients-reinforce
+questions:
+  - id: pg-rtg-calc
+    type: numeric
+    difficulty: easy
+    prompt: |
+      An episode has rewards $[-1, -1, -1]$ and $\gamma = 0.9$. What is the return-to-go $G_0$?
+    answer: -2.71
+    tolerance: 0.001
+    explanation: |
+      Backward: $G_2 = -1$, $G_1 = -1 + 0.9 \times (-1) = -1.9$, $G_0 = -1 + 0.9 \times (-1.9) = -2.71$.
+
+  - id: pg-softmax-grad
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A softmax policy gives probabilities $[0.2, 0.5, 0.3]$ for three actions. The agent took action 2 (the second). What is $\partial \log \pi(a{=}2) / \partial z_2$, the gradient with respect to that action's own logit?
+    answer: 0.5
+    tolerance: 0.001
+    explanation: |
+      For a softmax, $\partial \log \pi(a) / \partial z_j = \mathbb{1}[j = a] - \pi(j)$. For $j = a$: $1 - 0.5 = 0.5$.
+
+  - id: pg-update-calc
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Logits at a state are $[1, 0]$ (two actions). The agent took action 2, advantage $A = 2$, learning rate $0.5$. After one REINFORCE step on the logits, what is the probability of action 2? (Round to 3 decimals.)
+    answer: 0.614
+    tolerance: 0.002
+    explanation: |
+      $\pi = [0.7311, 0.2689]$. Gradient of $\log \pi(2)$: $[-0.7311, 0.7311]$. Step $= 0.5 \times 2 \times$ gradient $= [-0.7311, 0.7311]$. New logits $[0.2689, 0.7311]$. New $\pi(2) = e^{0.7311}/(e^{0.2689} + e^{0.7311}) = 2.0774 / 3.3859 = 0.6135$.
+
+  - id: pg-baseline-unbiased
+    type: single
+    difficulty: medium
+    prompt: Why does subtracting a baseline $b(s)$ from the return leave the policy gradient unbiased?
+    options:
+      - Because the baseline is learned, so its errors average out over training.
+      - 'Because $\mathbb{E}_{a \sim \pi}[\nabla \log \pi(a \mid s)] = \nabla \sum_a \pi(a \mid s) = \nabla 1 = 0$, so any term that doesn''t depend on the action contributes zero on average.'
+      - Because the baseline is subtracted from every step, so it cancels between the first and last step.
+      - Because rewards are normalized, so a constant shift has no effect.
+    answer: 1
+    explanation: |
+      The expected score function is zero, so $b(s)$ times it is zero in expectation for any state-only $b$. Variance changes; the mean does not.
+    why_not:
+      - A bad baseline is still unbiased, and a learned one isn't unbiased because it is learned. The zero-mean score function is the reason.
+      - ""
+      - Nothing telescopes here; each step's term is zero in expectation on its own.
+      - Unbiasedness holds without any normalization.
+
+  - id: pg-action-baseline
+    type: single
+    difficulty: hard
+    prompt: A teammate proposes the baseline $b(s, a) = Q(s, a)$, "since it's a better estimate than $V(s)$". What is wrong?
+    options:
+      - Nothing; $Q$ is strictly more informative, so variance drops further.
+      - The advantage $G_t - Q(s_t, a_t)$ would always be exactly zero.
+      - A baseline that depends on the action is no longer zero-mean against $\nabla \log \pi(a \mid s)$, so the gradient becomes biased.
+      - $Q$ cannot be learned with a neural network.
+    answer: 2
+    explanation: |
+      The proof that baselines are free needs $b$ to factor out of the sum over actions. With $b(s, a)$ it doesn't, so the estimator is biased. The usual advantage is $Q(s,a) - V(s)$: $Q$ (or its sample $G_t$) is the signal, $V$ is the baseline.
+    why_not:
+      - Lower variance is worthless if the gradient points in the wrong direction on average.
+      - $G_t$ is a sample and $Q$ an expectation, so they differ; the problem is bias, not a zero signal.
+      - ""
+      - DQN learns $Q$ with a neural network; learnability isn't the issue.
+
+  - id: pg-collapse-diagnose
+    type: single
+    difficulty: hard
+    prompt: One of eight REINFORCE seeds sits at the worst possible return from episode 30 onward while the others reach the optimum. Its policy puts probability 1.0 on walking into a wall at the start. What best explains this?
+    options:
+      - The baseline is biased, so this seed's gradient points the wrong way.
+      - The discount factor is too high.
+      - The environment is stochastic, and this seed was unlucky with transitions.
+      - Entropy collapse. Early noisy updates made a bad action near-certain, every episode then looks the same, and the gradient through near-1 probabilities is near zero, so it never escapes.
+    answer: 3
+    explanation: |
+      With $p \approx 1$, $\nabla \log \pi = \text{onehot} - p \approx 0$, and identical episodes give no contrast. Fixes are a lower learning rate, an entropy bonus, advantage normalization, and larger batches.
+    why_not:
+      - A state-only baseline cannot bias the gradient, and the other seeds use the same code.
+      - Discount affects all seeds equally and doesn't make one policy deterministic.
+      - The grid is deterministic; the randomness is in the policy's own early samples.
+      - ""
+
+  - id: pg-rtg-why
+    type: single
+    difficulty: easy
+    prompt: Why weight $\nabla \log \pi(a_t \mid s_t)$ by the return-to-go $G_t$ rather than the whole episode's return?
+    options:
+      - Rewards before step $t$ can't be affected by $a_t$; including them adds variance without changing the expected gradient.
+      - It makes the estimator biased but faster.
+      - Because the discount factor would otherwise be applied twice.
+      - It's required for the softmax gradient to be correct.
+    answer: 0
+    explanation: |
+      Past rewards are independent of the current action given the past, so their term has zero expectation. Dropping them is a free variance reduction (causality).
+    why_not:
+      - ""
+      - Returns-to-go keep the estimator unbiased.
+      - Discounting is unrelated; the issue is which rewards an action can influence.
+      - The softmax gradient is the same either way; only its weight changes.
+
+  - id: pg-llm-design
+    type: single
+    difficulty: medium
+    prompt: You fine-tune an LLM with a unit-test reward (1 if tests pass, else 0) given once at the end of each response. Which advantage scheme is the closest to what GRPO does?
+    options:
+      - Train a separate value network per token and use GAE with $\lambda = 0.95$.
+      - Use the raw reward (0 or 1) as the advantage for every token.
+      - 'Sample several responses per prompt and give every token of response $i$ the advantage $(R_i - \text{mean}(R)) / \text{std}(R)$.'
+      - Use a replay buffer of past responses and a target network.
+    answer: 2
+    explanation: |
+      GRPO uses the group as a baseline: a REINFORCE estimator with no learned critic, plus PPO-style clipping and a KL term to a reference model.
+    why_not:
+      - That is PPO-style RLHF with a critic, the component GRPO removes.
+      - With rewards in $\{0, 1\}$, failing responses would get zero signal and every passing one the same push; there's no baseline.
+      - ""
+      - That's DQN machinery; GRPO is on-policy.
+
+  - id: pg-vs-dqn
+    type: single
+    difficulty: medium
+    prompt: Which situation most favors a policy-gradient method over DQN?
+    options:
+      - A small discrete action set where environment samples are very expensive.
+      - A continuous 6-dimensional action space, or an action space as large as a 100,000-token vocabulary.
+      - A problem where you need to reuse old data from a replay buffer many times.
+      - A deterministic environment with 16 states.
+    answer: 1
+    explanation: |
+      Policy gradients only need $\log \pi$ of the sampled action, so continuous or huge action spaces are natural. DQN needs a max over all actions.
+    why_not:
+      - Small discrete actions with expensive samples favor off-policy, replay-based DQN.
+      - ""
+      - Replay is a strength of off-policy value methods; REINFORCE is on-policy.
+      - A tiny tabular problem is easily solved by either, or by plain Q-learning.

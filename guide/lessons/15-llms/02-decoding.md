@@ -5,6 +5,7 @@ skill: llms
 minutes: 30
 prerequisites: [tokenization-and-pretraining, logistic-regression]
 related: [tokenization-and-pretraining, adapting-llms, llm-evaluation]
+adapted_from: [phases/05-nlp-foundations-to-advanced/20-structured-outputs-constrained-decoding, phases/11-llm-engineering/03-structured-outputs]
 ---
 
 # Decoding
@@ -96,32 +97,138 @@ Probabilities $[0.5, 0.3, 0.15, 0.05]$.
 
 ## 4. Implementation
 
-```python
-import numpy as np
+The full script is [`code/15-llms/decoding_scratch.py`](../../code/15-llms/decoding_scratch.py) (NumPy only). It reproduces both worked examples, samples the lab's "capital of France" logits, runs greedy and beam search on a toy model, and ends with constrained decoding: the technique behind "JSON mode" and structured outputs.
 
-def sample_next(logits, temperature=1.0, top_k=None, top_p=None, rng=np.random.default_rng()):
-    z = logits / max(temperature, 1e-6)
-    p = np.exp(z - z.max()); p /= p.sum()
-    order = np.argsort(-p)
-    keep = np.ones_like(p, dtype=bool)
-    if top_k is not None:
-        keep[order[top_k:]] = False
-    if top_p is not None:
-        cum = np.cumsum(p[order])
-        keep[order[np.searchsorted(cum, top_p) + 1:]] = False
-    p = np.where(keep, p, 0); p /= p.sum()
-    return rng.choice(len(p), p=p)
+### Build it from scratch
+
+**Step 1: temperature.** Divide the logits by $T$, then softmax. Subtracting the max first keeps `exp` from overflowing and changes nothing mathematically. It also lets a logit of $-\infty$ (used in step 5) become a probability of exactly 0.
+
+```python
+def softmax(z, T=1.0):
+    z = np.asarray(z, dtype=float) / T
+    e = np.exp(z - z.max())                       # -inf logits become exactly 0
+    return e / e.sum()
 ```
 
-With Hugging Face `transformers`:
+*Predict:* what does `softmax([2, 1, 0], T=100)` look like? And `T=0.01`?
+
+**Step 2: top-k and top-p.** Both filters zero out the tail and renormalize. Top-k keeps a fixed count. Top-p sorts, takes the cumulative sum, and keeps the shortest prefix whose mass reaches the threshold, so the count adapts to how confident the model is.
+
+```python
+def top_k(p, k):
+    keep = np.zeros_like(p, dtype=bool)
+    keep[np.argsort(-p)[:k]] = True
+    q = np.where(keep, p, 0.0)
+    return q / q.sum()                            # renormalize what is left
+
+def top_p(p, threshold):
+    order = np.argsort(-p)
+    cum = np.cumsum(p[order])
+    n_keep = np.searchsorted(cum, threshold - 1e-12) + 1   # smallest prefix with mass >= threshold
+    q = np.zeros_like(p)
+    q[order[:n_keep]] = p[order[:n_keep]]
+    return q / q.sum()
+```
+
+The `- 1e-12` handles worked example 2's edge case: with $p = 0.8$, the cumulative sum $0.5 + 0.3$ is $0.8$ in exact arithmetic, but floating point may store it just below or above $0.8$.
+
+*Predict:* if the model puts 0.95 on one token, how many tokens does top-p 0.9 keep? How many does top-k 50 keep?
+
+**Step 3: one decoding step.** Order matters: temperature first, then filters, then sample. $T = 0$ is special-cased as greedy because dividing by zero is undefined.
+
+```python
+def sample_next(logits, rng, T=1.0, k=None, p=None):
+    if T == 0:
+        return int(np.argmax(logits))             # greedy: temperature -> 0
+    probs = softmax(logits, T)
+    if k is not None:
+        probs = top_k(probs, k)
+    if p is not None:
+        probs = top_p(probs, p)
+    return int(rng.choice(len(probs), p=probs))
+```
+
+*Predict:* at $T = 1.5$ the tail grows. Does adding top-p 0.9 raise or lower the share of "Paris" among 1,000 samples?
+
+**Step 4: beam search.** Greedy commits to the best token at each step. Beam search keeps the $B$ best partial sequences by total log-probability, expands each, and prunes back to $B$. In the toy model (synthetic probabilities), "the" beats "a" at step one (0.5 vs 0.4), but "a cat" is the most likely full sentence.
+
+```python
+def beam_search(model, B, start="<s>"):
+    beams = [([start], 0.0)]                      # (sequence, total log-probability)
+    while any(s[-1] != "</s>" for s, _ in beams):
+        cand = []
+        for seq, lp in beams:
+            if seq[-1] == "</s>":
+                cand.append((seq, lp)); continue  # finished beams carry over
+            for w, pr in model[seq[-1]].items():
+                cand.append((seq + [w], lp + math.log(pr)))
+        beams = sorted(cand, key=lambda c: -c[1])[:B]   # keep the B best partial sequences
+    return beams[0]
+```
+
+Greedy finds "the cat" with $P = 0.5 \times 0.4 = 0.20$. Beam search with $B = 2$ keeps "a" alive and finds "a cat" with $P = 0.4 \times 0.9 = 0.36$.
+
+*Predict:* with $B = 1$, what does beam search return?
+
+**Step 5: constrained decoding.** To guarantee valid output, edit the logits before choosing: every token that cannot continue a valid answer gets $-\infty$, so its probability is exactly 0. Here the valid answers are three labels and the check is a prefix test; real libraries compile a regex, JSON Schema, or grammar into the same "which tokens are allowed now?" function.
+
+```python
+def allowed_next(prefix, choices):
+    nxt = {c[len(prefix)] for c in choices if c.startswith(prefix) and len(c) > len(prefix)}
+    if prefix in choices:
+        nxt.add("<eos>")
+    return nxt
+
+def constrained_generate(logit_fn, vocab, choices):
+    out = ""
+    while True:
+        logits = logit_fn(out)
+        ok = allowed_next(out, choices)
+        masked = np.where([v in ok for v in vocab], logits, -np.inf)   # invalid tokens get -inf
+        tok = vocab[int(np.argmax(masked))]                              # greedy over valid tokens only
+        if tok == "<eos>":
+            return out
+        out += tok
+```
+
+The toy "chatty" model wants to write "the sentiment is positive." At step one only `p` and `n` are allowed; it leans to `p`, and after that every character is forced.
+
+*Predict:* if the labels were "positive" and "positively", which extra token must `allowed_next("positive", ...)` allow?
+
+### Use the library
+
+Hugging Face `transformers` runs the same loop:
 
 ```python
 out = model.generate(**inputs, max_new_tokens=200, do_sample=True, temperature=0.7, top_p=0.9)
-greedy = model.generate(**inputs, max_new_tokens=50, do_sample=False)        # deterministic
+greedy = model.generate(**inputs, max_new_tokens=50, do_sample=False)   # deterministic
 beams = model.generate(**inputs, max_new_tokens=50, num_beams=4, early_stopping=True)
 ```
 
-Runnable script (temperature, nucleus, and loss figures): [`code/15-llms/llms.py`](../../code/15-llms/llms.py).
+What the library adds: batched generation, a KV cache so each step reuses earlier work, stopping strings, repetition penalties, and `LogitsProcessor` hooks where step 5's mask plugs in. Serving engines (vLLM, SGLang, llama.cpp) and libraries like Outlines and XGrammar compile a JSON Schema, regex, or grammar into token masks over the full vocabulary of 100k+ tokens. Hosted APIs expose the same idea as structured outputs with a JSON Schema.
+
+### Run it
+
+```bash
+uv run code/15-llms/decoding_scratch.py
+```
+
+Key lines of output:
+
+```text
+T=0.5: [0.867 0.117 0.016]
+top-p p=0.9: [0.526 0.316 0.158 0.   ]
+T=0   top_p=None: Paris 100.0%, distinct tokens 1
+T=1.0 top_p=None: Paris  85.3%, distinct tokens 10
+T=1.5 top_p=None: Paris  61.1%, distinct tokens 10
+T=1.5 top_p=0.9: Paris  66.3%, distinct tokens 6
+greedy   : the cat  log-prob -1.609  P = 0.20
+beam B=2 : a cat    log-prob -1.022  P = 0.36
+unconstrained: 'the sentiment is positive.'
+constrained  : 'positive'
+```
+
+The first two lines match worked examples 1 and 2. At $T = 1.5$, top-p cuts the four rarest tokens and gives some mass back to "Paris". The figure script for section 2 is [`code/15-llms/llms.py`](../../code/15-llms/llms.py).
 
 ## 5. Engineering
 
@@ -134,6 +241,8 @@ Runnable script (temperature, nucleus, and loss figures): [`code/15-llms/llms.py
 | Translation and short constrained outputs | beam search can help |
 
 **Reproducibility.** Sampling is random; fix seeds where the API allows, or use greedy decoding for tests. Even greedy outputs can vary slightly across hardware and batching due to floating-point effects.
+
+**Structured output.** For anything a program parses, prefer constrained decoding (a schema-backed structured-output mode, or a grammar in your serving engine) over "please return JSON" plus retries. A mask guarantees the output parses; it does not guarantee the values are right. Field order is part of the logic: the model writes fields in schema order, so a `reasoning` field placed after `answer` cannot influence the answer. Put reasoning first if you want it, and keep schemas small, since a mask that forces an unnatural format can lower quality.
 
 **Repetition.** Long greedy outputs can loop; frequency and presence penalties or sampling help.
 
@@ -150,6 +259,7 @@ Runnable script (temperature, nucleus, and loss figures): [`code/15-llms/llms.py
 - Setting temperature to 0 and expecting it to fix factual errors.
 - Comparing two prompts with a single sampled run each.
 - Forgetting a `max_new_tokens` limit.
+- Treating schema-valid JSON as correct JSON: constrained decoding fixes the format, never the facts.
 
 ## 6. Knowledge check
 
@@ -178,6 +288,10 @@ Exponentials $[6, 3, 1]$, sum 10: probabilities $[0.6, 0.3, 0.1]$. Top-p 0.6: th
 **Next:** [Adapting LLMs](03-adapting-llms.md)
 
 **Related:** [Tokenization and pretraining](01-tokenization-and-pretraining.md) · [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Structured Outputs & Constrained Decoding](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/20-structured-outputs-constrained-decoding), [Structured Outputs: JSON, Schema Validation, Constrained Decoding](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/03-structured-outputs).*
+<!-- /deeper -->
 
 ## Interview angle
 

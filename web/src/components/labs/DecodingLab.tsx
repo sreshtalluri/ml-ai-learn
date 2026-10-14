@@ -101,8 +101,8 @@ export default function DecodingLab() {
             <div key={t} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3.5rem_3.5rem] items-center gap-2 text-sm">
               <span className={`font-mono truncate ${removed ? "text-faint line-through" : ""}`}>“{t.trim()}”</span>
               <span className="relative h-5 rounded bg-surface-2 overflow-hidden">
-                <span className="absolute inset-y-0 left-0 bg-faint/40" style={{ width: `${probs[i] * 100}%` }} />
-                <span className="absolute inset-y-0 left-0 bg-blue transition-[width] duration-300" style={{ width: `${final[i] * 100}%`, opacity: 0.85 }} />
+                <span className="absolute inset-y-0 left-0 bg-faint/40" style={{ width: `${(probs[i] * 100).toFixed(2)}%` }} />
+                <span className="absolute inset-y-0 left-0 bg-blue transition-[width] duration-300" style={{ width: `${(final[i] * 100).toFixed(2)}%`, opacity: 0.85 }} />
               </span>
               <span className="font-mono text-xs text-right">{fmt(final[i], 3)}</span>
               <span className="font-mono text-[11px] text-faint text-right">z={LOGITS[i]}</span>

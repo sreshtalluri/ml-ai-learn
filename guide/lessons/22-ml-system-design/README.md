@@ -21,3 +21,4 @@ A model is one box in a system. This module covers the rest: framing the problem
 |---|---|---|
 | 1 | [ML system design](01-ml-system-design.md) | run a ten-step design framework and design a multi-stage recommendation funnel with a latency budget |
 | 2 | [Experimentation and A/B testing](02-experimentation-and-ab-testing.md) | compute sample size and power, read a z-test, and catch peeking, SRM, novelty, and interference |
+| 3 | [Model monitoring and drift](03-model-monitoring-and-drift.md) | tell covariate, prior, and concept drift apart, compute PSI, KS, and chi-square, and design an alert policy that avoids alert fatigue |

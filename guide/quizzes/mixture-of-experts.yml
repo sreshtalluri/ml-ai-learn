@@ -1,0 +1,132 @@
+title: Mixture of experts
+lesson: mixture-of-experts
+questions:
+  - id: moe-gate
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A token's router logits for four experts are $[2.0, 1.0, 0.5, -1.0]$. With top-2 routing and gates renormalized over the chosen experts, what is the gate on expert 0? (4 decimals)
+    answer: 0.7311
+    tolerance: 0.0005
+    explanation: |
+      Softmax: $e^{2} = 7.389$, $e^{1} = 2.718$, $e^{0.5} = 1.649$, $e^{-1} = 0.368$, sum $12.124$. $p_0 = 0.6095$, $p_1 = 0.2242$. Gate $= 0.6095/(0.6095 + 0.2242) = 0.7311$, which equals $\sigma(2.0 - 1.0)$.
+  - id: moe-capacity
+    type: numeric
+    difficulty: medium
+    prompt: |
+      An MoE layer has 64 experts and top-2 routing. A batch of 4,096 tokens uses capacity factor 1.25. How many slots does each expert get?
+    answer: 160
+    tolerance: 0
+    explanation: |
+      $Tk = 8{,}192$ assignments; fair share $8{,}192/64 = 128$; capacity $\lceil 1.25 \times 128 \rceil = 160$.
+  - id: moe-dropped
+    type: numeric
+    difficulty: medium
+    prompt: |
+      12 tokens, 8 experts, top-2, capacity factor 1. The router sends $[8, 1, 2, 4, 1, 3, 3, 2]$ assignments to experts 0 to 7. How many assignments are dropped?
+    answer: 6
+    tolerance: 0
+    explanation: |
+      Capacity $\lceil 24/8 \rceil = 3$. Expert 0 overflows by $8 - 3 = 5$, expert 3 by $4 - 3 = 1$. Total $6$ of 24.
+  - id: moe-memory
+    type: single
+    difficulty: medium
+    prompt: |
+      A model has 4B shared parameters and 16 experts of 2B each, with top-2 routing. Which statement is correct?
+    options:
+      - It needs memory for 8B parameters and compute for 36B.
+      - It needs memory for 36B parameters (72 GB in BF16) and compute for about 8B per token.
+      - It needs memory and compute for 8B parameters.
+      - It needs memory and compute for 36B parameters.
+    answer: 1
+    explanation: |
+      Every expert must be resident: $4 + 16 \cdot 2 = 36$B. Each token uses the shared part plus two experts: $4 + 2 \cdot 2 = 8$B.
+    why_not:
+      - This reverses the two: memory follows total, compute follows active.
+      - ""
+      - Experts not chosen for this token are still needed for other tokens, so they must stay in memory.
+      - Only the chosen experts are computed per token.
+  - id: moe-collapse
+    type: single
+    difficulty: hard
+    prompt: |
+      During MoE training, per-layer logs show 3 of 32 experts receive 70% of tokens and the drop rate is 20%. What is the most likely cause and fix?
+    options:
+      - The learning rate is too low; raise it.
+      - Routing collapse; enable or strengthen load balancing (auxiliary loss or bias updates) and monitor per-expert load.
+      - Too many experts; reduce to 4.
+      - The capacity factor is too high; lower it.
+    answer: 1
+    explanation: |
+      Early favourites get more gradient and get chosen more, a feedback loop. Balancing pushes the router toward even use; drops then fall as well.
+    why_not:
+      - A higher learning rate tends to speed up collapse rather than fix it.
+      - ""
+      - Fewer experts throws away capacity; the problem is the router, not the count.
+      - Lowering capacity would increase drops.
+  - id: moe-bias
+    type: single
+    difficulty: medium
+    prompt: |
+      In auxiliary-loss-free balancing (DeepSeek-V3), what does the per-expert bias change?
+    options:
+      - Both which experts are selected and their gate weights.
+      - Only which experts are selected; gates come from the unbiased router probabilities.
+      - Only the gate weights.
+      - The expert weights directly.
+    answer: 1
+    explanation: |
+      Selection uses $z_e + b_e$; gates use the softmax of $z$ alone. The bias is updated by a rule, not by gradients, so it doesn't distort outputs or add a loss term.
+    why_not:
+      - If the bias changed gates, balancing would directly distort the layer's output.
+      - ""
+      - Gates don't change which experts get load, so this couldn't balance anything.
+      - Expert weights are trained by the language-modeling loss as usual.
+  - id: moe-design
+    type: single
+    difficulty: hard
+    prompt: |
+      You must deploy a model on a single 24 GB GPU for a single-user desktop assistant. You can choose a dense 8B model or an MoE with 47B total and 13B active parameters of similar quality per FLOP. Which fits better?
+    options:
+      - The MoE, because it computes only 13B per token.
+      - The dense 8B model, because the MoE's 47B parameters need about 94 GB in BF16 (or about 24 GB even at 4 bits), leaving no room for the KV cache.
+      - The MoE, because experts not in use can be skipped from memory.
+      - Either; memory doesn't depend on architecture.
+    answer: 1
+    explanation: |
+      Memory follows total parameters. On memory-bound edge hardware MoE's advantage disappears.
+    why_not:
+      - Active compute is low, but the weights still have to fit.
+      - ""
+      - Different tokens use different experts, so all must be available; offloading to CPU makes decode very slow.
+      - Memory scales with total parameter count, which is far larger for the MoE.
+  - id: moe-true
+    type: multi
+    difficulty: medium
+    prompt: Which statements are correct?
+    options:
+      - Mixtral 8x7B has about 46.7B parameters, not 56B, because attention and embeddings are shared across experts.
+      - With top-2 routing, adding more experts raises per-token compute.
+      - Expert parallelism adds all-to-all communication to every MoE layer.
+      - The Switch auxiliary loss equals 1 when routing is perfectly uniform.
+      - Dropped tokens cause an error and stop training.
+    answer: [0, 2, 3]
+    explanation: |
+      Per-token compute depends on $k$, not $E$. Dropped tokens skip the expert and pass through the residual connection silently, which is why you must log the drop rate.
+    why_not:
+      - ""
+      - Each token still runs exactly 2 experts; more experts adds memory.
+      - ""
+      - ""
+      - Drops are silent; that is what makes them dangerous.
+  - id: moe-order
+    type: order
+    difficulty: easy
+    prompt: Order the steps of an MoE layer's forward pass for one token.
+    options:
+      - Compute router logits with a linear layer
+      - Softmax the logits into probabilities
+      - Keep the top-k experts
+      - Renormalize the chosen probabilities into gates
+      - Run the chosen experts and sum their outputs weighted by the gates
+    explanation: Router, softmax, top-k, renormalize, weighted sum. Experts outside the top-k are never computed.

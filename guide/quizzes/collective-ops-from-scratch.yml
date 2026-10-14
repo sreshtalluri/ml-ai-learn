@@ -1,0 +1,131 @@
+title: Collective operations from scratch
+lesson: collective-ops-from-scratch
+questions:
+  - id: coll-ring-bytes
+    type: single
+    difficulty: easy
+    prompt: How many bytes does each rank send in a ring all-reduce of a $T$-byte tensor over $N$ ranks?
+    options:
+      - $N \cdot T$
+      - $T \log_2 N$
+      - $T$
+      - $2T(N-1)/N$
+    answer: 3
+    explanation: |
+      Reduce-scatter and all-gather each take $N - 1$ steps sending a $T/N$ chunk: $2(N-1) \cdot T/N$. It approaches $2T$ and does not grow with $N$.
+    why_not:
+      - That is roughly what a parameter server's link carries, not a ring rank.
+      - That is a simple tree's bandwidth term.
+      - Each rank must send its data out and pass on others' partial sums, so it is close to $2T$.
+      - ""
+  - id: coll-rs-holds
+    type: single
+    difficulty: medium
+    prompt: After the reduce-scatter half of a ring all-reduce, what does each rank hold?
+    options:
+      - The full summed tensor.
+      - The fully summed values of one chunk ($1/N$ of the tensor).
+      - Its own unmodified tensor.
+      - Partial sums of every chunk.
+    answer: 1
+    explanation: |
+      Each chunk's partial sum travels around the ring for $N - 1$ steps, collecting every rank's contribution, and ends complete on one rank. All-gather then shares those finished chunks.
+    why_not:
+      - That is the state after the all-gather half.
+      - Reduce-scatter changes every rank's chunks.
+      - ""
+      - After $N - 1$ steps one chunk per rank is complete; the others are stale partial sums no longer needed.
+  - id: coll-calc-bytes
+    type: numeric
+    difficulty: medium
+    prompt: |
+      You all-reduce 13.48 GB of bf16 gradients over $N = 8$ GPUs with a ring. How many GB does each GPU send? (2 decimals)
+    answer: 23.59
+    tolerance: 0.02
+    explanation: |
+      $2 \times 7/8 = 1.75$. $1.75 \times 13.48 = 23.59$ GB (23.58 with the unrounded tensor size).
+  - id: coll-steps
+    type: numeric
+    difficulty: easy
+    prompt: How many sequential communication steps does a ring all-reduce take on 16 ranks?
+    answer: 30
+    tolerance: 0
+    explanation: |
+      $2(N - 1) = 2 \times 15 = 30$: 15 for reduce-scatter, 15 for all-gather.
+  - id: coll-tree-vs-ring
+    type: single
+    difficulty: medium
+    prompt: When does a tree all-reduce beat a ring?
+    options:
+      - Always, because it has fewer steps.
+      - For large tensors on a fast network.
+      - For small messages or high-latency links, where the per-message startup cost dominates and $2\log_2 N$ rounds beat $2(N-1)$ steps.
+      - Never; trees send more bytes.
+    answer: 2
+    explanation: |
+      In the $\alpha$-$\beta$ model the ring pays $2(N-1)\alpha$ in latency, the tree $2\log_2 N \cdot \alpha$. For large tensors the ring's smaller bandwidth term wins.
+    why_not:
+      - Fewer steps matter only when latency dominates.
+      - That is where the ring's bandwidth advantage wins.
+      - ""
+      - A simple tree does send more bytes, but for tiny messages bytes hardly matter.
+  - id: coll-identity
+    type: single
+    difficulty: easy
+    prompt: Which composition equals an all-reduce?
+    options:
+      - Broadcast then reduce.
+      - Reduce-scatter then all-gather.
+      - All-gather then broadcast.
+      - Two reduce-scatters.
+    answer: 1
+    explanation: |
+      Reduce-scatter leaves each rank with one summed chunk; all-gather gives everyone every summed chunk. ZeRO exploits this split.
+    why_not:
+      - Reduce to one rank then broadcast also works, but that is the parameter-server pattern, and the order given here is reversed.
+      - ""
+      - All-gather concatenates without summing.
+      - The second reduce-scatter has nothing left to sum.
+  - id: coll-hang
+    type: single
+    difficulty: hard
+    prompt: |
+      A multi-GPU job hangs at step 0. Rank 0 runs `dist.all_reduce(loss)` inside `if rank == 0:` to log the loss; the other ranks skip it. Why does it hang?
+    options:
+      - NCCL does not support all-reduce on scalars.
+      - Collectives must be called by every rank in the same order; rank 0 waits forever for partners that never join.
+      - The loss must be on CPU.
+      - All-reduce needs at least 1 MB of data.
+    answer: 1
+    explanation: |
+      A collective is a rendezvous. Call it on all ranks (then print only on rank 0), and set a timeout so mismatches turn into errors instead of hangs.
+    why_not:
+      - Scalars are fine.
+      - ""
+      - NCCL works on GPU tensors.
+      - There is no minimum size.
+  - id: coll-lr
+    type: single
+    difficulty: medium
+    prompt: |
+      You implement data parallelism by hand with `all_reduce(grad, op=SUM)` and nothing else. Compared with single-GPU training at the same per-GPU batch, what happens?
+    options:
+      - Nothing; SUM is the standard choice.
+      - The update is $N$ times larger, as if the learning rate were multiplied by $N$, unless you divide by $N$ (or use AVG).
+      - Gradients become $N$ times smaller.
+      - The all-reduce sends $N$ times more bytes.
+    answer: 1
+    explanation: |
+      Data parallelism wants the mean of shard gradients. DDP divides by world size for you; a hand-rolled SUM does not.
+    why_not:
+      - SUM without dividing is a common bug, not the standard.
+      - ""
+      - It is the opposite.
+      - Bytes sent do not depend on the reduction operation.
+  - id: coll-bucket
+    type: short
+    difficulty: medium
+    prompt: Why does PyTorch DDP group gradients into buckets (25 MB by default) instead of all-reducing each parameter tensor separately?
+    sample_answer: |
+      A model has hundreds of parameter tensors; one all-reduce each would pay the per-message latency hundreds of times and keep messages small and latency-bound. Buckets make a few large messages where bandwidth dominates, and each bucket's all-reduce starts as soon as backward has filled it, overlapping communication with the rest of the backward pass.
+    explanation: Bucketing amortizes latency and enables overlap.

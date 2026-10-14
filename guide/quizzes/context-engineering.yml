@@ -1,0 +1,131 @@
+title: Context engineering
+lesson: context-engineering
+questions:
+  - id: ce-define
+    type: single
+    difficulty: easy
+    prompt: How does context engineering differ from prompt engineering?
+    options:
+      - They are the same thing
+      - Prompt engineering is the wording of instructions; context engineering is everything in the window (instructions, tools, retrieved documents, history, memory) and its order
+      - Context engineering is database design for embeddings
+      - Prompt engineering is the more advanced discipline
+    answer: 1
+    explanation: The prompt is one part of the context. In RAG and agents, the dynamically assembled rest of the window usually matters more.
+    why_not:
+      - They overlap only in a single-prompt chatbot.
+      - Correct.
+      - Vector databases feed the context, but context engineering is about what reaches the model.
+      - Neither is "more advanced"; context engineering is the broader scope.
+  - id: ce-reserve
+    type: single
+    difficulty: easy
+    prompt: Why must you reserve output tokens when budgeting a context window?
+    options:
+      - Providers charge a fixed fee for the reserve
+      - The window limit covers input and output together, so a full input leaves no room for the answer
+      - The reserve stores the KV cache
+      - Output tokens are free
+    answer: 1
+    explanation: Input plus output must fit in the window. Without a reserve, long inputs truncate the answer.
+    why_not:
+      - There is no reserve fee; output tokens are billed as generated.
+      - Correct.
+      - The KV cache lives in server memory, not in a token reserve.
+      - Output tokens usually cost more than input tokens.
+  - id: ce-middle
+    type: single
+    difficulty: medium
+    prompt: You must pass 10 retrieved chunks to a model. Where should the two most relevant go?
+    options:
+      - Both in the middle, surrounded by context
+      - At the edges of the retrieved block (first and last), with the weakest chunks in the middle
+      - Alphabetical order
+      - Random order every call
+    answer: 1
+    explanation: Models often use information near the start and end of long inputs more reliably than information in the middle.
+    why_not:
+      - The middle is where facts are most often underused.
+      - Correct.
+      - Alphabetical order ignores relevance.
+      - Random order makes results unstable and also breaks prefix caching.
+  - id: ce-total
+    type: numeric
+    difficulty: medium
+    prompt: Fixed context is 5,000 tokens and each turn adds 300 tokens of history, kept in full. How many input tokens are billed over 10 calls?
+    answer: 63500
+    tolerance: 0
+    explanation: |
+      $10 \times 5{,}000 + 300 \times \frac{10 \times 9}{2} = 50{,}000 + 300 \times 45 = 50{,}000 + 13{,}500 = 63{,}500$.
+  - id: ce-compact
+    type: numeric
+    difficulty: hard
+    prompt: Same setup (5,000 fixed, 300 per turn), but history is compacted to the last 2 turns plus a 100-token summary once there are more than 2 earlier turns. What is the input for call 10?
+    answer: 5700
+    tolerance: 0
+    explanation: |
+      Call 10 has 9 earlier turns, more than 2, so history is $2 \times 300 + 100 = 700$. Input $= 5{,}000 + 700 = 5{,}700$, versus $5{,}000 + 2{,}700 = 7{,}700$ with full history.
+  - id: ce-cache
+    type: single
+    difficulty: medium
+    prompt: Prefix caching stopped working after a release. Which change most likely caused it?
+    options:
+      - Retrieved documents are now appended after the user query
+      - The current timestamp was added to the first line of the system prompt
+      - The output reserve was increased
+      - The temperature was lowered
+    answer: 1
+    explanation: Caches match byte-identical prefixes. A changing value at the very top makes every prefix unique.
+    why_not:
+      - Content after the stable prefix doesn't affect prefix reuse (though query-last is usually better).
+      - Correct.
+      - Output size doesn't change the input prefix.
+      - Sampling settings don't change the input tokens.
+  - id: ce-long-session
+    type: single
+    difficulty: medium
+    prompt: An agent's answers degrade in long sessions. Logs show the context is 80 percent raw tool output from earlier steps. What is the best fix?
+    options:
+      - Switch to a model with a larger window
+      - Trim tool outputs to needed fields, summarize old turns, keep a structured notes block of decisions, and let the agent re-fetch old results by ID
+      - Delete the system prompt to save space
+      - Raise the temperature so the agent explores more
+    answer: 1
+    explanation: The problem is noise crowding out instructions and key facts. Compaction and selection fix the cause.
+    why_not:
+      - A bigger window holds more noise; cost rises and quality need not improve.
+      - Correct.
+      - The system prompt holds the rules the agent is forgetting.
+      - Randomness doesn't remove the noise.
+  - id: ce-memory
+    type: single
+    difficulty: medium
+    prompt: A user's preferred programming language should persist across sessions. Where should it live?
+    options:
+      - Only in the current conversation history
+      - In a long-term memory store, retrieved or loaded into the context at session start
+      - In the model's weights, via a nightly fine-tune
+      - In the output reserve
+    answer: 1
+    explanation: Long-term memory is storage outside the window that is retrieved when relevant, like RAG over your own notes.
+    why_not:
+      - History ends with the session.
+      - Correct.
+      - Fine-tuning per user preference is costly, slow, and hard to undo.
+      - The reserve is space for the answer, not storage.
+  - id: ce-design
+    type: single
+    difficulty: hard
+    prompt: Users ask repeated questions over a 2,000-page knowledge base, and your model has a one-million-token window. What is the best default design?
+    options:
+      - Put the whole knowledge base in every call
+      - Retrieve a few relevant chunks per question, put the stable instructions first, and measure answer quality on a labelled set
+      - Fine-tune the model on the knowledge base and send no documents
+      - Summarize the whole knowledge base into one page and send that
+    answer: 1
+    explanation: Retrieval keeps cost and latency low and avoids burying the relevant passage among irrelevant text.
+    why_not:
+      - Huge per-call cost and prefill latency, and accuracy can drop with irrelevant text.
+      - Correct.
+      - Fine-tuning is poor at storing changing facts and gives no citations.
+      - A one-page summary loses the details most questions need.

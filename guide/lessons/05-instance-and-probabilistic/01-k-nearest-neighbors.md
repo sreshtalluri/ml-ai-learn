@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 35
 prerequisites: [vectors-and-matrices, ml-workflow]
 related: [k-means, naive-bayes, word-embeddings]
+adapted_from: [phases/01-math-foundations/14-norms-and-distances, phases/02-ml-fundamentals/06-knn-and-distances]
 ---
 
 # K-nearest neighbors
@@ -138,19 +139,71 @@ Same data, same K, opposite prediction. In raw units, income differences (up to 
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+### Build it from scratch
+
+The full script is [`code/05-instance-and-probabilistic/knn_scratch.py`](../../code/05-instance-and-probabilistic/knn_scratch.py). It uses only NumPy for the model and scikit-learn only to check the answer.
+
+**Distances.** Everything in KNN rests on one function: the distance from a query to every stored row. Broadcasting `X - q` subtracts the query from all $n$ rows at once, giving an $[n, p]$ array; summing over axis 1 gives one distance per row. Cosine distance is included because it is the default for text embeddings: it compares direction and ignores length.
 
 ```python
-import numpy as np
-from collections import Counter
-
-def knn_predict(X_train, y_train, q, k=3):
-    dists = np.sqrt(((X_train - q) ** 2).sum(axis=1))   # [n] distances to the query
-    nearest = np.argsort(dists, kind="stable")[:k]       # indices of the k smallest
-    return Counter(y_train[nearest]).most_common(1)[0][0]
+def distances(X, q, metric="euclidean"):
+    diff = X - q                                    # [n, p] by broadcasting
+    if metric == "euclidean":
+        return np.sqrt((diff**2).sum(axis=1))       # [n]
+    if metric == "manhattan":
+        return np.abs(diff).sum(axis=1)
+    if metric == "cosine":                          # 1 - cos(angle); ignores length
+        norms = np.linalg.norm(X, axis=1) * np.linalg.norm(q)
+        return 1 - (X @ q) / np.maximum(norms, 1e-12)
+    raise ValueError(metric)
 ```
 
-**With scikit-learn, scaling included in the pipeline:**
+*Predict:* two vectors point the same way but one is twice as long. What is their cosine distance, and what is their Euclidean distance?
+
+**Scaling.** Section 3 showed that units can flip the prediction. The scaler is split into *fit* (learn $\mu$, $\sigma$ from training rows) and *apply* (reuse them on anything), so queries never leak into the statistics. The `1e-12` floor stops a constant feature from dividing by zero.
+
+```python
+def fit_scaler(X_train):
+    mu = X_train.mean(axis=0)
+    sigma = np.maximum(X_train.std(axis=0), 1e-12)  # guard: constant feature
+    return mu, sigma
+
+def apply_scaler(X, mu, sigma):
+    return (X - mu) / sigma                         # same mu, sigma for every query
+```
+
+*Predict:* if you called `fit_scaler` on the query alone, what would the standardized query be?
+
+**Find K nearest and vote.** `argsort` orders the distances; the first `k` indices are the neighbors. A `Counter` tallies their labels. With `weighted=True` each neighbor's vote is $1/d$, so closer neighbors count more (the floor handles $d = 0$, an exact duplicate).
+
+```python
+def knn_predict(X_train, y_train, q, k=3, metric="euclidean", weighted=False):
+    d = distances(X_train, q, metric)
+    nearest = np.argsort(d, kind="stable")[:k]      # indices of the k smallest
+    votes = Counter()
+    for i in nearest:
+        votes[y_train[i]] += 1 / max(d[i], 1e-12) if weighted else 1
+    return votes.most_common(1)[0][0], nearest
+```
+
+*Predict:* with $K$ equal to the number of training rows and `weighted=False`, what does this function return for every query?
+
+**The curse of dimensionality, measured.** Draw 1,000 random points in a unit cube and one random query, then compare the nearest distance to the farthest. In 2 dimensions the nearest point is far closer than the farthest; as dimensions grow, the ratio climbs toward 1 and "nearest" stops meaning much.
+
+```python
+rng = np.random.default_rng(0)
+print("\ndims  nearest/farthest distance from a random query (uniform cube, 1000 points)")
+for p in (2, 10, 100, 1000):
+    pts = rng.uniform(size=(1000, p))
+    d = distances(pts, rng.uniform(size=p))
+    print(f"{p:5d}  {d.min() / d.max():.3f}")
+```
+
+*Predict:* roughly what ratio do you expect at 1,000 dimensions: 0.1, 0.5, or 0.9?
+
+### Use the library
+
+scikit-learn's `KNeighborsClassifier` does the same search (with a KD-tree or ball tree when that is faster than brute force). Put the scaler in a pipeline so every cross-validation fold computes $\mu$ and $\sigma$ from its own training portion:
 
 ```python
 from sklearn.model_selection import GridSearchCV
@@ -164,9 +217,40 @@ search.fit(X_train, y_train)          # scaler is refit inside every CV fold: no
 print(search.best_params_, search.best_score_)
 ```
 
-Putting the scaler inside the pipeline means each cross-validation fold computes $\mu$ and $\sigma$ from its own training portion.
+| Scratch | scikit-learn |
+|---|---|
+| `fit_scaler` / `apply_scaler` | `StandardScaler().fit` / `.transform` |
+| `distances(..., metric=)` | `metric=` (`"euclidean"`, `"manhattan"`, `"cosine"`) |
+| `knn_predict(..., k=)` | `KNeighborsClassifier(n_neighbors=)` |
+| `weighted=True` | `weights="distance"` |
+| full scan with `argsort` | `algorithm="brute"`; `"kd_tree"` / `"ball_tree"` index the data |
 
-Runnable script (worked example, both implementations, cross-validated comparison, figure): [`code/05-instance-and-probabilistic/knn.py`](../../code/05-instance-and-probabilistic/knn.py).
+The script trains both versions on the same synthetic split (K = 15, standardized) and checks that they agree.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/05-instance-and-probabilistic/knn_scratch.py
+```
+
+Key output:
+
+```text
+raw units:     nearest ['E', 'B', 'A'] -> predict 0
+standardized:  nearest ['E', 'D', 'B'] -> predict 1
+
+dims  nearest/farthest distance from a random query (uniform cube, 1000 points)
+    2  0.007
+   10  0.223
+  100  0.720
+ 1000  0.898
+
+scratch vs scikit-learn on 60 test rows: agree on 100%, test accuracy 0.817
+```
+
+The first two lines reproduce the worked example: same data, same K, opposite prediction after scaling. The separate script [`code/05-instance-and-probabilistic/knn.py`](../../code/05-instance-and-probabilistic/knn.py) prints the worked example's distances step by step, the cross-validated raw versus standardized comparison, and draws the figure in section 2.
 
 ## 5. Engineering
 
@@ -219,6 +303,10 @@ K = 1: nearest is P2, predict **1**. K = 3: P2 (1), P1 (0), P3 (1), so votes 2 t
 **Next:** [Naive Bayes](02-naive-bayes.md)
 
 **Related:** [K-means](../07-unsupervised/01-k-means.md) · [Word embeddings](../09-classical-nlp/02-word-embeddings.md) · [Model card: KNN](../../models/k-nearest-neighbors.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Norms and Distances](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/14-norms-and-distances), [K-Nearest Neighbors and Distances](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/06-knn-and-distances).*
+<!-- /deeper -->
 
 ## Interview angle
 

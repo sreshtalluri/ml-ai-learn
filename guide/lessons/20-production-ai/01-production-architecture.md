@@ -5,6 +5,7 @@ skill: engineering
 minutes: 40
 prerequisites: [rag-pipeline, llm-evaluation]
 related: [reliability-cost-and-observability, ai-security, rag-pipeline]
+adapted_from: [phases/11-llm-engineering/13-production-app, phases/17-infrastructure-and-production/20-shadow-canary-progressive]
 ---
 
 # Production architecture
@@ -84,6 +85,114 @@ Peak traffic is 50 requests per second; p95 end-to-end latency is 4 seconds. Lit
 
 ## 4. Implementation
 
+### Build it from scratch
+
+The full script is [`code/20-production-ai/canary_scratch.py`](../../code/20-production-ai/canary_scratch.py). It builds the three things that keep a model change from hurting users: a request path that degrades instead of failing, a shadow comparison, and a canary that rolls itself back. Models are fake functions with synthetic latency, cost, and error rates.
+
+**A fake model.** Each "model" returns text, a latency, and a cost, or raises to simulate a 503. Latency is jittered so percentiles mean something.
+
+```python
+def make_model(name, latency_ms, cost, error_rate, length):
+    """A fake model: returns (text, latency_ms, cost_usd) or raises on a simulated failure."""
+    def call(prompt, rng):
+        if rng.random() < error_rate:
+            raise RuntimeError(f"{name}: 503")
+        lat = latency_ms * rng.uniform(0.7, 1.6)
+        return f"{name} answer to {prompt!r}"[: length], lat, cost
+    call.name = name
+    return call
+```
+
+*Predict:* with `error_rate=0.40`, roughly how many of 1,000 calls raise?
+
+**The request path.** Try the primary, fall back once, and treat "too slow" the same as "failed". The user always gets something: an answer or an honest apology. Nothing hangs.
+
+```python
+def handle(prompt, primary, fallback, rng, timeout_ms=2000):
+    """One request: try the primary under a deadline, fall back once, never hang."""
+    for model in (primary, fallback):
+        try:
+            text, lat, cost = model(prompt, rng)
+        except RuntimeError:
+            continue                      # dependency failed: try the next model
+        if lat > timeout_ms:
+            continue                      # too slow: treat as a timeout
+        return {"model": model.name, "text": text, "latency_ms": lat, "cost": cost}
+    return {"model": "none", "text": "Sorry, try again shortly.", "latency_ms": timeout_ms, "cost": 0.0}
+```
+
+*Predict:* if both models are down, what latency does the request report, and why is that the right number to log?
+
+**Shadow mode.** Send the same prompts to production and to the candidate. Only production's answer reaches the user; the candidate's numbers are logged. This catches cost blow-ups, latency regressions, and hard failures with zero user impact. It cannot tell you whether users prefer the new answers.
+
+```python
+def shadow(prompts, prod, cand, seed=0):
+    """Send the same prompts to both; users only ever see prod. Log the deltas."""
+    rng = random.Random(seed)
+    rows = []
+    for p in prompts:
+        a = handle(p, prod, prod, rng)
+        b = handle(p, cand, cand, rng)        # candidate output is logged, never returned
+        rows.append((a["latency_ms"], b["latency_ms"], a["cost"], b["cost"], b["model"] == "none"))
+    return {
+        "latency_ratio": statistics.median(r[1] for r in rows) / statistics.median(r[0] for r in rows),
+        "cost_ratio": sum(r[3] for r in rows) / sum(r[2] for r in rows),
+        "cand_fail_rate": sum(r[4] for r in rows) / len(rows),
+    }
+```
+
+*Predict:* why compare medians of latency but sums of cost?
+
+**Gates.** A canary passes a stage only if each guard metric stays within a multiple of the baseline. The thresholds are set above the run-to-run noise, because LLM outputs and latencies vary even for identical inputs.
+
+```python
+STAGES = [0.01, 0.10, 0.25, 0.50, 1.00]
+GATES = {"p95_ms": 1.5, "cost": 1.2, "error_rate": 2.0}   # canary may be at most this multiple of baseline
+
+def p95(xs):
+    xs = sorted(xs)
+    return xs[int(0.95 * (len(xs) - 1))]
+```
+
+*Predict:* a candidate's p95 is 1.4 times baseline. Does it pass?
+
+**Measuring a stage.** Count errors separately from successful latencies. The `1e-3` floor stops a zero-error baseline from making any single canary error look infinitely worse.
+
+```python
+def measure(model, n, rng):
+    lats, costs, errs = [], [], 0
+    for i in range(n):
+        try:
+            _, lat, cost = model(f"q{i}", rng)
+            lats.append(lat)
+            costs.append(cost)
+        except RuntimeError:
+            errs += 1
+    return {"p95_ms": p95(lats), "cost": statistics.mean(costs), "error_rate": max(errs / n, 1e-3)}
+```
+
+**The rollout.** Walk 1% → 10% → 25% → 50% → 100%. At each stage compare canary to baseline measured at the same time, and stop at the first breach. Rolling back is a config flip, so it takes seconds.
+
+```python
+def canary(baseline, cand, requests_per_stage=4000, seed=1):
+    """Shift traffic stage by stage; compare canary to baseline at each stage; roll back on any breach."""
+    rng = random.Random(seed)
+    for share in STAGES:
+        n_cand = max(200, int(share * requests_per_stage))      # floor so early stages have signal
+        base, can = measure(baseline, requests_per_stage, rng), measure(cand, n_cand, rng)
+        breaches = [k for k, mult in GATES.items() if can[k] > base[k] * mult]
+        print(f"  {share:>4.0%}  p95 {can['p95_ms']:6.0f} vs {base['p95_ms']:6.0f} ms  "
+              f"err {can['error_rate']:.3f} vs {base['error_rate']:.3f}  "
+              f"{'ROLLBACK: ' + ','.join(breaches) if breaches else 'pass'}")
+        if breaches:
+            return "rolled back"
+    return "promoted"
+```
+
+*Predict:* the 1% stage only sees 40 canary requests at 4,000 per stage. Why does the code use at least 200?
+
+### Use the library
+
 Structured output with validation, so free text never flows into code unchecked:
 
 ```python
@@ -119,6 +228,36 @@ def run_tool(call, user):
     return with_timeout(fn, args, seconds=5)
 ```
 
+For progressive delivery itself you rarely write the loop above. Feature-flag systems (for example via the vendor-neutral [OpenFeature](https://openfeature.dev) API) hold the traffic split, a model registry pins the exact model version, and tools such as Argo Rollouts or Flagger automate stage-by-stage promotion against metric queries. The scratch version shows what those tools check for you.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/20-production-ai/canary_scratch.py
+```
+
+Key output:
+
+```text
+Request path (primary flaky, fallback small):
+  served by: {'flaky-v1': 601, 'none': 6, 'small-v1': 393}
+Shadow (candidate = cheaper, faster model):
+  latency ratio 0.36  cost ratio 0.20  candidate failures 0.0%
+Canary cand-good:
+  ...
+  100%  p95   1272 vs   1249 ms  err 0.011 vs 0.011  pass
+  -> promoted
+Canary cand-slow:
+    1%  p95   2198 vs   1245 ms  err 0.015 vs 0.011  ROLLBACK: p95_ms
+Canary cand-pricey:
+    1%  p95   1256 vs   1245 ms  err 0.015 vs 0.011  ROLLBACK: cost
+all checks passed
+```
+
+The 40% flaky primary still leaves only 6 of 1,000 requests unanswered (both models failed or timed out). The slow and expensive candidates are stopped at 1% of traffic, before most users ever see them.
+
 ## 5. Engineering
 
 | Component | Responsibility | Inputs → outputs | Common failures | Metrics | Security | Scaling |
@@ -142,6 +281,17 @@ def run_tool(call, user):
 
 > [!WARNING]
 > **Failure modes.** Trusting raw model text as code or commands; tools running with service-wide credentials instead of the user's permissions; retries that duplicate side effects (charging a card twice); unbounded agent loops; logs containing secrets or personal data; no fallback when the model provider is down.
+
+### Shipping a model change: shadow, then canary
+
+A new model, prompt, or index version is a deploy. Treat it like one.
+
+1. **Offline eval** on the golden set (see [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md)).
+2. **Shadow:** mirror real traffic to the candidate, log its outputs, tokens, latency, and errors, and return nothing from it. This is a smoke test for cost and breakage, not a quality test.
+3. **Canary:** shift traffic in stages (for example 1%, 10%, 25%, 50%, 100%) and gate each stage on latency percentiles, cost per request, error and refusal rate, output length, and user feedback, all compared to the baseline over the same window.
+4. **Rollback** must be a flag flip plus a pinned previous model version. If rolling back needs a redeploy, fix that first.
+
+Set gate thresholds above the natural noise. The same prompt can produce different outputs and latencies from run to run (sampling, batch composition, floating-point reduction order), so "stable" means "within the expected spread", not "identical to baseline".
 
 ### Common mistakes
 
@@ -175,6 +325,12 @@ $L = 8 \times 2.5 = 20$ on average. At peak, $24 \times 2.5 = 60$ concurrent req
 **Next:** [Reliability, cost, and observability](02-reliability-cost-and-observability.md)
 
 **Related:** [Securing AI systems](../21-safety-security/01-ai-security.md) · [The RAG pipeline](../16-rag/01-rag-pipeline.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [LLM Routing Layer — LiteLLM, OpenRouter, Portkey](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/21-llm-routing-layer) · [Production Runtimes: Queue, Event, Cron](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/29-production-runtimes) · [AI Gateways — LiteLLM, Portkey, Kong AI Gateway, Bifrost](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/19-ai-gateways)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Building a Production LLM Application](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/13-production-app), [Shadow Traffic, Canary Rollout, and Progressive Deployment for LLMs](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/20-shadow-canary-progressive).*
+<!-- /deeper -->
 
 ## Interview angle
 

@@ -5,6 +5,7 @@ skill: llms
 minutes: 45
 prerequisites: [text-to-vectors, word-embeddings, adapting-llms]
 related: [llm-evaluation, ai-security, production-architecture]
+adapted_from: [phases/11-llm-engineering/06-rag, phases/11-llm-engineering/07-advanced-rag, phases/05-nlp-foundations-to-advanced/23-chunking-strategies-rag, phases/19-capstone-projects/64-chunking-strategies-advanced, phases/19-capstone-projects/66-reranker-cross-encoder, phases/19-capstone-projects/67-query-rewriting-hyde]
 ---
 
 # The RAG pipeline
@@ -107,6 +108,92 @@ Query: *"Can I get reimbursed for a game I never opened?"* The answer exists ("D
 
 ## 4. Implementation
 
+The full script is [`code/16-rag/rag_scratch.py`](../../code/16-rag/rag_scratch.py) (NumPy only, fully offline). It uses the lab's four synthetic documents, stop words, and scoring, so it prints the worked example's numbers. Two parts are deliberately fake so nothing needs a download: query rewriting uses a hand-written synonym map instead of an LLM, and the reranker is a scoring rule instead of a trained cross-encoder. The pipeline around them is the real shape.
+
+### Build it from scratch
+
+**Step 1: chunk.** Fixed windows are the baseline: $S$ words, starting every $S - O$ words. Sentence chunking packs whole sentences up to a word budget, so an answer sentence is never cut in half. Each chunk keeps its source, which you need for citations and filters later.
+
+```python
+def fixed_chunks(size, overlap):
+    out, step = [], max(1, size - overlap)
+    for doc, text in DOCS.items():
+        w = text.split()
+        out += [(doc, " ".join(w[i:i + size])) for i in range(0, max(1, len(w) - overlap), step)]
+    return out                                    # [(source, text)]
+
+def sentence_chunks(max_words):
+    out = []
+    for doc, text in DOCS.items():
+        cur = []
+        for sent in re.split(r"(?<=\.)\s+", text):  # never cut a sentence in half
+            if cur and len(" ".join(cur + [sent]).split()) > max_words:
+                out.append((doc, " ".join(cur))); cur = []
+            cur.append(sent)
+        out.append((doc, " ".join(cur)))
+    return out
+```
+
+*Predict:* the refunds document has 45 words. With $S = 20$ and $O = 5$, how many fixed chunks does it produce? (Use the chunking formula in section 3.)
+
+**Step 2: index and retrieve.** Every chunk becomes a TF-IDF vector (raw count times $\ln(N/\text{DF})$), stacked into a matrix `M` of shape `[n_chunks, |vocab|]`. Retrieval is one matrix-vector product and a sort by cosine. A dense retriever swaps `vec` for an embedding model; the rest is unchanged.
+
+```python
+def retrieve(chunks, index, query_terms, k):
+    vec, M = index
+    q = vec(query_terms)
+    s = M @ q / (np.linalg.norm(M, axis=1) * np.linalg.norm(q) + 1e-12)
+    order = sorted((i for i in range(len(chunks)) if s[i] > 0), key=lambda i: (-s[i], i))
+    return [(i, float(s[i])) for i in order[:k]]
+```
+
+*Predict:* the miss query ("reimbursed ... game ... never opened") shares no terms with any chunk. What does `retrieve` return for it?
+
+**Step 3: rewrite the query.** When the user's words differ from the document's words, add the document's words. Production systems ask an LLM for paraphrases (multi-query), for a hypothetical answer to embed instead of the question (HyDE), or for sub-questions (decomposition). Here a synonym map plays the LLM.
+
+```python
+def rewrite(query):
+    return [x for t in terms(query) for x in [t] + SYNONYMS.get(t, [])]   # an LLM rewriter in production
+```
+
+*Predict:* rewriting adds "refund" to any query containing "back". What could go wrong for "How do I go back to the previous page?"
+
+**Step 4: rerank.** A first-stage retriever scores the query and each chunk separately. A reranker reads them together and can reward query words that appear close together in the chunk. A real cross-encoder is a transformer over the pair `[query] [SEP] [chunk]`; this rule (coverage of query terms times their density) is the same rule the lab's reranker uses.
+
+```python
+def rerank_score(chunk_text, query):
+    toks = terms(chunk_text)
+    q = set(rewrite(query))
+    pos = [i for i, t in enumerate(toks) if t in q]
+    if not pos:
+        return 0.0
+    coverage = len({toks[i] for i in pos}) / max(1, len(terms(query)))
+    span = pos[-1] - pos[0] + 1 if len(pos) > 1 else len(toks)
+    return round(coverage * (1 + len(pos) / span), 4)
+```
+
+*Predict:* a cross-encoder is far more accurate than a bi-encoder. Why not use it for first-stage retrieval over a million chunks?
+
+**Step 5: build a grounded prompt and check citations.** Number the sources, tell the model to answer only from them and to say when they don't contain the answer. After generation, check that every cited number points at a real source; a citation to `[4]` when you sent two sources is a hallucinated citation.
+
+```python
+def build_prompt(question, chunks, hits):
+    sources = "\n".join(f"[{n}] ({chunks[i][0]}) {chunks[i][1]}" for n, (i, _) in enumerate(hits, 1))
+    return ("Answer using ONLY the sources below. Cite sources like [1]. "
+            "If the sources do not contain the answer, say you don't know.\n\n"
+            f"Sources:\n{sources}\n\nQuestion: {question}")
+
+def check_citations(answer, n_sources):
+    cited = {int(c) for c in re.findall(r"\[(\d+)\]", answer)}
+    return {"cited": sorted(cited), "invalid": sorted(c for c in cited if not 1 <= c <= n_sources), "uncited": not cited}
+```
+
+*Predict:* the citation check passes. Does that prove the answer is supported by source [1]?
+
+### Use the library
+
+The same pipeline with a real embedding model:
+
 ```python
 # Index (once): chunk, embed, store with metadata
 from sentence_transformers import SentenceTransformer          # pip install sentence-transformers
@@ -129,9 +216,28 @@ def answer(question, k=5):
     return llm(prompt), top
 ```
 
-In production the in-memory array becomes a vector database or a search engine with vector support, and you add metadata filters and a reranker.
+What production adds: the in-memory array becomes a vector database or a search engine with vector support ([vector search](02-vector-search.md)), with metadata filters for permissions and freshness. Step 4 becomes a trained cross-encoder (`sentence_transformers.CrossEncoder` or a hosted rerank API) over the top 20 to 100 candidates. Step 3 becomes an LLM call, and step 1 becomes a splitter that respects headings, paragraphs, and code blocks.
 
-Runnable script (chunking, TF-IDF retrieval, the miss, recall versus chunk size, ranking metrics; fully offline): [`code/16-rag/rag_eval.py`](../../code/16-rag/rag_eval.py).
+### Run it
+
+```bash
+uv run code/16-rag/rag_scratch.py
+```
+
+Key lines of output (synthetic documents):
+
+```text
+10 chunks of 20 words: [('refunds', 0.408, True), ('shipping', 0.347, False), ('shipping', 0.112, False)]
+7 chunks of 30 words: [('shipping', 0.303, False), ('refunds', 0.283, True)]
+30-word chunks after rerank: [('refunds', 1.0476), ('shipping', 0.4167)]
+terms: ['get', 'reimbursed', 'game', 'never', 'opened'] -> hits: []
+-> top hit: [('refunds', 0.517, True)]
+fixed 20w/5 overlap : 10 chunks, recall@1 0.4, with rewrite 1.0
+sentences <= 20w    : 11 chunks, recall@1 0.6, with rewrite 1.0
+citation check on 'Yes, if it arrived damaged [1][4].': {'cited': [1, 4], 'invalid': [4], 'uncited': False}
+```
+
+The first two lines are the worked example's tables. The reranker puts the refunds chunk back on top at 30 words, and rewriting fixes the miss. Read the recall lines with care: five questions means each one moves recall by 0.2, and the synonym map was written for these exact questions, so "1.0 with rewrite" shows the mechanism, not a result to expect on real data. The ranking metrics and the chunk-size figure are in [`code/16-rag/rag_eval.py`](../../code/16-rag/rag_eval.py).
 
 ## 5. Engineering
 
@@ -140,6 +246,8 @@ Runnable script (chunking, TF-IDF retrieval, the miss, recall versus chunk size,
 **Chunking.** Split on structure (headings, paragraphs) rather than fixed word counts where possible; keep titles and section headers with chunks; use overlap; tune size on your retrieval metrics.
 
 **Hybrid search and reranking.** Sparse retrieval handles exact terms, IDs, and rare words; dense handles paraphrases. Hybrid is a strong default. Rerank the top 20 to 100 candidates with a cross-encoder, accepting the extra latency.
+
+**Query rewriting.** Multi-query (several paraphrases, results merged), HyDE (embed a model-written hypothetical answer instead of the question), and decomposition (split a two-part question into two searches) all fix vocabulary mismatch and multi-hop questions, at the cost of an extra LLM call before retrieval. Rewrites can also drift from what the user asked, so keep the original query in the mix and measure recall with and without the rewriter.
 
 **Metadata filtering and permissions.** Filter by access rights *before* retrieval results reach the model. Never rely on the model to withhold documents the user shouldn't see.
 
@@ -184,6 +292,12 @@ Chunks start every $200 - 50 = 150$ words: at 0, 150, 300, 450, 600, 750 (the la
 **Next:** [Vector search](02-vector-search.md)
 
 **Related:** [From text to vectors](../09-classical-nlp/01-text-to-vectors.md) · [Adapting LLMs](../15-llms/03-adapting-llms.md) · [Model card: embedding model](../../models/embedding-model.md) · [Model card: reranker](../../models/reranker.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Text Summarization](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/12-text-summarization) · [Question Answering Systems](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/13-question-answering) · [Relation Extraction & Knowledge Graph Construction](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/26-relation-extraction-kg) · [Document and Diagram Understanding](https://aiengineeringfromscratch.com/lesson?path=phases/12-multimodal-ai/22-document-diagram-understanding) · [ColPali and Vision-Native Document RAG](https://aiengineeringfromscratch.com/lesson?path=phases/12-multimodal-ai/23-colpali-vision-native-rag) · [Multimodal RAG and Cross-Modal Retrieval](https://aiengineeringfromscratch.com/lesson?path=phases/12-multimodal-ai/24-multimodal-rag-cross-modal)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [RAG (Retrieval-Augmented Generation)](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/06-rag), [Advanced RAG (Chunking, Reranking, Hybrid Search)](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/07-advanced-rag), [Chunking Strategies for RAG](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/23-chunking-strategies-rag), [Chunking Strategies, Compared](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/64-chunking-strategies-advanced), [Cross-Encoder Reranker](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/66-reranker-cross-encoder), [Query Rewriting: HyDE, Multi-Query, and Decomposition](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/67-query-rewriting-hyde).*
+<!-- /deeper -->
 
 ## Interview angle
 

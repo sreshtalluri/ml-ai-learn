@@ -108,6 +108,69 @@ Now change the last prediction to 300 (one big miss of 100). MAE becomes $(10+10
 
 ## 4. Implementation
 
+### Build it from scratch
+
+Ridge has a closed form. Center $X$ and $y$ first so the bias drops out and is never penalized. Then the one-feature formula $w = s_{xy}/(s_{xx} + \lambda)$ becomes a matrix solve: $(X^\top X/n + \lambda I)\,w = X^\top y/n$, where $X$ is $[n, d]$ and $w$ is $[d]$.
+
+```python
+def ridge(X, y, lam):
+    """Center, then solve (X^T X / n + lam I) w = X^T y / n. The bias is the mean and is not penalized."""
+    xm, ym = X.mean(axis=0), y.mean()
+    Xc, yc = X - xm, y - ym
+    n, d = X.shape
+    w = np.linalg.solve(Xc.T @ Xc / n + lam * np.eye(d), Xc.T @ yc / n)
+    return w, ym - xm @ w
+```
+
+*Predict:* two features are exact copies, so $X^\top X$ is singular and plain least squares has no unique answer. Does `ridge` still return a unique answer for $\lambda > 0$? Why?
+
+Lasso has no closed form for many features, because $|w|$ has a corner at 0. But for one weight with the others held fixed, the one-feature formula from section 3 applies: soft-thresholding. This helper does the "shrink, and snap to zero inside the band" step.
+
+```python
+def soft_threshold(z, g):
+    """Shrink z toward 0 by g; anything inside [-g, g] becomes exactly 0."""
+    return np.sign(z) * np.maximum(np.abs(z) - g, 0.0)
+```
+
+*Predict:* what are `soft_threshold(1.0, 0.25)`, `soft_threshold(-1.0, 0.25)` and `soft_threshold(0.2, 0.25)`?
+
+Coordinate descent loops over the weights, solving each one exactly against the residual the other weights leave behind. It repeats sweeps until the weights stop moving.
+
+```python
+def lasso(X, y, lam, sweeps=5000):
+    """Coordinate descent: solve for one weight at a time with the others fixed."""
+    xm, ym = X.mean(axis=0), y.mean()
+    Xc, yc = X - xm, y - ym
+    n, d = X.shape
+    w = np.zeros(d)
+    sxx = (Xc**2).mean(axis=0)                     # s_xx for each column
+    for _ in range(sweeps):
+        for j in range(d):
+            r = yc - Xc @ w + Xc[:, j] * w[j]      # residual ignoring feature j
+            sxy = Xc[:, j] @ r / n                 # s_xy between feature j and that residual
+            w[j] = soft_threshold(sxy, lam / 2) / sxx[j]
+    return w, ym - xm @ w
+```
+
+*Predict:* with one feature, how many sweeps does this need to reach the exact answer? With two nearly identical features, why does it need many more?
+
+The four metrics are one line each. Every one compares the same error vector $e = y - \hat{y}$ differently.
+
+```python
+def metrics(y, yhat):
+    e = y - yhat
+    return {"MAE": np.mean(np.abs(e)),
+            "RMSE": np.sqrt(np.mean(e**2)),
+            "R2": 1 - np.sum(e**2) / np.sum((y - y.mean()) ** 2),
+            "MAPE%": 100 * np.mean(np.abs(e / y))}
+```
+
+*Predict:* which metric breaks if one true value is 0? Which one can go negative?
+
+### Use the library
+
+scikit-learn ships optimized versions with built-in cross-validation over $\lambda$. Watch the loss scaling: `Ridge` minimizes $\sum_i e_i^2 + \alpha\lVert w\rVert^2$ (no $1/n$), so `alpha` $= n\lambda$. `Lasso` minimizes $\frac{1}{2n}\sum_i e_i^2 + \alpha\lVert w\rVert_1$, so `alpha` $= \lambda/2$. The script converts and checks both.
+
 ```python
 from sklearn.linear_model import ElasticNetCV, LassoCV, RidgeCV
 from sklearn.pipeline import make_pipeline
@@ -121,7 +184,32 @@ enet = make_pipeline(StandardScaler(), ElasticNetCV(l1_ratio=[0.2, 0.5, 0.8], cv
 print(lasso[-1].coef_)   # exact zeros = features lasso dropped
 ```
 
-Runnable script (coefficient paths, the one-feature numbers, and the metric comparison): [`code/03-regression/regularization.py`](../../code/03-regression/regularization.py).
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/03-regression/regularization_scratch.py
+```
+
+Key output:
+
+```
+lambda=0.5: ridge w=0.8571  lasso w=1.1250
+lambda=1: ridge w=0.6000  lasso w=0.7500
+lambda=2: ridge w=0.3750  lasso w=0.0000
+
+scratch ridge lam=0.1: [ 1.3   1.35  1.31 -0.12 -0.07  0.13]
+sklearn Ridge(alpha=8):  [ 1.3   1.35  1.31 -0.12 -0.07  0.13]
+scratch lasso lam=0.6: [ 1.05  1.45  1.16 -0.   -0.    0.  ]
+sklearn Lasso(alpha=0.3): [ 1.05  1.45  1.16 -0.   -0.    0.  ]
+
+good predictions: MAE=9.0 RMSE=9.2 R2=0.983 MAPE%=3.3
+
+one big miss: MAE=28.0 RMSE=45.6 R2=0.584 MAPE%=8.0
+```
+
+The first three lines are the worked-example table. On the synthetic six-feature data, ridge spreads weight over every feature, noise included. Lasso sets the three noise weights to exactly 0. It splits the $x_1$ weight across the near-copy pair, which is why lasso picks between correlated features unreliably. The coefficient-path figure comes from [`code/03-regression/regularization.py`](../../code/03-regression/regularization.py).
 
 ## 5. Engineering
 

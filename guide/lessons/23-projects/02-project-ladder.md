@@ -167,6 +167,10 @@ A narrow MVP that runs end to end; a baseline; a labeled evaluation set with a n
 
 **Related:** [The 12-week plan](01-twelve-week-plan.md) · [Production architecture](../20-production-ai/01-production-architecture.md) · [The RAG pipeline](../16-rag/01-rag-pipeline.md)
 
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Capstone 01 — Terminal-Native Coding Agent](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/01-terminal-native-coding-agent) · [Capstone 02 — RAG over Codebase (Cross-Repo Semantic Search)](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/02-rag-over-codebase) · [Capstone 07 — End-to-End Fine-Tuning Pipeline (Data to SFT to DPO to Serve)](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/07-end-to-end-fine-tuning-pipeline) · [Capstone 08 — Production RAG Chatbot for a Regulated Vertical](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/08-production-rag-chatbot)
+<!-- /deeper -->
+
 ## Interview angle
 
 <details>

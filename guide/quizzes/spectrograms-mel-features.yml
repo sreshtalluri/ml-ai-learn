@@ -1,0 +1,118 @@
+title: Spectrograms and mel features
+lesson: spectrograms-mel-features
+questions:
+  - id: smf-frames
+    type: numeric
+    difficulty: medium
+    prompt: A 2-second clip at 16 kHz is framed with a 400-sample window and a 160-sample hop (no padding). How many frames?
+    answer: 198
+    tolerance: 0
+    explanation: |
+      $L = 32{,}000$. $1 + \lfloor (32{,}000 - 400)/160 \rfloor = 1 + \lfloor 197.5 \rfloor = 1 + 197 = 198$.
+  - id: smf-bins
+    type: numeric
+    difficulty: easy
+    prompt: With a 16 kHz sample rate and a 512-point FFT, how far apart (in Hz) are adjacent frequency bins?
+    answer: 31.25
+    tolerance: 0.01
+    explanation: Bin spacing is $f_s / N_{\text{fft}} = 16{,}000 / 512 = 31.25$ Hz.
+  - id: smf-mel
+    type: numeric
+    difficulty: medium
+    prompt: Using $m = 2595 \log_{10}(1 + f/700)$, what is 700 Hz in mels? (1 decimal)
+    answer: 781.2
+    tolerance: 0.2
+    explanation: |
+      $1 + 700/700 = 2$. $\log_{10} 2 = 0.30103$. $2595 \times 0.30103 = 781.2$.
+  - id: smf-window
+    type: single
+    difficulty: easy
+    prompt: Why is each frame multiplied by a Hann window before the FFT?
+    options:
+      - To make the frame louder
+      - To taper the edges to zero so the cut doesn't look like a jump, which reduces spectral leakage
+      - To convert hertz to mels
+      - To remove silence
+    answer: 1
+    explanation: A hard cut adds broadband energy that smears a pure tone across many bins. Tapering reduces it.
+    why_not:
+      - The window reduces amplitude near the edges; it doesn't amplify.
+      - Correct.
+      - That's the mel filterbank's job.
+      - Silence removal is voice activity detection.
+  - id: smf-shape
+    type: single
+    difficulty: medium
+    prompt: A power spectrogram has shape 98 x 257 (frames x bins). The mel filterbank has 80 filters. What is the filterbank's shape and the log-mel output's shape?
+    options:
+      - Filterbank 257 x 98, output 80 x 80
+      - Filterbank 80 x 257, output 98 x 80
+      - Filterbank 80 x 98, output 257 x 80
+      - Filterbank 98 x 80, output 98 x 257
+    answer: 1
+    explanation: Each filter is a weight per FFT bin, so 80 x 257. Then (98 x 257)(257 x 80) = 98 x 80.
+    why_not:
+      - The filterbank maps bins to mels; it doesn't depend on the number of frames.
+      - Correct.
+      - The filterbank acts on the frequency axis, not the time axis.
+      - The output must have 80 mel columns, not 257 bins.
+  - id: smf-resolution
+    type: single
+    difficulty: medium
+    prompt: You lengthen the analysis window from 25 ms to 100 ms. What happens?
+    options:
+      - Better time resolution and better frequency resolution
+      - Better frequency resolution, worse time resolution (fast events blur)
+      - Worse frequency resolution, better time resolution
+      - No change; only the FFT size matters
+    answer: 1
+    explanation: Frequency resolution is about 1 / window duration; a long window averages over more time.
+    why_not:
+      - The trade-off can't be avoided by changing window length.
+      - Correct.
+      - That's what a shorter window does.
+      - Zero-padding to a larger FFT only interpolates; true resolution comes from the window length.
+  - id: smf-mismatch
+    type: single
+    difficulty: hard
+    prompt: A speech model trained at 16 kHz performs badly in a browser app. The app sends 48 kHz audio straight into the model's feature extractor. What is happening?
+    options:
+      - The model needs more training data
+      - Every frequency lands in the wrong bins and frames span a third of the intended time, so features don't match training
+      - 48 kHz has too much noise for any model
+      - The log base is wrong
+    answer: 1
+    explanation: Sample rate is part of the model. Resample to 16 kHz with anti-aliasing at the input boundary.
+    why_not:
+      - Data doesn't fix a front-end mismatch.
+      - Correct.
+      - Higher sample rate isn't noisier; it's just a different rate.
+      - The log may be fine; the rate is the clear mismatch here.
+  - id: smf-mfcc
+    type: single
+    difficulty: medium
+    prompt: How are MFCCs computed from a log-mel spectrogram, and why are they less common in modern ASR?
+    options:
+      - By an inverse FFT; they are slower to compute
+      - By a DCT of each log-mel frame, keeping about 13 coefficients; neural networks learn well from log-mels directly, so the extra compression isn't needed
+      - By averaging mel bands; they lose timing
+      - By a second mel filterbank; they double the feature size
+    answer: 1
+    explanation: The DCT decorrelates and compresses, which suited older Gaussian models. Neural nets don't need it.
+    why_not:
+      - MFCCs use a DCT on log-mels, and they're cheap.
+      - Correct.
+      - MFCCs are per frame; timing is kept.
+      - MFCCs reduce the feature count, not double it.
+  - id: smf-pipeline
+    type: order
+    difficulty: easy
+    prompt: Put the front-end steps in order.
+    options:
+      - Resample to the model's sample rate
+      - Cut into overlapping frames
+      - Multiply each frame by a window
+      - FFT and take power
+      - Apply the mel filterbank
+      - Take the log
+    explanation: Rate first, then frame, window, FFT, mel pooling, and log compression.

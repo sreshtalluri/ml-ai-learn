@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 40
 prerequisites: [backpropagation, overfitting-and-bias-variance]
 related: [gradient-descent, regularization-and-regression-metrics, convolutional-networks]
+adapted_from: [phases/03-deep-learning-core/07-regularization, phases/03-deep-learning-core/08-weight-initialization, phases/03-deep-learning-core/09-learning-rate-schedules, phases/19-capstone-projects/44-cosine-lr-warmup]
 ---
 
 # Training and regularization
@@ -97,6 +98,78 @@ Without regularization, validation loss reached its minimum (0.364) at **epoch 6
 
 ## 4. Implementation
 
+The full script is [`code/12-training-regularization/training_scratch.py`](../../code/12-training-regularization/training_scratch.py) (NumPy only). It builds the five tools a training loop leans on, each in a few lines, and checks them against the worked examples above.
+
+### Build it from scratch
+
+**Step 1: inverted dropout.** Draw a keep-mask, zero the dropped units, and scale the survivors by $1/(1-p)$ during training. Because the scaling happens at training time, inference needs no change at all: the layer just returns its input.
+
+```python
+def dropout(a, p, rng, training=True):
+    if not training or p == 0:
+        return a                                  # inference: identity, no rescaling
+    mask = rng.random(a.shape) >= p               # keep with probability 1 - p
+    return a * mask / (1 - p)
+```
+
+*Predict:* average this function's output over many random masks. What do you get for the input `[2, 4, 6, 8]`?
+
+**Step 2: layer norm.** Mean and variance per example, across features (`axis=-1`), so the result never depends on the other examples in the batch. That is why it works at batch size 1 and is the default in transformers.
+
+```python
+def layer_norm(a, gamma=1.0, beta=0.0, eps=1e-5):
+    mu = a.mean(axis=-1, keepdims=True)
+    var = a.var(axis=-1, keepdims=True)           # population variance (divide by n)
+    return gamma * (a - mu) / np.sqrt(var + eps) + beta
+```
+
+*Predict:* change `axis=-1` to `axis=0` and you have batch norm's training-time statistics. What goes wrong at inference with a batch of one?
+
+**Step 3: initialization.** Each layer multiplies the signal's variance by about `fan_in * std**2` (halved again by ReLU, which zeros half its inputs). Set `std` so that product is 1 and the signal keeps its scale through depth. Too small and it shrinks geometrically to zero; too large and it explodes.
+
+```python
+def init(fan_in, fan_out, scheme, rng):
+    std = {"small": 0.01,
+           "xavier": math.sqrt(1 / fan_in),       # LeCun/Xavier-style, for tanh
+           "he": math.sqrt(2 / fan_in)}[scheme]   # ReLU zeros half the inputs, so double it
+    return rng.normal(0, std, (fan_in, fan_out))
+```
+
+*Predict:* with width 256 and `std = 0.01`, each layer multiplies the variance by $256 \times 0.0001 = 0.0256$. Roughly how small is the standard deviation after 10 layers? (Here `fan_in = fan_out`, so Xavier's $2/(\text{fan\_in} + \text{fan\_out})$ equals $1/\text{fan\_in}$.)
+
+**Step 4: warmup plus cosine.** The formula from section 3, plus a floor `min_lr`. Warmup keeps the first steps small while Adam's moment estimates and the early activations settle; the cosine then decays smoothly to the floor.
+
+```python
+def lr_at(t, max_lr, warmup, total, min_lr=0.0):
+    if t < warmup:
+        return max_lr * (t + 1) / warmup          # ramp up from max_lr/warmup to max_lr
+    progress = (t - warmup) / max(1, total - warmup)
+    return min_lr + 0.5 * (max_lr - min_lr) * (1 + math.cos(math.pi * progress))
+```
+
+*Predict:* halfway through the decay phase, `progress = 0.5`. What fraction of the way from `max_lr` down to `min_lr` is the rate?
+
+**Step 5: early stopping.** Track the best validation loss and its epoch. Stop after `patience` epochs without improvement, and restore the best epoch's weights, not the last ones.
+
+```python
+def early_stop(val_losses, patience):
+    best, best_epoch, bad = float("inf"), -1, 0
+    for epoch, v in enumerate(val_losses):
+        if v < best:
+            best, best_epoch, bad = v, epoch, 0   # new best: this is the checkpoint to keep
+        else:
+            bad += 1
+            if bad >= patience:
+                return best_epoch, epoch          # stopped here, restore best_epoch
+    return best_epoch, len(val_losses) - 1
+```
+
+*Predict:* with a noisy validation curve, does a larger `patience` make you stop earlier or later, and what does it cost?
+
+### Use the library
+
+In PyTorch each tool is one line: `nn.Dropout` (step 1, switched by `model.train()` and `model.eval()`), `nn.LayerNorm` (step 2), `nn.init.kaiming_normal_` and `xavier_normal_` (step 3; `nn.Linear` already uses a scaled uniform init by default), a scheduler (step 4), and the patience loop (step 5). `OneCycleLR` below ramps up for the first 30% of steps and then anneals (both phases cosine-shaped by default); for warmup-then-cosine with a separate floor, chain `LinearLR` and `CosineAnnealingLR` with `SequentialLR`.
+
 ```python
 import torch
 from torch import nn
@@ -139,7 +212,26 @@ search = RandomizedSearchCV(estimator, {"alpha": loguniform(1e-5, 1), "learning_
                             n_iter=30, cv=5, random_state=0)
 ```
 
-Runnable script (training curves, schedules, search comparison): [`code/11-gradient-descent-backprop/backprop_training.py`](../../code/11-gradient-descent-backprop/backprop_training.py).
+### Run it
+
+```bash
+uv run code/12-training-regularization/training_scratch.py
+```
+
+Key lines of the output (the activations and validation curve are synthetic):
+
+```text
+scaled output: [ 4.  0. 12.  0.]
+mean over 100,000 random masks: [2.005 3.989 5.965 8.003]  (original: [2. 4. 6. 8.] )
+[-1.069 -0.535  0.     1.604]
+ std 0.01 + tanh: 1.56e-01  1.02e-04  1.08e-08  1.14e-16
+       he + relu: 8.27e-01  8.59e-01  8.87e-01  1.05e+00
+   xavier + relu: 5.85e-01  1.52e-01  2.77e-02  1.03e-03
+step  550: lr = 1.650e-04
+best epoch 6 (val 0.364), stopped at epoch 11
+```
+
+The first three lines match worked examples 1 and 2. The init rows are the standard deviation after layers 1, 5, 10, and 20: a tiny fixed scale vanishes, He keeps ReLU activations near 1, and Xavier (designed for tanh) loses about half the variance per ReLU layer. The real training curves, schedules, and search comparison are in [`code/11-gradient-descent-backprop/backprop_training.py`](../../code/11-gradient-descent-backprop/backprop_training.py).
 
 ## 5. Engineering
 
@@ -158,6 +250,7 @@ Runnable script (training curves, schedules, search comparison): [`code/11-gradi
 
 - Using L2 penalty with Adam and expecting weight decay (use AdamW).
 - Evaluating a model while it is still in training mode.
+- Leaving initialization to chance in a custom layer. A weight scale that is slightly too small shrinks activations geometrically with depth (std 0.01 at width 256 leaves about 1e-8 after 10 tanh layers); use He init for ReLU and Xavier for tanh, or rely on the framework defaults plus normalization.
 - Reporting the last epoch's validation score instead of the best checkpoint's (or reporting the best checkpoint's validation score as if it were a test score).
 
 ## 6. Knowledge check
@@ -184,9 +277,13 @@ Layer norm: mean 2.5, variance $\frac{0.25 + 2.25 + 2.25 + 0.25}{4} = 1.25$, std
 - Warmup plus decay schedules stabilize early training and help the model settle.
 - Tune on validation data, prefer random or Bayesian search on log scales, and never tune on the test set.
 
-**Next:** [Convolutional networks](../13-deep-architectures/01-convolutional-networks.md)
+**Next:** [Debugging neural networks](02-debugging-neural-networks.md)
 
 **Related:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Regularization for linear models](../03-regression/02-regularization-and-regression-metrics.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Regularization](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/07-regularization), [Weight Initialization and Training Stability](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/08-weight-initialization), [Learning Rate Schedules and Warmup](https://aiengineeringfromscratch.com/lesson?path=phases/03-deep-learning-core/09-learning-rate-schedules), [Cosine LR with Linear Warmup](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/44-cosine-lr-warmup).*
+<!-- /deeper -->
 
 ## Interview angle
 

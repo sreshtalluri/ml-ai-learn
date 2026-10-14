@@ -5,6 +5,7 @@ skill: llms
 minutes: 45
 prerequisites: [transformer-architecture, decoding]
 related: [serving-llms, self-attention, reliability-cost-and-observability, adapting-llms]
+adapted_from: [phases/07-transformers-deep-dive/12-kv-cache-flash-attention, phases/07-transformers-deep-dive/16-speculative-decoding, phases/10-llms-from-scratch/11-quantization, phases/17-infrastructure-and-production/09-production-quantization]
 ---
 
 # LLM inference
@@ -194,21 +195,118 @@ kv = kv_cache_bytes(32, 8, 128, 2, 8192, 16)        # 17,179,869,184 bytes = 17.
 print(decode_tokens_per_s(16e9, kv, 3.0e12, 16))    # (90.4, 1446.7)
 ```
 
-With a real model, read the shape from its config instead of guessing: `num_hidden_layers`, `num_attention_heads`, `num_key_value_heads`, and `head_dim` (or `hidden_size / num_attention_heads`). Then measure: run your serving engine with a fixed prompt and output length, record TTFT and TPOT at batch 1, 8, and 32, and compare with the bounds.
+### Build it from scratch
+
+The arithmetic above predicts; now build the three mechanisms and check them. The full script is [`code/18-llm-inference/kv_spec_quant_scratch.py`](../../code/18-llm-inference/kv_spec_quant_scratch.py) (NumPy only, synthetic weights).
+
+**The KV cache.** Attention for the newest token needs the keys and values of every earlier token. Without a cache, each step projects the whole prefix again. Both versions share one attention function over a query vector `q` of shape `[D]` and cached `K`, `V` of shape `[t, D]`:
 
 ```python
-# Speculative decoding (greedy acceptance, the simplest exact variant for temperature 0)
-def speculative_step(target, draft, ctx, gamma=4):
-    proposal = draft.generate(ctx, max_new_tokens=gamma)          # gamma cheap passes
-    logits = target.forward(ctx + proposal)                        # ONE target pass scores all positions
-    target_choice = logits[-gamma - 1:].argmax(-1)                 # target's pick at each position
-    n = 0
-    while n < gamma and proposal[n] == target_choice[n]:
-        n += 1
-    return proposal[:n] + [target_choice[n]]                       # accepted tokens + one target token
+def attend(q, K, V):
+    s = K @ q / np.sqrt(D)  # [t] one score per cached position
+    w = np.exp(s - s.max())
+    return (w / w.sum()) @ V  # [D]
+
+def decode_uncached(X):
+    outs, proj = [], 0
+    for t in range(1, len(X) + 1):
+        K, V = X[:t] @ Wk, X[:t] @ Wv  # recompute K and V for the whole prefix
+        proj += 2 * t
+        outs.append(attend(X[t - 1] @ Wq, K, V))
+    return np.array(outs), proj
 ```
 
-Runnable script (every number in this lesson, plus the figure): [`code/18-llm-inference/llm_inference.py`](../../code/18-llm-inference/llm_inference.py).
+*Predict:* for a 12-token sequence, how many K/V row projections does this do in total?
+
+The cached version keeps `K` and `V` and appends one row each per step. Past rows never change, because in a causal model a token cannot see the future.
+
+```python
+def decode_cached(X):
+    outs, K, V, proj = [], np.empty((0, D)), np.empty((0, D)), 0
+    for x in X:
+        K, V = np.vstack([K, x @ Wk]), np.vstack([V, x @ Wv])  # append one row each
+        proj += 2
+        outs.append(attend(x @ Wq, K, V))
+    return np.array(outs), proj
+```
+
+*Predict:* the outputs match the uncached version to about 1e-16. What would break that equality if the model were bidirectional instead of causal?
+
+**int8 weight quantization.** Store each weight as an 8-bit integer plus a floating-point scale. Absmax scaling maps the largest magnitude to 127. The only design choice is how many weights share one scale: the whole tensor, or one row (output channel).
+
+```python
+def quant_int8(W, axis=None):
+    scale = np.abs(W).max(axis=axis, keepdims=axis is not None) / 127  # absmax maps to 127
+    q = np.clip(np.round(W / scale), -127, 127).astype(np.int8)
+    return q, scale
+
+def rel_error(W, W_hat):
+    return np.linalg.norm(W - W_hat) / np.linalg.norm(W)
+```
+
+*Predict:* the script scales three rows of a `[64, 256]` matrix by 40×. Which choice of `axis` suffers, and why? (One shared scale is set by the outliers, so every small weight is rounded on a coarse grid.)
+
+**Speculative sampling.** The draft proposes a token from its distribution $p$; the target's distribution is $q$. Accept with probability $\min(1, q/p)$. On rejection, sample from the leftover mass $(q - p)_+$, renormalized. That pair of rules makes the output distribution exactly $q$, so the speed-up is free of quality loss.
+
+```python
+def spec_one_token(q, p, rng):
+    d = rng.choice(len(p), p=p)  # draft proposes from p
+    if rng.random() < min(1.0, q[d] / p[d]):
+        return d, True  # target agrees often enough: keep the draft token
+    resid = np.maximum(q - p, 0)  # where the target wants more mass than the draft gave
+    return rng.choice(len(q), p=resid / resid.sum()), False
+
+def expected_tokens(alpha, gamma):
+    return (1 - alpha ** (gamma + 1)) / (1 - alpha)
+```
+
+*Predict:* the exact acceptance rate is $\alpha = \sum_i \min(p_i, q_i)$. If the draft equals the target ($p = q$), what are $\alpha$ and the expected tokens per target pass for $\gamma = 4$?
+
+At temperature 0 both distributions are one-hot, so the rule reduces to greedy matching: accept draft tokens while each equals the target's argmax, then take the target's token at the first mismatch.
+
+### Use the library
+
+With a real model, read the shape from its config instead of guessing: `num_hidden_layers`, `num_attention_heads`, `num_key_value_heads`, and `head_dim` (or `hidden_size / num_attention_heads`).
+
+```python
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+cfg = AutoConfig.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+d_head = getattr(cfg, "head_dim", None) or cfg.hidden_size // cfg.num_attention_heads
+print(kv_cache_bytes(cfg.num_hidden_layers, cfg.num_key_value_heads, d_head, 2, 8192, 16) / 1e9, "GB")
+
+# Assisted (speculative) generation: a small draft from the same tokenizer family
+target = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-7B-Instruct", device_map="auto")
+draft = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct", device_map="auto")
+inputs = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")("Explain KV caches.", return_tensors="pt").to(target.device)
+out = target.generate(**inputs, assistant_model=draft, max_new_tokens=256)
+```
+
+A serving engine does all three for you. In vLLM, `LLM(model=..., quantization="fp8", kv_cache_dtype="fp8")` quantizes weights and the KV cache, and `speculative_config={"model": draft_name, "num_speculative_tokens": 4}` turns on draft-model speculation. The KV cache is always on. What the scratch version made explicit: the cache is just appended rows, a quantized weight is just an integer times a scale, and speculation is just one accept test plus a residual. Engines add fused GPU kernels, paged cache memory, and calibrated scales (AWQ, GPTQ, FP8) that protect salient weights better than plain absmax.
+
+Then measure: run your serving engine with a fixed prompt and output length, record TTFT and TPOT at batch 1, 8, and 32, and compare with the bounds.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/18-llm-inference/kv_spec_quant_scratch.py
+```
+
+```text
+[kv] max |uncached - cached| = 4.4e-16
+[kv] K/V projections: uncached 156, cached 24 (6.5x fewer with cache)
+[quant] int8 per-tensor : relative error 0.0325
+[quant] int8 per-channel: relative error 0.0067
+[spec] acceptance: theory 0.840, simulated 0.841
+[spec] max |empirical - target| = 0.0016  (output follows q, not p)
+[spec] expected tokens per target pass, gamma=4: 3.64
+```
+
+Uncached work grows as $2(1 + 2 + \dots + 12) = 156$ projections; cached work is $2 \cdot 12 = 24$. Per-channel scales cut the error about 5× because each row gets its own grid. The empirical token frequencies match the target $q$ to within 0.002 across 50,000 samples, while 84% of draft tokens are kept.
+
+The arithmetic script (every number in this lesson, plus the figure) is [`code/18-llm-inference/llm_inference.py`](../../code/18-llm-inference/llm_inference.py): `uv run code/18-llm-inference/llm_inference.py`.
 
 ## 5. Engineering
 
@@ -278,6 +376,12 @@ Higher acceptance rates justify longer drafts. With $c = 0.05$ the best $\gamma$
 **Next:** [Serving LLMs](02-serving-llms.md)
 
 **Related:** [Self-attention](../14-transformers/01-self-attention.md) · [The transformer architecture](../14-transformers/02-transformer-architecture.md) · [Decoding](../15-llms/02-decoding.md) · [Reliability, cost, and observability](../20-production-ai/02-reliability-cost-and-observability.md) · [Cheat sheet: LLM inference](../../cheatsheets/llm-inference.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Inference Optimization](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/12-inference-optimization) · [Speculative Decoding and EAGLE-3](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/15-speculative-decoding-eagle3) · [Edge Inference — Apple Neural Engine, Qualcomm Hexagon, WebGPU/WebLLM, Jetson](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/12-edge-inference)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [KV Cache, Flash Attention & Inference Optimization](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/12-kv-cache-flash-attention), [Speculative Decoding — Draft, Verify, Repeat](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/16-speculative-decoding), [Quantization: Making Models Fit](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/11-quantization), [Production Quantization — AWQ, GPTQ, GGUF K-quants, FP8, MXFP4/NVFP4](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/09-production-quantization).*
+<!-- /deeper -->
 
 ## Interview angle
 

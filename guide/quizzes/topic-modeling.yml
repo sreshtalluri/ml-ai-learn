@@ -1,0 +1,142 @@
+title: Topic modeling
+lesson: topic-modeling
+questions:
+  - id: tm-lda-story
+    type: single
+    difficulty: easy
+    prompt: How does LDA model a document?
+    options:
+      - As a single topic chosen from a fixed list
+      - As a mixture over topics, where each topic is a probability distribution over words
+      - As a dense embedding vector
+      - As a sequence of hidden states
+    answer: 1
+    explanation: Each document has a topic mixture $\theta_d$; each word's topic is drawn from it, and the word from that topic's $\phi_k$.
+    why_not:
+      - That's the one-topic-per-document assumption of clustering methods like BERTopic's default, not LDA.
+      - ""
+      - LDA works on word counts; embeddings belong to BERTopic and similar methods.
+      - That describes an HMM or RNN, which models word order. LDA ignores order.
+  - id: tm-counts
+    type: single
+    difficulty: medium
+    prompt: Why does scikit-learn's LDA expect a CountVectorizer matrix rather than TF-IDF?
+    options:
+      - LDA cannot store floating-point numbers
+      - LDA's likelihood is defined over integer word counts from a bag of words; TF-IDF weights break that assumption
+      - TF-IDF uses too much memory
+      - TF-IDF is slower to compute
+    answer: 1
+    explanation: The generative story draws one topic and one word per token, so its sufficient statistics are counts.
+    why_not:
+      - The library would accept floats; the issue is the model's assumption, not the data type.
+      - ""
+      - Both are sparse matrices of the same shape.
+      - Speed is not the reason; TF-IDF is cheap to compute.
+  - id: tm-gibbs-calc
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Collapsed Gibbs update with $K = 2$, $V = 20$, $\alpha = 0.5$, $\beta = 0.1$. With the current token removed: $n_{d0} = 3$, $n_{d1} = 3$; $n_{0w} = 1$, $n_{1w} = 5$; $n_0 = n_1 = 98$. What is $P(z = 1)$? Give 3 decimals.
+    answer: 0.823
+    tolerance: 0.002
+    explanation: |
+      Denominators: $98 + 20 \times 0.1 = 100$ for both. Topic 0: $3.5 \times 1.1 / 100 = 0.0385$. Topic 1: $3.5 \times 5.1 / 100 = 0.1785$. $P(z=1) = 0.1785 / (0.0385 + 0.1785) = 0.1785 / 0.2170 = 0.823$.
+  - id: tm-diversity-calc
+    type: numeric
+    difficulty: easy
+    prompt: You fit 8 topics and take the top 6 words of each. Among those 48 words, 28 are unique. What is the topic diversity?
+    answer: 0.583
+    tolerance: 0.002
+    explanation: Diversity is unique words divided by total listed words, $28/48 = 0.583$. Low diversity suggests duplicate topics, so $K$ may be too large.
+  - id: tm-alpha
+    type: single
+    difficulty: medium
+    prompt: You lower LDA's document-topic prior $\alpha$ from 1.0 to 0.05. What do you expect?
+    options:
+      - Each document is explained by fewer topics (sparser mixtures)
+      - Each topic uses more words
+      - The number of topics changes
+      - Nothing; $\alpha$ only affects speed
+    answer: 0
+    explanation: In the Gibbs update, $(n_{dk} + \alpha)$ with small $\alpha$ strongly favors topics the document already uses.
+    why_not:
+      - ""
+      - That's controlled by $\beta$, the topic-word prior.
+      - $K$ is fixed by you; $\alpha$ shapes how documents spread over those $K$ topics.
+      - $\alpha$ changes the posterior, not just runtime.
+  - id: tm-hdbscan-outlier
+    type: single
+    difficulty: easy
+    prompt: In BERTopic output, what does topic id -1 mean?
+    options:
+      - The largest topic
+      - Documents the density-based clustering (HDBSCAN) did not assign to any cluster
+      - Stop-word documents
+      - A reserved topic for empty strings
+    answer: 1
+    explanation: HDBSCAN labels low-density points as noise. Watch the share of -1; if large, lower `min_topic_size` or use `reduce_outliers`.
+    why_not:
+      - Topic 0 is usually the largest; -1 is special.
+      - ""
+      - Stop words are handled in the vectorizer, not by the clusterer.
+      - Empty strings are not a special category.
+  - id: tm-junk-topic
+    type: single
+    difficulty: hard
+    prompt: 'An LDA model on support emails has a topic with top words "regards, thanks, sent, iphone, please". What is the best fix?'
+    options:
+      - Increase the number of topics until it disappears
+      - Remove signatures and boilerplate before vectorizing, add domain stop words, and lower max_df
+      - Switch to TF-IDF input
+      - Label it "customer politeness" and report it
+    answer: 1
+    explanation: LDA found a real co-occurrence pattern (email boilerplate). Fix preprocessing, then rerun and read documents.
+    why_not:
+      - More topics splits the junk rather than removing it.
+      - ""
+      - LDA expects counts, and boilerplate would still co-occur.
+      - That names an artifact as if it were a theme.
+  - id: tm-short-text
+    type: single
+    difficulty: medium
+    prompt: Why does BERTopic usually beat LDA on short texts like tweets and product titles?
+    options:
+      - Short texts contain fewer topics
+      - Sentence embeddings capture meaning even when documents share few words, while bag-of-words co-occurrence is too sparse
+      - BERTopic is always faster
+      - LDA cannot process documents under 100 words
+    answer: 1
+    explanation: LDA relies on word co-occurrence within documents; with 10 words there's little evidence. Embeddings place paraphrases near each other.
+    why_not:
+      - The number of topics in a corpus doesn't depend on document length.
+      - ""
+      - Embedding every document usually makes BERTopic slower than LDA.
+      - LDA runs on any length; it's just noisier on short ones.
+  - id: tm-design
+    type: single
+    difficulty: hard
+    prompt: A product team wants a weekly dashboard of themes in 5,000 long policy reports, on CPU only, with stable topic names. Which plan fits?
+    options:
+      - Retrain BERTopic every week and show the topic ids directly
+      - Fit LDA or NMF once with fixed preprocessing, validate topics by reading documents, name them, freeze the model, and assign new reports with transform
+      - Use k-means on TF-IDF with K equal to the number of reports
+      - Use perplexity alone to pick K, then ship
+    answer: 1
+    explanation: Long documents suit mixed-membership models; freezing the model keeps ids and names stable across weeks.
+    why_not:
+      - Retraining reshuffles topic ids, so a dashboard keyed on ids breaks, and long reports exceed embedding context unless chunked.
+      - ""
+      - One cluster per document is not a topic model.
+      - Perplexity often disagrees with human judgments of topic quality.
+  - id: tm-choose-k
+    type: multi
+    difficulty: medium
+    prompt: Which are reasonable signals when choosing the number of topics $K$? Select all that apply.
+    options:
+      - Topic coherence (for example $C_v$ or NPMI) across a range of K
+      - Topic diversity of top words
+      - Reading 10 to 20 documents per topic
+      - Picking the K that gives the lowest training loss on the same data
+    answer: [0, 1, 2]
+    explanation: Combine automatic coherence and diversity with human reading. Fit on the training data alone always improves with more topics.

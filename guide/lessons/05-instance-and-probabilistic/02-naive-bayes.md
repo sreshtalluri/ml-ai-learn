@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 30
 prerequisites: [probability-and-statistics]
 related: [text-to-vectors, logistic-regression, k-nearest-neighbors]
+adapted_from: [phases/01-math-foundations/07-bayes-theorem, phases/02-ml-fundamentals/14-naive-bayes]
 ---
 
 # Naive Bayes
@@ -97,24 +98,69 @@ Ham: $0.5 \times 0.0435 \times 0.0435 \times 0.1304 = 1.233 \times 10^{-4}$.
 
 ## 4. Implementation
 
-**From scratch:**
+### Build it from scratch
+
+The full script is [`code/05-instance-and-probabilistic/nb_scratch.py`](../../code/05-instance-and-probabilistic/nb_scratch.py). The models use only NumPy; scikit-learn turns text into counts and checks the answers.
+
+**Bayes' rule with one piece of evidence.** Before many features, start with one. The denominator $P(e)$ is the total probability of seeing the evidence, from either hypothesis. Feeding the posterior back in as the next prior is how evidence accumulates; Naive Bayes does exactly this, once per feature.
 
 ```python
-import numpy as np
+def posterior(prior, p_e_given_h, p_e_given_not_h):
+    evidence = p_e_given_h * prior + p_e_given_not_h * (1 - prior)   # P(e), total probability
+    return p_e_given_h * prior / evidence
 
-def fit_mnb(X_counts, y, alpha=1.0):
-    classes = np.unique(y)
-    log_prior = np.log([np.mean(y == c) for c in classes])
-    counts = np.array([X_counts[y == c].sum(axis=0) for c in classes]) + alpha   # [C, V]
-    log_like = np.log(counts / counts.sum(axis=1, keepdims=True))
-    return classes, log_prior, log_like
-
-def predict_mnb(model, X_counts):
-    classes, log_prior, log_like = model
-    return classes[np.argmax(X_counts @ log_like.T + log_prior, axis=1)]   # sum of logs
+p1 = posterior(0.0001, 0.99, 0.01)   # rare disease, 99% sensitive test, 1% false positives
+p2 = posterior(p1, 0.99, 0.01)       # second positive test: yesterday's posterior is today's prior
 ```
 
-**With scikit-learn:**
+*Predict:* a 99%-accurate test comes back positive for a disease 1 in 10,000 people have. Is the chance you are sick closer to 99%, 50%, or 1%?
+
+**Fit = count, smooth, take logs.** Training is one pass: the prior is each class's share of rows; the likelihood table counts every word per class, adds $\alpha$, and divides by the row total (exactly the smoothed formula in section 3). Storing logs now means prediction only adds.
+
+```python
+def fit_mnb(X_counts, y, alpha=1.0):
+    classes = np.unique(y)
+    log_prior = np.log([np.mean(y == c) for c in classes])                          # [C]
+    counts = np.array([X_counts[y == c].sum(axis=0) for c in classes]) + alpha      # [C, V]
+    log_like = np.log(counts / counts.sum(axis=1, keepdims=True))                   # rows sum to 1
+    return classes, log_prior, log_like
+```
+
+*Predict:* with `alpha=0`, what value does `log_like` hold for "today" in the spam row, and what happens to any email containing "today"?
+
+**Predict = sum of logs, then normalize.** One matrix product computes $\ln P(c) + \sum_w \text{count}(w)\ln P(w \mid c)$ for every email and class. To turn log scores into probabilities, subtract the row maximum before `exp` (the log-sum-exp trick): the largest score becomes $e^0 = 1$, so the sum can never underflow to $0/0$.
+
+```python
+def predict_proba_mnb(model, X_counts):
+    classes, log_prior, log_like = model
+    scores = X_counts @ log_like.T + log_prior               # [n, C] log P(c) + sum_w count * log P(w|c)
+    scores -= scores.max(axis=1, keepdims=True)              # shift so exp() can't underflow to 0/0
+    probs = np.exp(scores)
+    return probs / probs.sum(axis=1, keepdims=True)
+```
+
+*Predict:* does subtracting the same number from both class scores change the final probabilities? Why or why not?
+
+**Gaussian NB for continuous features.** Replace the word table with one normal distribution per class and feature: store a mean and a variance. Prediction sums the per-feature log densities, which is the independence assumption in code. The tiny variance floor (scikit-learn's `var_smoothing` idea) stops a constant feature from dividing by zero.
+
+```python
+def fit_gnb(X, y, eps=1e-9):
+    classes = np.unique(y)
+    mean = np.array([X[y == c].mean(axis=0) for c in classes])                     # [C, p]
+    var = np.array([X[y == c].var(axis=0) for c in classes]) + eps * X.var(axis=0).max()
+    log_prior = np.log([np.mean(y == c) for c in classes])
+    return classes, mean, var, log_prior
+
+def predict_gnb(model, X):
+    classes, mean, var, log_prior = model
+    # log N(x; mean, var) summed over features, for every class: [n, C]
+    ll = -0.5 * (np.log(2 * np.pi * var)[None] + (X[:, None, :] - mean[None]) ** 2 / var[None]).sum(axis=2)
+    return classes[np.argmax(ll + log_prior, axis=1)]
+```
+
+*Predict:* if you duplicated feature 1 as a third column, which class would the model become more confident about, and is that extra confidence justified?
+
+### Use the library
 
 ```python
 from sklearn.feature_extraction.text import CountVectorizer
@@ -126,7 +172,33 @@ spam_filter.fit(train_texts, train_labels)
 spam_filter.predict_proba(["free money today"])
 ```
 
-Runnable script: [`code/05-instance-and-probabilistic/nb_svm.py`](../../code/05-instance-and-probabilistic/nb_svm.py).
+| Scratch | scikit-learn |
+|---|---|
+| `fit_mnb(..., alpha=)` | `MultinomialNB(alpha=)`; `class_log_prior_`, `feature_log_prob_` hold the same tables |
+| `predict_proba_mnb` | `.predict_proba` (also log-sum-exp internally) |
+| `fit_gnb` / `predict_gnb` | `GaussianNB(var_smoothing=1e-9)`; `theta_` and `var_` are the means and variances |
+| counting rows by hand | `partial_fit` updates the counts batch by batch, for streams |
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/05-instance-and-probabilistic/nb_scratch.py
+```
+
+Key output:
+
+```text
+P(sick | 1 positive) = 0.0098   P(sick | 2 positives) = 0.4950
+
+P(spam | 'free money today'): scratch 0.7253   scikit-learn 0.7253
+product of 1000 x 0.01 = 0.0   sum of logs = -4605.2
+
+Gaussian NB on 60 test rows: scratch acc 0.867, agrees with scikit-learn on 100%
+```
+
+The spam line reproduces the worked example. The underflow line is why we use logs: the product of 1,000 probabilities of 0.01 is $10^{-2000}$, far below the smallest positive float64 (about $10^{-308}$), so it prints 0.0, while the sum of logs is an ordinary number. The Gaussian data is synthetic. The figure script is [`code/05-instance-and-probabilistic/nb_svm.py`](../../code/05-instance-and-probabilistic/nb_svm.py).
 
 ## 5. Engineering
 
@@ -175,6 +247,10 @@ $P(\text{spam}) = 2.604 / (2.604 + 2.836) = 0.479$. Classified as ham, narrowly.
 **Next:** [Support vector machines](03-support-vector-machines.md)
 
 **Related:** [Probability and statistics](../00-foundations/03-probability-and-statistics.md) · [From text to vectors](../09-classical-nlp/01-text-to-vectors.md) · [Model card: Naive Bayes](../../models/naive-bayes.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Bayes' Theorem](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/07-bayes-theorem), [Naive Bayes](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/14-naive-bayes).*
+<!-- /deeper -->
 
 ## Interview angle
 

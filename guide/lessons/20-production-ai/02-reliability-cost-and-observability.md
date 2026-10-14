@@ -5,6 +5,7 @@ skill: engineering
 minutes: 40
 prerequisites: [production-architecture]
 related: [production-architecture, llm-evaluation, ml-workflow]
+adapted_from: [phases/11-llm-engineering/11-caching-cost, phases/11-llm-engineering/15-prompt-caching, phases/13-tools-and-protocols/20-opentelemetry-genai, phases/17-infrastructure-and-production/14-prompt-semantic-caching, phases/17-infrastructure-and-production/16-model-routing]
 ---
 
 # Reliability, cost, and observability
@@ -91,6 +92,101 @@ A 7-billion-parameter model needs $7 \times 10^9 \times 16 / 8 = 14$ GB in 16-bi
 
 ## 4. Implementation
 
+### Build it from scratch
+
+The full script is [`code/20-production-ai/cache_router_scratch.py`](../../code/20-production-ai/cache_router_scratch.py). It builds the four cost levers and the trace record that tells you whether they work. Prices are synthetic.
+
+**Exact cache keys and a toy similarity.** An exact cache is only correct if the key includes everything that changes the answer: model, prompt version, temperature, and the normalised prompt. The semantic cache needs a similarity; bag-of-words cosine stands in for an embedding model.
+
+```python
+# --- 1. Exact cache: key on everything that changes the answer -----------------------------
+def cache_key(model, prompt_version, prompt, temperature):
+    raw = f"{model}|{prompt_version}|{temperature}|{prompt.strip().lower()}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+# --- 2. Semantic cache: bag-of-words cosine against stored questions ---------------------------
+def bow(text):
+    return Counter(re.findall(r"[a-z0-9]+", text.lower()))
+
+def cosine(a, b):
+    dot = sum(a[w] * b[w] for w in a)
+    na, nb = math.sqrt(sum(v * v for v in a.values())), math.sqrt(sum(v * v for v in b.values()))
+    return dot / (na * nb) if na and nb else 0.0
+```
+
+*Predict:* you ship prompt version `faq-v4` but forget to add `prompt_version` to the key. What do users see?
+
+**Semantic cache.** Return a stored answer when a new question is "close enough" to an old one. The threshold is the whole design decision.
+
+```python
+class SemanticCache:
+    def __init__(self, threshold):
+        self.threshold, self.items = threshold, []      # ponytail: linear scan, use a vector index past ~10k entries
+
+    def get(self, q):
+        best = max(self.items, key=lambda it: cosine(bow(q), it[0]), default=None)
+        if best and cosine(bow(q), best[0]) >= self.threshold:
+            return best[1]
+        return None
+
+    def put(self, q, answer):
+        self.items.append((bow(q), answer))
+```
+
+*Predict:* "how can i reset my password" and "how do i reset my username" both score 0.83 against the stored "how do i reset my password". Which threshold serves the first without wrongly serving the second?
+
+**Prompt-cache cost.** Providers cache a long, stable prefix (system prompt, tool definitions, documents). Writing the cache costs a little more than normal input; reading it costs much less. Put stable content first and variable content last, or the prefix never matches.
+
+```python
+# --- 3. Prompt (prefix) caching cost -------------------------------------------------------
+PRICE_IN, PRICE_OUT = 3.00, 15.00             # SYNTHETIC USD per 1M tokens
+WRITE_MULT, READ_MULT = 1.25, 0.10            # cache write premium, cache read discount
+
+def request_cost(prefix_tok, suffix_tok, out_tok, cache_state):
+    """cache_state: 'none' (no caching), 'write' (first call stores prefix), 'read' (prefix hit)."""
+    mult = {"none": 1.0, "write": WRITE_MULT, "read": READ_MULT}[cache_state]
+    return (prefix_tok * mult * PRICE_IN + suffix_tok * PRICE_IN + out_tok * PRICE_OUT) / 1e6
+```
+
+*Predict:* the first request writes the cache. Does a workload of exactly one request get cheaper or more expensive?
+
+**Router.** Send easy requests to a small model and hard ones to a large one. Real routers use a trained classifier or the small model's own confidence; this rule-based score shows the shape.
+
+```python
+# --- 4. Router: cheap model unless the request looks hard ----------------------------------
+HARD_WORDS = {"prove", "derive", "refactor", "debug", "legal", "contract", "multi-step", "why"}
+
+def route(prompt):
+    words = set(re.findall(r"[a-z\-]+", prompt.lower()))
+    score = len(words & HARD_WORDS) + (1 if len(prompt) > 400 else 0)
+    return ("large-model" if score >= 1 else "small-model"), score
+```
+
+*Predict:* what does this router do with "Why are your opening hours different on Sunday?"
+
+**Trace span.** One span per model call, with the OpenTelemetry GenAI semantic-convention attribute names so any backend can chart tokens and cost per model. App-specific fields go in your own namespace.
+
+```python
+# --- 5. One trace span per LLM call, GenAI semantic-convention attribute names -------------
+def chat_span(model, provider, in_tok, out_tok, latency_ms, cache_read_tok=0):
+    return {
+        "name": f"chat {model}",
+        "attributes": {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": provider,
+            "gen_ai.request.model": model,
+            "gen_ai.usage.input_tokens": in_tok,
+            "gen_ai.usage.output_tokens": out_tok,
+            "app.cache_read_tokens": cache_read_tok,      # app-specific attrs: own namespace, not gen_ai.*
+            "app.latency_ms": latency_ms,
+        },
+    }
+```
+
+### Use the library
+
+Retries, breakers, and the trace record are small enough to own. Keep them in one shared module so every call site gets the same behaviour:
+
 ```python
 import random, time
 
@@ -133,7 +229,56 @@ trace = {
 }
 ```
 
-Runnable script (retry, chain, caching, and quantization arithmetic and figures): [`code/20-production-ai/production.py`](../../code/20-production-ai/production.py).
+**Provider prompt caching.** With the Anthropic SDK you mark the end of the stable prefix; usage reports cache writes and reads separately. OpenAI caches long prompt prefixes automatically and reports `usage.prompt_tokens_details.cached_tokens`.
+
+```python
+resp = client.messages.create(
+    model=MODEL, max_tokens=300,
+    system=[{"type": "text", "text": POLICY_DOC, "cache_control": {"type": "ephemeral"}}],
+    messages=[{"role": "user", "content": question}],
+)
+print(resp.usage.cache_creation_input_tokens, resp.usage.cache_read_input_tokens)
+```
+
+**Tracing.** The OpenTelemetry SDK records the span; instrumentation packages for the major provider SDKs can set the `gen_ai.*` attributes for you. The GenAI conventions are still marked experimental and names have moved (`gen_ai.system` became `gen_ai.provider.name`), so pin the semconv version you emit.
+
+```python
+from opentelemetry import trace
+
+tracer = trace.get_tracer("support-bot")
+with tracer.start_as_current_span(f"chat {MODEL}") as span:
+    span.set_attribute("gen_ai.operation.name", "chat")
+    span.set_attribute("gen_ai.request.model", MODEL)
+    resp = call_model(prompt)
+    span.set_attribute("gen_ai.usage.input_tokens", resp.usage.input_tokens)
+    span.set_attribute("gen_ai.usage.output_tokens", resp.usage.output_tokens)
+```
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/20-production-ai/cache_router_scratch.py
+```
+
+Key output:
+
+```text
+Semantic cache (stored: 'how do i reset my password'):
+  threshold 0.8: [('how can i reset my password', 0.83, True), ('how do i reset my username', 0.83, True), ...]
+  threshold 0.9: [('how can i reset my password', 0.83, False), ('how do i reset my username', 0.83, False), ...]
+Prompt caching, 4000-token shared prefix, 200 new tokens in, 300 out, 100 calls:
+  no cache USD 1.7100   cached USD 0.6438   saving 62%
+Router:
+  small-model  score=0  What are your opening hours?
+  large-model  score=2  Why does this recursive function overflow? Debug it.
+all checks passed
+```
+
+No threshold separates the paraphrase from the different question: word overlap is identical. That is why semantic caches need a real embedding model, a high threshold, and an offline check of false-hit rate on labelled pairs. Prompt caching cuts this workload's bill by 62% because the 4,000-token prefix is read at 0.1x on 99 of 100 calls: one call costs USD 0.0171 uncached, USD 0.0201 when writing, and USD 0.0063 when reading.
+
+Retry, chain, caching, and quantization arithmetic and figures: [`code/20-production-ai/production.py`](../../code/20-production-ai/production.py).
 
 ## 5. Engineering
 
@@ -193,6 +338,12 @@ $0.999 \times 0.995 \times 0.99 \times 0.999 = 0.9831$. About 1,690 failures per
 **Next:** [Securing AI systems](../21-safety-security/01-ai-security.md)
 
 **Related:** [Production architecture](01-production-architecture.md) · [LLM evaluation](../17-llm-evaluation/01-llm-evaluation.md) · [The ML workflow](../02-ml-workflow/01-ml-workflow.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Batch APIs — the 50% Discount as Industry Standard](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/15-batch-apis) · [FinOps for LLMs — Unit Economics and Multi-Tenant Attribution](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/27-finops-llms)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Caching, Rate Limiting & Cost Optimization](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/11-caching-cost), [Prompt Caching and Context Caching](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/15-prompt-caching), [OpenTelemetry GenAI — Tracing Tool Calls End-to-End](https://aiengineeringfromscratch.com/lesson?path=phases/13-tools-and-protocols/20-opentelemetry-genai), [Prompt Caching and Semantic Caching Economics](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/14-prompt-semantic-caching), [Model Routing as a Cost-Reduction Primitive](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/16-model-routing).*
+<!-- /deeper -->
 
 ## Interview angle
 

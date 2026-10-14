@@ -1,0 +1,137 @@
+title: Scaling laws
+lesson: scaling-laws
+questions:
+  - id: sl-flops
+    type: numeric
+    difficulty: easy
+    prompt: |
+      Using $C \approx 6ND$, how many FLOPs does it take to train a 7B-parameter model on 2 trillion tokens? Give the answer in units of $10^{22}$ FLOPs.
+    answer: 8.4
+    tolerance: 0.01
+    explanation: |
+      $6 \cdot 7 \times 10^9 \cdot 2 \times 10^{12} = 84 \times 10^{21} = 8.4 \times 10^{22}$ FLOPs.
+  - id: sl-twenty
+    type: numeric
+    difficulty: medium
+    prompt: |
+      With a budget of $C = 1.2 \times 10^{23}$ FLOPs and the "20 tokens per parameter" rule, how many billion parameters should the model have?
+    answer: 31.6
+    tolerance: 0.2
+    explanation: |
+      $D = 20N$ gives $C = 6N \cdot 20N = 120N^2$. $N^2 = 1.2 \times 10^{23}/120 = 10^{21}$, so $N = 3.16 \times 10^{10}$, about 31.6B parameters on 632B tokens.
+  - id: sl-loss
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Using $L = E + A/N^\alpha + B/D^\beta$ with $E = 1.69$, suppose for some model $A/N^\alpha = 0.10$ and $B/D^\beta = 0.15$. If you double the training tokens ($\beta = 0.28$), what is the new predicted loss? (3 decimals)
+    answer: 1.914
+    tolerance: 0.002
+    explanation: |
+      Doubling $D$ divides the data term by $2^{0.28} = 1.214$: $0.15/1.214 = 0.1236$. New loss $1.69 + 0.10 + 0.1236 = 1.914$, down from $1.94$.
+  - id: sl-undertrained
+    type: single
+    difficulty: medium
+    prompt: |
+      GPT-3 has 175B parameters trained on 300B tokens. Under the Chinchilla analysis, what is its main inefficiency?
+    options:
+      - It is undertrained; the same compute would give lower loss with a smaller model trained on more tokens.
+      - It is too small; more parameters would help most.
+      - It used too much data for its size.
+      - Its loss is already at the irreducible floor.
+    answer: 0
+    explanation: |
+      At under 2 tokens per parameter, the data term dominates its predicted loss (about 0.25 versus 0.06 for the model-size term). Chinchilla, 70B on 1.4T tokens, used similar compute more effectively.
+    why_not:
+      - ""
+      - Adding parameters reduces the smaller of the two terms; the data term is the bottleneck.
+      - 300B tokens for 175B parameters is far below compute-optimal.
+      - The floor is 1.69 in this fit; its predicted loss is about 2.0.
+  - id: sl-overtrain
+    type: single
+    difficulty: medium
+    prompt: |
+      A company will serve its model to millions of users for two years. Why would it train an 8B model on 15T tokens instead of a compute-optimal larger model with the same training budget?
+    options:
+      - Small models always reach lower loss.
+      - Inference cost scales with parameters and is paid on every request, so a small loss increase buys large lasting savings.
+      - Larger models cannot be trained on more than 1T tokens.
+      - Over-training reduces the irreducible loss.
+    answer: 1
+    explanation: |
+      Training cost is paid once; inference cost, about $2N$ FLOPs per token, is paid forever. Near the optimum the loss curve is flat, so moving to a smaller model costs little quality.
+    why_not:
+      - At fixed compute, the compute-optimal model reaches the lowest loss by definition.
+      - ""
+      - There is no such limit; data availability is the practical constraint.
+      - $E$ is a property of the data, not of how long you train.
+  - id: sl-emergence
+    type: single
+    difficulty: hard
+    prompt: |
+      Your team sees exact-match accuracy on a multi-step arithmetic benchmark go from 2% at 3B parameters to 55% at 30B and calls it an emergent ability. What do you check first?
+    options:
+      - Whether a continuous metric, such as per-token log-likelihood of the correct answer, also jumps or improves smoothly.
+      - Whether the larger model used a higher temperature.
+      - Whether the tokenizer changed between runs.
+      - Nothing; a jump that large is proof of emergence.
+    answer: 0
+    explanation: |
+      Exact match gives zero credit until every step is right, so smooth per-token improvements can appear as a sudden jump. Schaeffer et al. showed many reported emergent abilities become smooth under continuous metrics.
+    why_not:
+      - ""
+      - Worth controlling, but sampling settings don't explain the metric artefact you should rule out first.
+      - Also worth confirming, but a shared tokenizer is the normal case within a model family.
+      - Large jumps on discontinuous metrics are exactly where artefacts hide.
+  - id: sl-exponent
+    type: single
+    difficulty: hard
+    prompt: |
+      In the fitted law, $N^* \propto C^{\beta/(\alpha+\beta)}$ with $\alpha = 0.34$ and $\beta = 0.28$. What does that imply as compute grows?
+    options:
+      - Optimal tokens per parameter stays exactly 20.
+      - Optimal tokens per parameter rises slowly with compute, because $D^*$ grows as $C^{0.55}$ and $N^*$ as $C^{0.45}$.
+      - Optimal tokens per parameter falls with compute.
+      - The optimal model size doesn't depend on compute.
+    answer: 1
+    explanation: |
+      $D^*/N^* \propto C^{0.548 - 0.452} = C^{0.097}$. Over eight orders of magnitude that is about a 6× drift, from roughly 26 to 150 in the lesson's plot.
+    why_not:
+      - Constant 20 corresponds to equal exponents (0.5 each), which Approaches 1 and 2 roughly found, not these constants.
+      - ""
+      - The data exponent is the larger one, so the ratio rises.
+      - $N^*$ grows as $C^{0.45}$.
+  - id: sl-design
+    type: single
+    difficulty: medium
+    prompt: |
+      You plan a pretraining run with 100× your past largest run's compute. What is the most reliable way to choose $N$ and $D$?
+    options:
+      - Use the published Chinchilla constants as they are.
+      - Train a sweep of small models on your own data and recipe, fit the law, extrapolate, and validate with one mid-size run.
+      - Pick the largest model that fits in memory.
+      - Copy the size of the latest open model.
+    answer: 1
+    explanation: |
+      Constants depend on data, tokenizer, optimizer, and architecture. Fitting your own curve on cheap runs, then checking one larger point, is the standard approach.
+    why_not:
+      - Constants from a different dataset and recipe can mislead badly when extrapolated 100×.
+      - ""
+      - Memory limits say nothing about the data you need to train it well.
+      - Another lab's model reflects their budget, data, and inference goals, not yours.
+  - id: sl-true
+    type: multi
+    difficulty: medium
+    prompt: Which statements are correct?
+    options:
+      - The irreducible loss $E$ reflects the inherent unpredictability of the training text.
+      - "$C \\approx 6ND$ includes attention FLOPs that grow with context length."
+      - Scaling-law constants change when you change the data or tokenizer.
+      - For a mixture-of-experts model, compute scales with active rather than total parameters.
+    answer: [0, 2, 3]
+    explanation: |
+      $6ND$ counts the matrix multiplies against the weights; attention score FLOPs are extra and matter at long context.
+    why_not:
+      - ""
+      - The estimate ignores attention-score FLOPs; they are an extra term proportional to context length.
+      - ""
+      - ""

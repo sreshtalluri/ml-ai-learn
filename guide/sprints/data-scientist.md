@@ -29,6 +29,7 @@ summary: Seven days on what data science loops test - statistics, A/B testing, m
 ## Day 2: Validation and metrics
 
 - Read: [The language of ML](../lessons/01-ml-vocabulary/01-ml-vocabulary.md), [Workflow, splits, and leakage](../lessons/02-ml-workflow/01-ml-workflow.md), [Overfitting and bias-variance](../lessons/02-ml-workflow/02-overfitting-and-bias-variance.md), [Classification metrics](../lessons/04-classification/02-classification-metrics.md), [Regularization and regression metrics](../lessons/03-regression/02-regularization-and-regression-metrics.md)
+- Also read: [Imbalanced data](../lessons/24-applied-ml/02-imbalanced-data.md)
 - Labs: underfitting vs overfitting, classification threshold
 - Cheat sheets: [classification metrics](../cheatsheets/classification-metrics.md), [regression metrics](../cheatsheets/regression-metrics.md)
 - Be ready to: pick precision vs recall from business costs, spot leakage in a feature list, and choose MAE vs RMSE.
@@ -36,6 +37,7 @@ summary: Seven days on what data science loops test - statistics, A/B testing, m
 ## Day 3: The models you'll actually use
 
 - Read: [Linear regression](../lessons/03-regression/01-linear-regression.md), [Logistic regression](../lessons/04-classification/01-logistic-regression.md), [Decision trees](../lessons/06-trees-and-ensembles/01-decision-trees.md), [Random forests and boosting](../lessons/06-trees-and-ensembles/02-random-forests-and-boosting.md)
+- Also read: [Feature engineering](../lessons/24-applied-ml/01-feature-engineering.md), [Hyperparameter tuning](../lessons/24-applied-ml/03-hyperparameter-tuning.md)
 - Labs: linear regression, decision-tree builder, gradient boosting
 - Cheat sheet: [model selection](../cheatsheets/model-selection.md)
 - Be ready to: interpret coefficients (and say when you can't), explain feature importance pitfalls, and justify a GBDT.
@@ -43,6 +45,7 @@ summary: Seven days on what data science loops test - statistics, A/B testing, m
 ## Day 4: Segments, structure, and text
 
 - Read: [K-means](../lessons/07-unsupervised/01-k-means.md), [Density, hierarchical, and mixture clustering](../lessons/07-unsupervised/02-density-hierarchical-and-mixture-clustering.md), [PCA](../lessons/08-dimensionality-reduction/01-pca.md), [Text to vectors](../lessons/09-classical-nlp/01-text-to-vectors.md)
+- Also read: [Anomaly detection](../lessons/24-applied-ml/05-anomaly-detection.md), [Time series](../lessons/24-applied-ml/04-time-series.md), [Topic modeling](../lessons/09-classical-nlp/04-topic-modeling.md)
 - Labs: K-means, PCA, TF-IDF
 - Cheat sheet: [clustering algorithms](../cheatsheets/clustering-algorithms.md)
 - Be ready to: choose K and defend it, say why a discovered cluster isn't a real category, and build a quick text classifier baseline.
@@ -50,6 +53,7 @@ summary: Seven days on what data science loops test - statistics, A/B testing, m
 ## Day 5: Product and system cases
 
 - Read: [ML system design](../lessons/22-ml-system-design/01-ml-system-design.md), [Naive Bayes](../lessons/05-instance-and-probabilistic/02-naive-bayes.md)
+- Also read: [Monitoring and drift](../lessons/22-ml-system-design/03-model-monitoring-and-drift.md), [Fairness](../lessons/21-safety-security/02-fairness.md)
 - Lab: recommendation funnel
 - Cheat sheet: [ML system design](../cheatsheets/ml-system-design.md)
 - Be ready to: define a north-star metric with guardrails, and frame a churn or fraud problem as a model with a decision attached.
@@ -57,6 +61,7 @@ summary: Seven days on what data science loops test - statistics, A/B testing, m
 ## Day 6: Measuring LLM features
 
 - Read: [Adapting LLMs](../lessons/15-llms/03-adapting-llms.md), [The RAG pipeline](../lessons/16-rag/01-rag-pipeline.md), [Evaluating LLM systems](../lessons/17-llm-evaluation/01-llm-evaluation.md)
+- Also read: [Prompt engineering](../lessons/28-prompting-and-context/01-prompt-engineering.md)
 - Lab: RAG pipeline
 - Cheat sheet: [LLM evaluation](../cheatsheets/llm-evaluation.md)
 - Be ready to: design an offline eval for a summarization feature, validate an LLM judge against human labels, and plan the online test.

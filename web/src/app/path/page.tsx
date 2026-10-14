@@ -3,18 +3,11 @@ import Link from "next/link";
 import { DoneMark } from "@/components/PageControls";
 import { ModuleProgress } from "@/components/ProgressWidgets";
 import { getModules } from "@/lib/content";
+import { PHASES } from "@/lib/phases";
 import { SKILLS } from "@/lib/skills";
 
 export const metadata: Metadata = { title: "Learning path", description: "The guided sequence from math foundations to production AI engineering." };
 
-const PHASES = [
-  { title: "Foundations", range: [0, 2], blurb: "Math, vocabulary, and how to run a valid experiment." },
-  { title: "Classical machine learning", range: [3, 8], blurb: "Regression, classification, neighbors, trees, clustering, and PCA." },
-  { title: "NLP and deep learning", range: [9, 13], blurb: "Text as vectors, neural networks, gradients, and architectures." },
-  { title: "Transformers and LLMs", range: [14, 17], blurb: "Attention, pretraining, decoding, fine-tuning, RAG, vector search, and evaluation." },
-  { title: "LLM inference and agents", range: [18, 19], blurb: "KV cache, batching, quantization, serving cost, tool calling, and reliable agents." },
-  { title: "AI engineering and system design", range: [20, 23], blurb: "Production systems, security, ML system design, A/B testing, and a portfolio of projects." },
-];
 
 export default function PathPage() {
   const modules = getModules();
@@ -34,7 +27,7 @@ export default function PathPage() {
             <h2 id={ph.title} className="text-xl font-semibold tracking-tight">{ph.title}</h2>
             <p className="text-sm text-muted mt-1">{ph.blurb}</p>
             <div className="mt-5 space-y-4">
-              {modules.filter((m) => m.number >= ph.range[0] && m.number <= ph.range[1]).map((m) => (
+              {ph.modules.map((n) => modules.find((m) => m.number === n)).filter((m) => m !== undefined).map((m) => (
                 <div key={m.id} className="rounded-xl border border-line bg-surface">
                   <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-4">
                     <Link href={`/modules/${m.id}/`} className="group">

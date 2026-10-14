@@ -1,0 +1,138 @@
+title: Information theory
+lesson: information-theory
+questions:
+  - id: it-entropy-meaning
+    type: single
+    difficulty: easy
+    prompt: What does the entropy of a distribution measure?
+    options:
+      - The number of bits needed to store one probability
+      - The error rate of a classifier
+      - The average surprise, or uncertainty, of outcomes drawn from it
+      - How far the distribution is from the uniform distribution
+    answer: 2
+    explanation: "$H(P) = -\\sum_x p(x)\\log p(x)$ is the expected surprise. It is highest for a uniform distribution and 0 when one outcome is certain."
+    why_not:
+      - Entropy is a property of the whole distribution, not a storage size for numbers.
+      - Error rate is a metric of a model on data; entropy needs no model.
+      - Correct.
+      - Related (entropy is maximal at uniform), but the distance to uniform is a KL divergence, $\log K - H(P)$, not the entropy itself.
+  - id: it-coin-entropy
+    type: numeric
+    difficulty: medium
+    prompt: A coin lands heads with probability 0.75. What is its entropy in bits? (Give 3 decimals.)
+    answer: 0.811
+    tolerance: 0.002
+    explanation: |
+      $H = -(0.75\log_2 0.75 + 0.25\log_2 0.25) = -(0.75 \times -0.4150 + 0.25 \times -2) = 0.3113 + 0.5 = 0.811$ bits.
+  - id: it-ce-kl
+    type: single
+    difficulty: medium
+    prompt: Why is minimizing cross-entropy during training equivalent to minimizing KL divergence from the model to the data?
+    options:
+      - They are the same formula
+      - "$H(P, Q) = H(P) + D_{\\text{KL}}(P \\Vert Q)$, and $H(P)$ of the data does not depend on the model"
+      - KL divergence is always 0 at convergence
+      - The model's entropy is 0 at convergence
+    answer: 1
+    explanation: The entropy of the labels is a constant during training, so any reduction in cross-entropy is a reduction in KL.
+    why_not:
+      - They differ by $H(P)$, which is positive whenever labels are noisy or soft.
+      - Correct.
+      - On noisy data the model can't match $P$ exactly; KL shrinks but need not reach 0. The equivalence holds at every step anyway.
+      - The model's own entropy is not part of the identity; it's the data's entropy that cancels.
+  - id: it-perplexity-meaning
+    type: single
+    difficulty: easy
+    prompt: A language model has perplexity 50 on a test set. What does that mean?
+    options:
+      - It has 50 layers
+      - It makes 50 errors per sentence
+      - On average it is as uncertain as choosing uniformly among 50 tokens at each step
+      - It was trained for 50 epochs
+    answer: 2
+    explanation: Perplexity is $e^{\text{mean loss}}$. A uniform guess over 50 tokens has loss $\ln 50$ and perplexity exactly 50.
+    why_not:
+      - Perplexity is computed from predicted probabilities, not architecture.
+      - It doesn't count errors; a model can be right with low confidence or wrong with low perplexity elsewhere.
+      - Correct.
+      - Training length doesn't appear in the formula.
+  - id: it-ppl-calc
+    type: numeric
+    difficulty: medium
+    prompt: A model's mean cross-entropy on a test set is 2.0 nats per token. What is its perplexity? (Give 2 decimals.)
+    answer: 7.39
+    tolerance: 0.01
+    explanation: "$\\text{PPL} = e^{2.0} = 7.389$."
+  - id: it-loss-calc
+    type: numeric
+    difficulty: medium
+    prompt: Logits are $[2.0, 1.0, 0.1]$ and the true class is 0. What is the cross-entropy loss in nats? (Give 3 decimals.)
+    answer: 0.417
+    tolerance: 0.002
+    explanation: |
+      Subtract the max: $[0, -1, -1.9]$. Exponentiate: $[1, 0.3679, 0.1496]$, sum $1.5175$. $q_0 = 1/1.5175 = 0.6590$. Loss $= -\ln 0.6590 = 0.417$.
+  - id: it-initial-loss
+    type: single
+    difficulty: medium
+    prompt: A freshly initialized 10-class classifier reports a step-0 loss of 9.4 nats. What is the most likely explanation?
+    options:
+      - This is normal; losses start high
+      - The final layer produces large logits, so the model is confidently wrong before training
+      - The learning rate is too low
+      - The model is overfitting
+    answer: 1
+    explanation: A near-uniform model should start at $\ln 10 = 2.303$. A loss of 9.4 means the true class gets about $e^{-9.4} \approx 0.00008$, so the initial logits are far too large (or labels are misaligned).
+    why_not:
+      - The expected start is 2.303 nats, not 9.4; the gap is a signal.
+      - Correct.
+      - The learning rate hasn't acted yet at step 0.
+      - No training has happened, so there is nothing to overfit.
+  - id: it-kl-asym
+    type: single
+    difficulty: hard
+    prompt: "$P = [1, 0]$ and $Q = [0.5, 0.5]$. Which statement is true?"
+    options:
+      - "$D_{\\text{KL}}(P \\Vert Q) = D_{\\text{KL}}(Q \\Vert P)$"
+      - "$D_{\\text{KL}}(P \\Vert Q) = \\ln 2$ and $D_{\\text{KL}}(Q \\Vert P)$ is infinite"
+      - Both are infinite
+      - Both are 0
+    answer: 1
+    explanation: "$D(P\\Vert Q) = 1 \\cdot \\ln(1/0.5) = \\ln 2 = 0.693$. $D(Q\\Vert P)$ has a term $0.5\\ln(0.5/0)$, which is infinite: $Q$ puts mass where $P$ says impossible."
+    why_not:
+      - KL is asymmetric, and this pair shows it starkly.
+      - Correct.
+      - "$D(P\\Vert Q)$ only sums where $p > 0$, and there $q = 0.5$, so it is finite."
+      - The distributions differ, so neither direction is 0.
+  - id: it-mi-vs-corr
+    type: single
+    difficulty: medium
+    prompt: You want to screen features for a label where some relationships are U-shaped. Why prefer mutual information over Pearson correlation?
+    options:
+      - MI is cheaper to compute
+      - MI is 0 only under independence, so it catches non-linear and non-monotonic dependence; correlation can be 0 for a U-shape
+      - Correlation only works on categorical data
+      - They always rank features the same way
+    answer: 1
+    explanation: "$y = x^2$ with $x$ symmetric around 0 has correlation 0 but high mutual information."
+    why_not:
+      - MI needs density estimation or binning and is usually more expensive and noisier.
+      - Correct.
+      - Pearson correlation is defined for numeric variables; it's MI that handles categorical ones naturally.
+      - They disagree exactly on non-linear relationships like the U-shape.
+  - id: it-ppl-compare
+    type: single
+    difficulty: hard
+    prompt: Model A (tokenizer with 32k tokens) has test perplexity 12; model B (tokenizer with 100k tokens) has 15 on the same text. What is the right conclusion?
+    options:
+      - A is better because its perplexity is lower
+      - B is better because its vocabulary is larger
+      - You can't tell yet; normalize to a tokenizer-independent unit like bits per byte first
+      - They are equivalent because both are below 20
+    answer: 2
+    explanation: Perplexity is per token. Different tokenizers split the same text into different numbers of tokens, so per-token numbers aren't comparable. Total loss divided by bytes (or words) is.
+    why_not:
+      - Lower per-token perplexity can come from cutting text into more, easier tokens.
+      - Vocabulary size alone says nothing about prediction quality.
+      - Correct.
+      - There is no such threshold; the comparison itself is invalid without normalization.

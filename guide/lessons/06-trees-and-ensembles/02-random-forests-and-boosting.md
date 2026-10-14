@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 40
 prerequisites: [decision-trees, gradient-descent]
 related: [decision-trees, overfitting-and-bias-variance, classification-metrics]
+adapted_from: [phases/02-ml-fundamentals/11-ensemble-methods]
 ---
 
 # Random forests and gradient boosting
@@ -92,6 +93,85 @@ Each round fixes part of what remains, and the learning rate keeps every correct
 
 ## 4. Implementation
 
+### Build it from scratch
+
+Both ensembles reuse the scratch tree from [Decision trees](01-decision-trees.md) (`gini`, `best_split`, `grow`, `predict` in `tree_scratch.py`). A forest tree differs in one way. At each split it may only look at `max_features` randomly chosen columns. That is the decorrelation trick that lowers $\rho$ in the variance formula.
+
+```python
+def grow_random(X, y, rng, max_features):
+    """A forest tree: like grow(), but each split may only look at max_features random columns."""
+    leaf = {"value": int(np.bincount(y, minlength=2).argmax())}
+    if gini(y) == 0:
+        return leaf
+    cols = rng.choice(X.shape[1], max_features, replace=False)
+    j, t, _ = best_split(X[:, cols], y)
+    if j is None:
+        return leaf
+    j = cols[j]                                   # map back to the real column
+    mask = X[:, j] <= t
+    return {"feature": j, "threshold": t,
+            "left": grow_random(X[mask], y[mask], rng, max_features),
+            "right": grow_random(X[~mask], y[~mask], rng, max_features)}
+```
+
+*Predict:* if `max_features` equals the number of columns, how does this differ from plain bagging?
+
+Bagging is the outer loop. Each tree trains on a bootstrap sample: $n$ row indices drawn with replacement. The forest predicts by majority vote.
+
+```python
+def random_forest(X, y, n_trees, max_features, rng):
+    """Bagging: each tree sees a bootstrap sample (n rows drawn with replacement)."""
+    trees = []
+    for _ in range(n_trees):
+        rows = rng.integers(0, len(y), len(y))
+        trees.append(grow_random(X[rows], y[rows], rng, max_features))
+    return trees
+
+def forest_predict(trees, X):
+    votes = np.array([predict(t, X) for t in trees])   # [n_trees, n_samples]
+    return (votes.mean(axis=0) > 0.5).astype(int)      # majority vote for labels 0/1
+```
+
+*Predict:* about what fraction of the original rows does one bootstrap sample miss? (Each row is missed with probability $(1 - 1/n)^n \approx e^{-1}$.) Those missed rows are the "out-of-bag" set.
+
+Boosting needs a regression stump. It tries each threshold, predicts the mean residual on each side, and keeps the threshold with the smallest squared error.
+
+```python
+def fit_stump(x, r):
+    """Depth-1 regression tree on one feature: the threshold whose two leaf means minimize squared error."""
+    best = (np.inf, None, None, None)
+    values = np.unique(x)
+    for t in (values[:-1] + values[1:]) / 2:
+        left, right = r[x <= t], r[x > t]
+        sse = np.sum((left - left.mean()) ** 2) + np.sum((right - right.mean()) ** 2)
+        if sse < best[0]:
+            best = (sse, t, left.mean(), right.mean())
+    _, t, lv, rv = best
+    return lambda z: np.where(z <= t, lv, rv), t
+```
+
+*Predict:* on round 1 of the worked example the residuals are $[-3.5, -1.5, 1.5, 3.5]$. Which threshold wins, and what are the two leaf values?
+
+The boosting loop is the update rule from section 3, line for line: start at the mean, fit the residuals, take a step of size $\eta$.
+
+```python
+def gradient_boost(x, y, rounds, lr):
+    """F_0 = mean(y); each round fits a stump to the residuals y - F and adds lr * stump."""
+    F = np.full(len(y), y.mean())
+    history = [F.copy()]
+    for _ in range(rounds):
+        stump, _ = fit_stump(x, y - F)            # residual y - F = negative gradient of (y - F)^2 / 2
+        F = F + lr * stump(x)
+        history.append(F.copy())
+    return history
+```
+
+*Predict:* with `lr=1.0` instead of 0.5, what is $F_1$? Is the round-1 MSE lower or higher than 2.5625?
+
+### Use the library
+
+scikit-learn's `RandomForestClassifier` and `GradientBoostingRegressor`/`Classifier` are these loops in optimized form. XGBoost and LightGBM add second-order gradients, leaf-weight regularization, histogram-binned splits, and early stopping on a validation set.
+
 ```python
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier           # pip install xgboost
@@ -108,7 +188,33 @@ xgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)   # stops wh
 print(xgb.best_iteration)
 ```
 
-Runnable script (boosting by hand, depth comparison, learning-rate curves): [`code/06-trees-and-ensembles/trees.py`](../../code/06-trees-and-ensembles/trees.py). It uses scikit-learn's `GradientBoostingClassifier`, so no extra install is needed.
+The runnable script checks the scratch code against scikit-learn only, so no extra install is needed.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/06-trees-and-ensembles/ensembles_scratch.py
+```
+
+Key output:
+
+```
+round 0: F = [5.5, 5.5, 5.5, 5.5]  MSE 7.2500
+round 1: F = [4.25, 4.25, 6.75, 6.75]  MSE 2.5625
+round 2: F = [3.125, 4.625, 7.125, 7.125]  MSE 1.2969
+round 3: F = [2.8125, 4.3125, 6.8125, 8.0625]  MSE 0.4180
+scikit-learn after 3 rounds: [2.8125, 4.3125, 6.8125, 8.0625]
+
+One unlimited tree:       test 0.887
+Scratch forest,   1 trees: test 0.873
+Scratch forest,  10 trees: test 0.913
+Scratch forest, 100 trees: test 0.917
+scikit-learn forest, 100:  test 0.917
+```
+
+The boosting rounds reproduce the worked example exactly, and scikit-learn agrees to four decimals. On the synthetic two moons, one forest tree (bootstrap plus random features) is slightly worse than one full tree. Averaging 100 of them beats the single tree by 3 points. The figure and learning-rate curves come from [`code/06-trees-and-ensembles/trees.py`](../../code/06-trees-and-ensembles/trees.py).
 
 ## 5. Engineering
 
@@ -168,6 +274,10 @@ $F_0 = 15$. Residuals $[-5, 5]$. A stump separates the two points: $h = [-5, 5]$
 **Next:** [K-means clustering](../07-unsupervised/01-k-means.md)
 
 **Related:** [Decision trees](01-decision-trees.md) · [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Model card: gradient boosting](../../models/gradient-boosting.md) · [Model card: XGBoost](../../models/xgboost.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Ensemble Methods](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/11-ensemble-methods).*
+<!-- /deeper -->
 
 ## Interview angle
 

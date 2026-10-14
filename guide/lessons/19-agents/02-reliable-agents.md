@@ -5,6 +5,7 @@ skill: engineering
 minutes: 40
 prerequisites: [tool-use-and-agents]
 related: [ai-security, llm-evaluation, reliability-cost-and-observability]
+adapted_from: [phases/14-agent-engineering/12-anthropic-workflow-patterns, phases/14-agent-engineering/05-self-refine-and-critic, phases/14-agent-engineering/26-failure-modes-agentic, phases/15-autonomous-systems/13-cost-governors, phases/15-autonomous-systems/15-propose-then-commit]
 ---
 
 # Building reliable agents
@@ -121,7 +122,93 @@ A research task has three independent subtasks of about 40 s and 25k tokens each
 
 ## 4. Implementation
 
-The core ideas are small pieces of runtime code around the loop from the [previous lesson](01-tool-use-and-agents.md).
+The ideas in this lesson are small pieces of runtime code around the loop from the [previous lesson](01-tool-use-and-agents.md). Each one below is stdlib Python with a scripted model, so you can see exactly when it fires.
+
+### Build it from scratch
+
+**Evaluator-optimizer: generate, check, feed the critique back.** One function proposes a draft; another judges it against explicit criteria; the judge's text becomes the next draft's feedback. The loop stops on a pass or after `max_iter`, so a checker that never passes can't run forever.
+
+```python
+def evaluator_optimizer(propose, evaluate, max_iter=4):
+    feedback, trace = None, []
+    for _ in range(max_iter):
+        draft = propose(feedback)
+        ok, feedback = evaluate(draft)
+        trace.append((draft, ok, feedback))
+        if ok:
+            break
+    return draft, trace
+```
+
+*Predict:* `evaluate` always returns `False`. What does the caller get back, and how would it know the draft failed?
+
+**Ground the checker in observations.** A model asked to critique its own draft often misses its own confident mistakes. A stronger check compares the draft against something external: here, the tool results the agent actually received (the CRITIC idea). This catches the "false success" failure mode.
+
+```python
+def grounded_check(draft: str):
+    """CRITIC-style check: every refundability claim must match an observation, not the model's own opinion."""
+    for fid, obs in OBSERVED.items():
+        if fid in draft:
+            claims_refund = f"{fid} is refundable" in draft
+            if claims_refund != obs["refundable"]:
+                return False, f"claim about {fid} contradicts tool result refundable={obs['refundable']}"
+    return True, "ok"
+```
+
+*Predict:* the draft says "UA412 isn't refundable". Does this string-matching check pass it? What does that tell you about rule-based checkers versus an LLM judge?
+
+**Loop detector.** An agent that repeats the same call with the same arguments is making no progress. Serialize the call with sorted keys, so `{"a":1,"b":2}` and `{"b":2,"a":1}` count as the same call, and stop after a few repeats.
+
+```python
+class LoopDetector:
+    def __init__(self, max_repeats=2):
+        self.seen, self.max_repeats = {}, max_repeats
+
+    def check(self, name: str, args: dict) -> bool:
+        key = name + json.dumps(args, sort_keys=True)       # canonical form: key order must not matter
+        self.seen[key] = self.seen.get(key, 0) + 1
+        return self.seen[key] > self.max_repeats            # True means stop
+```
+
+*Predict:* an agent alternates between two calls, A, B, A, B, and so on. When does this detector fire with `max_repeats=2`?
+
+**Cost governor.** Charge every model call against a step cap and a money budget. The important detail is checking *before* spending: compute the next call's cost and refuse it if it would cross the line, instead of noticing after the money is gone.
+
+```python
+class CostGovernor:
+    def __init__(self, max_usd: float, max_steps: int):
+        self.max_usd, self.max_steps, self.usd, self.steps = max_usd, max_steps, 0.0, 0
+
+    def charge(self, tokens_in: int, tokens_out: int):
+        cost = tokens_in * PRICE_IN + tokens_out * PRICE_OUT
+        if self.steps + 1 > self.max_steps:
+            raise BudgetExceeded(f"step cap {self.max_steps}")
+        if self.usd + cost > self.max_usd:
+            raise BudgetExceeded(f"next call costs {cost:.4f}, spent {self.usd:.4f} of {self.max_usd}")
+        self.usd, self.steps = self.usd + cost, self.steps + 1
+```
+
+*Predict:* with the [previous lesson's](01-tool-use-and-agents.md) six-step run (1,200-token base, +400 per step, 80 output tokens, synthetic \$3 and \$15 per million), the run costs 0.0468 USD. With a 0.05 USD budget, which call is refused? (Call 7 would read 3,600 tokens.)
+
+**Propose-then-commit.** A side-effecting action runs only after approval, and at most once. The idempotency key is a hash of the task, action, and payload, so a retry after a network timeout finds the existing record instead of booking twice. After writing, re-read the target to verify.
+
+```python
+def commit(task_id: str, action: str, payload: dict, approve) -> dict:
+    key = idempotency_key(task_id, action, payload)
+    if key in BACKEND:                                       # retry after a timeout: no double booking
+        return {"status": "already_committed", "key": key}
+    if not approve(action, payload):                         # human sees the evidence, not raw JSON
+        return {"status": "declined", "key": key}
+    BACKEND[key] = {"action": action, **payload}
+    verified = BACKEND.get(key) == {"action": action, **payload}   # re-read the target after writing
+    return {"status": "committed" if verified else "commit_unverified", "key": key}
+```
+
+*Predict:* the user declines, then later asks again and approves the same hold. Does the second request commit? What if the price changed from 312 to 315 in between?
+
+### Use the library
+
+In production these pieces sit in one guarded executor around every tool call. The policy table is data, so you can review and test it apart from the prompt:
 
 ```python
 POLICY = {                       # least privilege, per tool
@@ -146,7 +233,31 @@ def guarded_execute(call, ctx):
                             retries=2, timeout_s=10)
 ```
 
-Runnable script (compounding error with a Monte Carlo check, verify-and-retry, pass@k vs pass^k, the multi-agent comparison, and the figure): [`code/19-agents/agent_reliability.py`](../../code/19-agents/agent_reliability.py).
+What libraries give you: payment and booking APIs (Stripe, for example) accept an idempotency key header and deduplicate server-side, which is stronger than a client-side dict. Agent frameworks (LangGraph, the OpenAI Agents SDK, the Claude Agent SDK) offer interrupts or permission hooks to pause before a tool runs, max-turn limits, and tracing. OpenTelemetry's GenAI semantic conventions standardize span attributes for model and tool calls, so traces from different frameworks look alike. None of them decides your policy: which tools need approval, what the budget is, and what counts as verified are still yours.
+
+### Run it
+
+```bash
+uv run code/19-agents/reliability_scratch.py
+```
+
+Key output:
+
+```text
+1. Evaluator-optimizer with a grounded checker
+  iter 1 FAIL: claim about UA412 contradicts tool result refundable=False
+  iter 2 PASS: ok
+2. Loop detector on a stuck agent
+  stopped at step 3: search_flights repeated 3 times
+3. Cost governor on a run whose context grows 400 tokens per step
+  halted before call 7: next call costs 0.0120, spent 0.0468 of 0.05
+4. Propose-then-commit with an idempotency key
+  {'status': 'declined', 'key': '8e1d249c9dc4'}
+  {'status': 'committed', 'key': '8e1d249c9dc4'}
+  {'status': 'already_committed', 'key': '8e1d249c9dc4'}
+```
+
+The reliability arithmetic from section 3 (compounding error with a Monte Carlo check, verify-and-retry, pass@k versus pass^k, the multi-agent comparison) and the figure: [`code/19-agents/agent_reliability.py`](../../code/19-agents/agent_reliability.py).
 
 ## 5. Engineering
 
@@ -166,7 +277,7 @@ Runnable script (compounding error with a Monte Carlo check, verify-and-retry, p
 
 **Observability.** Log a trace per task: every model call (prompt version, model, input and output tokens, latency), every tool call (arguments, result size, latency, errors), approvals, and the stop reason. Traces are how you debug "it did something weird", find the step where cost explodes, and turn production failures into eval cases. Redact secrets and personal data in traces.
 
-**Cost control.** Set a per-task token or money budget and stop gracefully at it. Keep prompts and tool lists stable for prefix caching. Route easy subtasks (classification, extraction, summarizing tool output) to smaller models. Cache deterministic tool results. Cut steps with better tools and parallel calls; since billed tokens grow roughly with the square of steps, fewer steps is the biggest lever.
+**Cost control.** Set a per-task token or money budget and stop gracefully at it. Layer the caps, because each catches a different failure: a per-call token cap stops one runaway response, a step cap stops a loop, a per-task budget stops an expensive task, a spend-rate (velocity) limit stops a fast loop before the budget is hit, and a monthly cap per account is the backstop. A monthly cap alone fires only after most of the damage is done. Keep prompts and tool lists stable for prefix caching. Route easy subtasks (classification, extraction, summarizing tool output) to smaller models. Cache deterministic tool results. Cut steps with better tools and parallel calls; since billed tokens grow roughly with the square of steps, fewer steps is the biggest lever.
 
 > [!WARNING]
 > **Common failure modes.**
@@ -221,9 +332,15 @@ Analytic: $S = 0.1 \times 0.8^{10} + 0.9 \times 0.97^{10} = 0.1 \times 0.10737 +
 - Multi-agent designs trade extra tokens and coordination risk for parallelism and fresh contexts; use them for broad, independent subtasks.
 - Evaluate on a fixed task suite with final-state and trajectory checks, report pass^k alongside pass@k, track cost and latency per task, and trace every step.
 
-**Next:** [Production architecture](../20-production-ai/01-production-architecture.md)
+**Next:** [Agent memory](03-agent-memory.md)
 
 **Related:** [Tool use and agents](01-tool-use-and-agents.md) · [Evaluating LLM systems](../17-llm-evaluation/01-llm-evaluation.md) · [Reliability, cost, and observability](../20-production-ai/02-reliability-cost-and-observability.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Agent State Machines — Graphs, Nodes, Checkpoints](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/16-langgraph-state-machines) · [Reflexion: Verbal Reinforcement Learning](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/03-reflexion-verbal-rl) · [Tree of Thoughts and LATS: Deliberate Search](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/04-tree-of-thoughts-lats) · [The Shift from Chatbots to Long-Horizon Agents](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/01-long-horizon-agents) · [Long-Running Background Agents: Durable Execution](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/12-durable-execution) · [Kill Switches, Circuit Breakers, and Canary Tokens](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/14-kill-switches-canaries) · [Checkpoints and Rollback](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/16-checkpoints-rollback) · [Failure Modes — MAST, Groupthink, Monoculture, Cascading Errors](https://aiengineeringfromscratch.com/lesson?path=phases/16-multi-agent-and-swarms/23-failure-modes-mast-groupthink)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Anthropic's Workflow Patterns: Simple Over Complex](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/12-anthropic-workflow-patterns), [Self-Refine and CRITIC: Iterative Output Improvement](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/05-self-refine-and-critic), [Failure Modes: Why Agents Break](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/26-failure-modes-agentic), [Action Budgets, Iteration Caps, and Cost Governors](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/13-cost-governors), [Human-in-the-Loop: Propose-Then-Commit](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/15-propose-then-commit).*
+<!-- /deeper -->
 
 ## Interview angle
 

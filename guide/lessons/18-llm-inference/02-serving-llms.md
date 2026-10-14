@@ -5,6 +5,7 @@ skill: llms
 minutes: 45
 prerequisites: [llm-inference]
 related: [production-architecture, reliability-cost-and-observability, rag-pipeline]
+adapted_from: [phases/17-infrastructure-and-production/04-vllm-serving-internals, phases/17-infrastructure-and-production/06-sglang-radixattention, phases/17-infrastructure-and-production/08-inference-metrics-goodput]
 ---
 
 # Serving LLMs
@@ -139,7 +140,9 @@ Utilization, not the hourly price, usually decides whether self-hosting pays.
 
 ## 4. Implementation
 
-The core of the simulator (the same rules as the lab):
+### Build it from scratch
+
+**Continuous batching.** The core of the simulator, with the same rules as the lab. Each slot is one sequence in the running batch; `static` admits new work only when every slot is free, `continuous` refills any free slot every step:
 
 ```python
 def simulate(requests, slots, policy):            # requests: list of (arrival, n_tokens)
@@ -157,6 +160,80 @@ def simulate(requests, slots, policy):            # requests: list of (arrival, 
         t += 1
     return finish
 ```
+
+*Predict:* with 4 slots and one 400-token request among three 50-token ones, how many steps does each policy leave three slots idle?
+
+The rest of the build is [`code/18-llm-inference/serving_scratch.py`](../../code/18-llm-inference/serving_scratch.py) (stdlib only, synthetic requests).
+
+**Paged KV memory.** Instead of reserving a max-length slab per request, a pool hands out 16-token blocks as the sequence grows. Each request keeps a block table mapping its logical blocks to physical ones, like an operating system's page table. That is the core idea of vLLM's PagedAttention.
+
+```python
+class BlockPool:
+    def __init__(self, n_blocks):
+        self.free = list(range(n_blocks))
+        self.tables = {}  # request id -> list of physical block ids (its "page table")
+
+    def grow(self, rid, n_tokens):
+        """Make sure request rid owns enough blocks for n_tokens. False means: preempt someone."""
+        table = self.tables.setdefault(rid, [])
+        need = -(-n_tokens // BLOCK) - len(table)  # ceil division
+        if need > len(self.free):
+            return False
+        table += [self.free.pop() for _ in range(need)]
+        return True
+
+    def release(self, rid):
+        self.free += self.tables.pop(rid, [])
+```
+
+*Predict:* a request with 600 tokens of context holds how many blocks, and how many token slots are wasted? (38 blocks, 8 slots.)
+
+**Prefix caching.** Two prompts can share KV blocks only if every earlier token matches too, because each key and value depends on the whole prefix. So hash each full block together with the hash of everything before it. A lookup walks the chain until the first miss.
+
+```python
+def block_hashes(tokens):
+    h, out = 0, []
+    for i in range(0, len(tokens) - len(tokens) % BLOCK, BLOCK):
+        h = hash((h, tuple(tokens[i : i + BLOCK])))  # chain: same hash only if the whole prefix matches
+        out.append(h)
+    return out
+
+def prefill_with_cache(cache, tokens):
+    """Return how many prompt tokens were served from cache, then store this prompt's blocks."""
+    hit = 0
+    for h in block_hashes(tokens):
+        if h not in cache:
+            break  # first miss ends the shared prefix
+        hit += BLOCK
+    cache.update(block_hashes(tokens))
+    return hit
+```
+
+*Predict:* if one token near the start of the system prompt changes (say, today's date), what happens to the hit rate? Why do teams put dynamic content at the end of the prompt? SGLang's RadixAttention stores the same information as a radix tree over tokens, which also makes partial-block matches and LRU eviction of leaves natural.
+
+**Latency metrics and goodput.** From each request's send time and token arrival times, compute TTFT, TPOT, and end-to-end latency. Goodput is the share of requests that met every SLO at once. That is the number users feel; throughput alone can rise while goodput falls.
+
+```python
+def metrics(trace):
+    """trace = (send time, list of token arrival times). TPOT excludes the first token."""
+    t0, toks = trace
+    ttft = toks[0] - t0
+    tpot = (toks[-1] - toks[0]) / (len(toks) - 1)
+    return ttft, tpot, toks[-1] - t0
+
+def goodput(traces, ttft_slo, tpot_slo):
+    ok = [m[0] <= ttft_slo and m[1] <= tpot_slo for m in map(metrics, traces)]
+    return sum(ok) / len(ok)  # a request counts only if it met EVERY SLO
+```
+
+*Predict:* some benchmark tools compute TPOT as E2E divided by output tokens, which folds TTFT in. Is that number higher or lower than this definition for a request with a long queue wait?
+
+> [!WARNING]
+> Two load-testing tools can report different TPOT on the same run because they disagree on whether the first token counts. Check the definition before comparing numbers across tools or vendors.
+
+### Use the library
+
+In vLLM, all of this is built in: continuous batching and paged KV memory are always on, and prefix caching is on by default in recent versions (`enable_prefix_caching`). The knobs you actually tune are `gpu_memory_utilization` (how much memory goes to weights plus the block pool), `max_num_seqs` (batch slots), `max_num_batched_tokens` (the per-step token budget that chunked prefill splits long prompts into), and `block_size`. SGLang offers the same pieces with a radix-tree prefix cache and cache-aware scheduling.
 
 Measuring a real server: most open-source serving engines expose an OpenAI-compatible HTTP API, so you can measure TTFT and TPOT with any streaming client.
 
@@ -177,7 +254,29 @@ def measure(url, model, prompt, max_tokens=256):
 
 Run it from many concurrent clients at increasing request rates, and plot p50 and p95 TTFT and TPOT against throughput. That curve, not a single benchmark number, tells you how much traffic a replica can take within your SLO.
 
-Runnable script (worked example, paged memory, prefix caching, cost, load sweep, and the figure): [`code/18-llm-inference/batching_sim.py`](../../code/18-llm-inference/batching_sim.py).
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/18-llm-inference/serving_scratch.py
+```
+
+```text
+[paged] 4000 blocks: admitted 116/200 requests, 3996 blocks used, waste 781 tokens
+[paged] contiguous 4096-token slabs fit 15 requests
+[prefix] 50 requests: 98000/110000 prompt tokens from cache (89.1%)
+[metrics] TTFT p50 102 ms, p99 729 ms
+[metrics] TPOT p50 7.6 ms, p99 8.9 ms
+[metrics] E2E p50 1.48 s
+[goodput] TTFT<=500 ms and TPOT<=15 ms: 96.2%
+[goodput] TTFT<=300 ms and TPOT<=9 ms: 85.3%
+[goodput] TTFT<=300 ms and TPOT<=8 ms: 71.1%
+```
+
+Paged blocks admit 116 of 200 synthetic requests in a pool that would hold only 15 max-length slabs, wasting 781 token slots in total. All 49 requests after the first reuse the 2,000-token system prompt: $49 \cdot 2000 / 110{,}000 = 89.1\%$ of prompt tokens come from cache. Tightening TPOT from 9 ms to 8 ms barely moves the median, yet it drops goodput by 14 points, because SLOs bite in the tail.
+
+The batching simulator (worked example, paged memory, prefix caching, cost, load sweep, and the figure) is [`code/18-llm-inference/batching_sim.py`](../../code/18-llm-inference/batching_sim.py): `uv run code/18-llm-inference/batching_sim.py`.
 
 ## 5. Engineering
 
@@ -241,6 +340,12 @@ Track two phases per slot: `prefill_left` and `decode_left`. Each step, a slot i
 **Next:** [Tool use and agents](../19-agents/01-tool-use-and-agents.md)
 
 **Related:** [LLM inference](01-llm-inference.md) · [Reliability, cost, and observability](../20-production-ai/02-reliability-cost-and-observability.md) · [The RAG pipeline](../16-rag/01-rag-pipeline.md) · [Cheat sheet: LLM inference](../../cheatsheets/llm-inference.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Real-Time Vision — Edge Deployment](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/15-real-time-edge) · [GPU Autoscaling on Kubernetes — Karpenter, KAI Scheduler, Gang Scheduling](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/03-gpu-autoscaling-kubernetes) · [Cold Start Mitigation for Serverless LLMs](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/10-cold-start-mitigation) · [Disaggregated Prefill/Decode — NVIDIA Dynamo and llm-d](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/17-disaggregated-prefill-decode) · [Load Testing LLM APIs — Why k6 and Locust Lie](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/22-load-testing-llm-apis) · [Self-Hosted Serving Selection — Matching Engine to Hardware and Scale](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/28-self-hosted-serving-selection)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Serving Engine Internals — PagedAttention, Continuous Batching, Chunked Prefill](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/04-vllm-serving-internals), [Prefix-Cache Serving — RadixAttention and KV Reuse](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/06-sglang-radixattention), [Inference Metrics — TTFT, TPOT, ITL, Goodput, P99](https://aiengineeringfromscratch.com/lesson?path=phases/17-infrastructure-and-production/08-inference-metrics-goodput).*
+<!-- /deeper -->
 
 ## Interview angle
 

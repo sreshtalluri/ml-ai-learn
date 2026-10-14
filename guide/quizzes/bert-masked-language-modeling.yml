@@ -1,0 +1,136 @@
+title: BERT and masked language modeling
+lesson: bert-masked-language-modeling
+questions:
+  - id: bert-mlm-what
+    type: single
+    difficulty: easy
+    prompt: What is BERT's main pretraining objective?
+    options:
+      - Predict the next token from the tokens before it.
+      - Predict the original tokens at randomly selected, corrupted positions, using context on both sides.
+      - Classify whether two sentences are paraphrases.
+      - Reconstruct the input sentence in reverse order.
+    answer: 1
+    explanation: |
+      Masked language modeling selects about 15% of positions, corrupts them, and predicts the originals with a bidirectional encoder.
+    why_not:
+      - That is the decoder (GPT) objective; with no causal mask an encoder could read the answer directly.
+      - ""
+      - Paraphrase classification is a fine-tuning task. BERT's second pretraining task was next-sentence prediction, later dropped.
+      - No major encoder is trained this way.
+  - id: bert-loss
+    type: numeric
+    difficulty: medium
+    prompt: |
+      Two positions are selected in a sentence. The model assigns the correct token probability 0.5 at the first and 0.2 at the second. What is the MLM loss (mean natural-log cross-entropy over selected positions)? (3 decimals)
+    answer: 1.151
+    tolerance: 0.002
+    explanation: |
+      $-\ln 0.5 = 0.6931$, $-\ln 0.2 = 1.6094$. Mean: $(0.6931 + 1.6094)/2 = 2.3025/2 = 1.1513$. Unselected positions have label $-100$ and add nothing.
+  - id: bert-targets
+    type: numeric
+    difficulty: medium
+    prompt: |
+      A batch has 32 sequences of 128 tokens, each including `[CLS]` and `[SEP]`. With selection rate 0.15, about how many positions per batch have a label (not $-100$)? (round to the nearest whole number)
+    answer: 605
+    tolerance: 1
+    explanation: |
+      Maskable tokens: $32 \times 126 = 4{,}032$. $0.15 \times 4{,}032 = 604.8 \approx 605$.
+  - id: bert-801010
+    type: single
+    difficulty: medium
+    prompt: Why are 10% of selected tokens replaced with a random token and 10% left unchanged, instead of always using `[MASK]`?
+    options:
+      - To make training faster.
+      - "`[MASK]` never appears at fine-tuning or inference time; mixing in real tokens means the model must build good representations of every visible token, not only of `[MASK]` positions."
+      - To increase the selection rate above 15%.
+      - Because `[MASK]` is not in the vocabulary.
+    answer: 1
+    explanation: |
+      If the model only ever predicted at `[MASK]`, its representations of ordinary tokens would matter less to the loss, creating a pretrain/fine-tune mismatch. Since it can't tell which visible tokens are corrupted, it has to model all of them.
+    why_not:
+      - The rule doesn't change compute per step.
+      - ""
+      - The selection rate stays 15%; the rule only changes what the selected positions look like.
+      - "`[MASK]` is a special token in the vocabulary."
+  - id: bert-diagnose-loss
+    type: single
+    difficulty: hard
+    prompt: |
+      A team writes its own MLM training loop. Loss falls very fast to near zero, but the fine-tuned classifier is no better than one trained from scratch. Looking at the batch, labels equal the input ids at every position. What is wrong?
+    options:
+      - The learning rate is too high.
+      - Labels are not set to $-100$ at unselected positions, so most of the loss is copying visible tokens, which is trivial.
+      - The model needs more layers.
+      - The 80/10/10 rule should be 90/5/5.
+    answer: 1
+    explanation: |
+      With every position labelled, about 85% of targets are visible in the input, and a bidirectional encoder copies them. The loss looks great and teaches almost nothing. Labels must be $-100$ everywhere except the selected positions.
+    why_not:
+      - A too-high learning rate would make loss unstable, not collapse it to near zero.
+      - ""
+      - Capacity is not the issue; the objective is trivial.
+      - The split matters far less than the missing loss mask.
+  - id: bert-diagnose-cls
+    type: single
+    difficulty: hard
+    prompt: |
+      Semantic search built on cosine similarity of raw `bert-base-uncased` `[CLS]` vectors ranks unrelated documents highly. What is the best fix?
+    options:
+      - Use a larger raw BERT model.
+      - Switch to an embedding model fine-tuned with a contrastive loss (a sentence-transformers style bi-encoder), and evaluate recall@k on labelled queries.
+      - Lower the similarity threshold.
+      - Increase the mask rate during pretraining.
+    answer: 1
+    explanation: |
+      Raw BERT was not trained to place similar sentences close together, and its vectors cluster in a narrow cone. Contrastively fine-tuned embedding models are built for this.
+    why_not:
+      - A bigger model with the same objective has the same problem.
+      - ""
+      - Thresholds can't fix a ranking that is wrong.
+      - The issue is the missing similarity training, not the pretraining mask rate.
+  - id: bert-encoder-choice
+    type: single
+    difficulty: medium
+    prompt: |
+      Which task is the worst fit for a BERT-style encoder?
+    options:
+      - Named-entity recognition on support tickets.
+      - Reranking 50 retrieved passages for a query.
+      - Writing a 300-word reply to a customer email.
+      - Classifying messages into 20 intents at 5,000 requests per second.
+    answer: 2
+    explanation: |
+      Open-ended generation needs a decoder (or encoder-decoder) that produces tokens autoregressively. Encoders excel at tagging, reranking, and classification.
+    why_not:
+      - Token tagging is a natural encoder task: one bidirectional output per token.
+      - Cross-encoder rerankers are fine-tuned BERT-style encoders.
+      - ""
+      - A small encoder classifies in one forward pass, ideal for high volume.
+  - id: bert-true
+    type: multi
+    difficulty: medium
+    prompt: Which statements are correct?
+    options:
+      - RoBERTa showed that next-sentence prediction was not needed and dropped it.
+      - ELECTRA trains on every token by detecting which tokens a small generator replaced.
+      - BERT uses a causal attention mask like GPT.
+      - ModernBERT uses RoPE, GeGLU feed-forward layers, alternating local and global attention, and an 8,192-token context.
+      - The MLM loss is computed over all tokens in the sequence.
+    answer: [0, 1, 3]
+    explanation: |
+      BERT has no causal mask, and the loss covers only selected positions.
+    why_not:
+      - ""
+      - ""
+      - An encoder attends in both directions; that is the point of MLM.
+      - ""
+      - Only selected positions have labels; the rest are $-100$.
+  - id: bert-design
+    type: short
+    difficulty: hard
+    prompt: |
+      You need PII detection (names, emails, account numbers) in 2 million chat messages per day, with a latency budget of 20 ms per message. Propose a model and explain why.
+    sample_answer: |
+      Fine-tune a small BERT-style encoder (or ModernBERT) as a token classifier with BIO labels. Tagging needs one label per token using context on both sides, which an encoder gives in one forward pass with no generation loop; a 100M to 150M parameter model meets 20 ms on modest hardware. Add regex rules for structured patterns like emails and account numbers, use an LLM only to help label training data, and evaluate span-level precision and recall per entity type, weighting recall because missed PII is costly.
+    explanation: Token tagging under a latency budget is the canonical encoder use case.

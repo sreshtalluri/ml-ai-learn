@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 40
 prerequisites: [vectors-and-matrices, calculus-for-ml, ml-workflow]
 related: [regularization-and-regression-metrics, gradient-descent, logistic-regression]
+adapted_from: [phases/01-math-foundations/17-linear-systems, phases/02-ml-fundamentals/02-linear-regression]
 ---
 
 # Linear regression
@@ -150,7 +151,11 @@ b \leftarrow 0 - 0.1 \times (-3.333) = 0.3333
 
 ## 4. Implementation
 
-**From scratch (NumPy):**
+You will fit linear regression two ways from scratch, by gradient descent and by solving the normal equation, on one feature and then on three. Along the way you will see why feature scaling decides whether gradient descent converges in 1,000 steps or crawls.
+
+### Build it from scratch
+
+Start with one feature: the worked example as a loop. Each pass predicts, measures the error, and moves `w` and `b` against the MSE gradient from section 3.
 
 ```python
 import numpy as np
@@ -165,7 +170,44 @@ def fit_linear_regression(x, y, lr=0.01, steps=2000):
     return w, b
 ```
 
-**With scikit-learn:**
+**Predict:** on the worked example's three points, the first step (lr = 0.1) moved `w` from 1.0 to 1.7333 and cut MSE from 3.0 to 0.11. What happens if you set `lr = 1.0`?
+
+With many features, fold the bias into the weights: add a column of ones to `X`, so `θ = [b, w1, ..., wp]` and every prediction is `X θ`. Then the gradient-descent loop is the same three lines, with a matrix product in place of the sums.
+
+```python
+def add_bias(X):
+    return np.c_[np.ones(len(X)), X]                       # [n, p] -> [n, p+1], column of 1s for b
+
+def fit_gradient_descent(X, y, lr=0.1, steps=1000):
+    Xb = add_bias(X)
+    theta = np.zeros(Xb.shape[1])
+    n = len(y)
+    for _ in range(steps):
+        error = Xb @ theta - y                              # [n]
+        grad = (2 / n) * Xb.T @ error                       # [p+1], dMSE/dθ
+        theta -= lr * grad
+    return theta
+```
+
+Setting that gradient to zero gives the normal equation, $X^\top X\,\theta = X^\top y$: one linear solve, no learning rate. Use `np.linalg.solve` rather than computing the inverse. It is faster and loses less precision.
+
+```python
+def fit_normal_equation(X, y):
+    """Solve (XᵀX) θ = Xᵀy. np.linalg.solve is stabler than forming the inverse."""
+    Xb = add_bias(X)
+    return np.linalg.solve(Xb.T @ Xb, Xb.T @ y)             # θ = [b, w1, ..., wp]
+```
+
+**Predict:** the script fits synthetic houses with size (0.5 to 4 thousand sq ft), bedrooms (1 to 5), and age (0 to 80 years). The true θ is [50, 120, 15, −0.8]. Gradient descent on raw features needs `lr = 1e-4` to avoid diverging. After 1,000 steps, will it be close to the normal-equation answer? What changes after standardizing every feature to mean 0 and standard deviation 1?
+
+<details>
+<summary>Answers</summary>
+
+With `lr = 1.0` on the worked example, the first step moves w by 7.333 to 8.333 and MSE jumps from 3 to about 298; the next step lands at w ≈ −66 with MSE above 30,000. Each step overshoots further, so it diverges. On raw features, gradient descent ends at θ ≈ [11.3, 47.8, 31.5, 2.2], nowhere near the answer, and even the sign of the age weight is wrong. Age's large scale forces a tiny learning rate, so the small-scale directions barely move. The condition number of XᵀX is about 28,000 raw and 1.4 standardized. After standardizing, lr = 0.1 converges in 1,000 steps to the same θ as the normal equation, once you convert the weights back to raw units.
+
+</details>
+
+### Use the library
 
 ```python
 from sklearn.linear_model import LinearRegression
@@ -176,9 +218,37 @@ print(model.coef_, model.intercept_) # learned w and b
 y_pred = model.predict(X_test)
 ```
 
-scikit-learn solves the least-squares problem directly (no learning rate to tune). Both approaches arrive at the same answer on the synthetic dataset (w ≈ 2.824, b ≈ 8.98).
+scikit-learn solves the least-squares problem directly with a numerically careful solver (no learning rate to tune), so it matches the normal equation. For very large or streaming data, `SGDRegressor` is the gradient-descent version, and it needs `StandardScaler` for the reason you just saw. The normal-equation cost grows with p³, so with hundreds of thousands of features iterative methods win.
 
-Runnable script with the worked example, both implementations, and the figure: [`code/03-regression/linear_regression.py`](../../code/03-regression/linear_regression.py).
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/03-regression/linear_regression.py
+uv run code/03-regression/linear_regression_scratch.py
+```
+
+The first script reproduces the worked example step by step and ends with the one-feature fit:
+
+```text
+Synthetic dataset (true w=3, b=8)
+  gradient descent  w=2.824  b=8.979
+  scikit-learn      w=2.824  b=8.980
+```
+
+The second runs the multi-feature comparison:
+
+```text
+normal equation θ = [ 52.288 121.85   13.598  -0.859],  R² = 0.9807
+GD raw features, lr=1e-4, 1000 steps: θ = [11.283 47.817 31.452  2.218]
+GD standardized, lr=0.1, 1000 steps: θ = [ 52.288 121.85   13.598  -0.859]
+condition number of XᵀX: raw 28,185, standardized 1.4
+scikit-learn: b = 52.288, w = [121.85   13.598  -0.859]
+checks pass: normal equation = sklearn = standardized GD
+```
+
+The estimates differ from the true [50, 120, 15, −0.8] because of the noise in 200 synthetic rows. Scripts: [`code/03-regression/linear_regression.py`](../../code/03-regression/linear_regression.py) (worked example, figure) and [`code/03-regression/linear_regression_scratch.py`](../../code/03-regression/linear_regression_scratch.py) (multi-feature, scaling).
 
 ## 5. Engineering
 
@@ -237,6 +307,10 @@ Update: $w = 0 + 0.8667 = 0.8667$, $b = 0 + 0.6 = 0.6$. (The true line is $y = 2
 **Next:** [Regularization and regression metrics](02-regularization-and-regression-metrics.md)
 
 **Related:** [Gradient descent](../11-gradient-descent-backprop/01-gradient-descent.md) · [Logistic regression](../04-classification/01-logistic-regression.md) · [Model card: linear regression](../../models/linear-regression.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Linear Systems](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/17-linear-systems), [Linear Regression](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/02-linear-regression).*
+<!-- /deeper -->
 
 ## Interview angle
 

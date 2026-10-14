@@ -1,0 +1,129 @@
+title: Vision transformers
+lesson: vision-transformers
+questions:
+  - id: vit-tokens
+    type: single
+    difficulty: easy
+    prompt: How does a ViT turn an image into a sequence of tokens?
+    options:
+      - A convolution with kernel size equal to stride equal to the patch size, which splits the image into patches and projects each one in a single operation
+      - Flattening the whole image into one vector
+      - Running a CNN and using its final feature map as tokens
+      - Sorting pixels by intensity
+    answer: 0
+    explanation: At 224 pixels with 16-pixel patches the convolution produces a 14 by 14 grid of D-dimensional vectors, flattened to 196 tokens.
+    why_not:
+      - Correct.
+      - One vector would be a single token; attention would have nothing to attend over.
+      - That is a hybrid design some models use, but the standard ViT patchifies the raw image.
+      - Sorting would destroy spatial structure.
+  - id: vit-cls
+    type: single
+    difficulty: easy
+    prompt: What is the [CLS] token in a ViT?
+    options:
+      - A placeholder for missing patches
+      - A special pixel value
+      - A dropout mask
+      - A learned vector prepended to the patch tokens; its final output summarises the image and feeds the classifier
+    answer: 3
+    explanation: Attention lets the [CLS] token gather information from every patch. Many later models use mean pooling over patch tokens instead.
+    why_not:
+      - Missing patches are an MAE concept, handled differently.
+      - It is a learned embedding, not a pixel.
+      - It has nothing to do with dropout.
+      - Correct.
+  - id: vit-token-count
+    type: numeric
+    difficulty: easy
+    prompt: A ViT uses 14-pixel patches on a 448 by 448 image and a [CLS] token. How many tokens enter the first encoder block?
+    answer: 1025
+    tolerance: 0
+    explanation: $448/14 = 32$ patches per side, $32^2 = 1024$ patches, plus [CLS] gives 1025.
+  - id: vit-data
+    type: single
+    difficulty: medium
+    prompt: The original ViT lost to ResNets when trained only on ImageNet-1k, yet DeiT matched them on the same data. What changed?
+    options:
+      - DeiT used a different attention mechanism
+      - The original paper had a bug
+      - ViTs lack CNN priors like locality, so they overfit with little data; DeiT compensated with strong augmentation, regularisation, and distillation
+      - ViTs cannot work without 300 million images
+    answer: 2
+    explanation: Weaker built-in assumptions mean the network must learn them from data. DeiT's recipe (RandAugment, Mixup, CutMix, stochastic depth, distillation) supplies that.
+    why_not:
+      - DeiT kept standard attention.
+      - The result was real; it reflected the training recipe and data scale.
+      - Correct.
+      - DeiT showed that is false.
+  - id: vit-preln
+    type: single
+    difficulty: medium
+    prompt: Why do ViTs and modern LLMs use pre-LayerNorm, $x + f(\text{LN}(x))$, rather than post-LayerNorm, $\text{LN}(x + f(x))$?
+    options:
+      - It uses fewer parameters
+      - The residual stream is never normalised, so deep stacks train stably without delicate warmup
+      - They are mathematically identical
+      - Post-LN cannot be implemented on GPUs
+    answer: 1
+    explanation: With post-LN every block's output passes through a normalization, which makes gradients harder to control as depth grows. Pre-LN keeps a clean residual path.
+    why_not:
+      - Both use the same LayerNorm parameters.
+      - Correct.
+      - They behave differently in training.
+      - Both are easy to implement.
+  - id: vit-swin
+    type: single
+    difficulty: medium
+    prompt: What problem does Swin Transformer's windowed attention solve?
+    options:
+      - Missing batch norm support
+      - Overfitting to texture
+      - Vanishing gradients
+      - Full attention cost grows with the square of the patch count; attending within local windows makes it grow linearly, and shifted windows let information cross windows
+    answer: 3
+    explanation: At high resolution with small patches there are thousands of tokens. Local windows make attention cost proportional to the number of tokens times the window size.
+    why_not:
+      - Unrelated.
+      - Unrelated.
+      - Residual connections handle gradients.
+      - Correct.
+  - id: vit-param-calc
+    type: numeric
+    difficulty: hard
+    prompt: Using the approximation of $12D^2$ parameters per encoder block, roughly how many million parameters are in the 24 blocks of ViT-L ($D = 1024$)? Round to the nearest million.
+    answer: 302
+    tolerance: 2
+    explanation: $12 \times 1024^2 = 12{,}582{,}912$ per block, times 24 blocks $= 301{,}989{,}888 \approx 302$ million. The full ViT-L/16 is about 304 million with embeddings and head.
+  - id: vit-resolution-diagnose
+    type: single
+    difficulty: hard
+    prompt: You load a ViT pretrained at 224 pixels and fine-tune at 384 pixels. Loading fails with a shape mismatch on `pos_embed` (197 versus 577). What is the right fix?
+    options:
+      - Truncate the new sequence to 197 tokens
+      - Reinitialize the position embeddings randomly
+      - Reshape the 196 patch positions into a 14 by 14 grid, interpolate in 2-D to 24 by 24, flatten, and keep the [CLS] position as is
+      - Switch to 32-pixel patches
+    answer: 2
+    explanation: 2-D interpolation preserves the learned spatial layout. Libraries such as timm do this when you set a new image size.
+    why_not:
+      - Truncation drops most of the image.
+      - Random positions throw away learned structure and slow fine-tuning.
+      - Correct.
+      - Changing the patch size breaks the pretrained patch-embedding weights.
+  - id: vit-backbone-design
+    type: single
+    difficulty: medium
+    prompt: You need general-purpose frozen image features for retrieval across a product catalogue, with no labels. Which backbone is the best starting point?
+    options:
+      - A ViT trained from scratch on your catalogue with a classification head
+      - A self-supervised or contrastive pretrained ViT (DINOv2- or CLIP/SigLIP-style), used frozen
+      - An ImageNet-supervised ResNet's logits
+      - A U-Net encoder
+    answer: 1
+    explanation: Self-supervised and contrastive backbones are trained to produce features that work well frozen for similarity search.
+    why_not:
+      - You have no labels, and training from scratch needs lots of data.
+      - Correct.
+      - Class logits are tuned to 1000 ImageNet classes and are weak for fine-grained retrieval.
+      - Segmentation encoders are not trained for whole-image similarity.

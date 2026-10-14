@@ -5,6 +5,7 @@ skill: llms
 minutes: 45
 prerequisites: [rag-pipeline, classification-metrics, probability-and-statistics]
 related: [rag-pipeline, reliability-cost-and-observability, ai-security]
+adapted_from: [phases/19-capstone-projects/68-rag-eval-precision-recall, phases/19-capstone-projects/72-code-exec-metric, phases/19-capstone-projects/73-perplexity-calibration, phases/05-nlp-foundations-to-advanced/27-llm-evaluation-frameworks, phases/11-llm-engineering/10-evaluation, phases/14-agent-engineering/30-eval-driven-agent-development]
 ---
 
 # Evaluating LLM systems
@@ -95,32 +96,141 @@ On the same 40 cases, v2 fixed 6 cases and broke 2, so accuracy rose from 0.75 t
 
 ## 4. Implementation
 
-```python
-import numpy as np
+The full script is [`code/17-llm-evaluation/eval_scratch.py`](../../code/17-llm-evaluation/eval_scratch.py) (NumPy and stdlib only). It implements every metric this lesson uses, reproduces worked examples 1 to 3, and adds three that come up constantly in practice: claim-level faithfulness, pass@k for code, and calibration error. All cases are synthetic.
 
-def recall_at_k(rels, k, total_relevant):
-    return sum(rels[:k]) / total_relevant
+### Build it from scratch
+
+**Step 1: ranking metrics.** `rels` is the relevance of each returned result in rank order. Recall needs $R$, the number of relevant items that exist, which the ranked list alone cannot tell you. Rank $i + 1$ (1-based) is discounted by $\log_2(i + 2)$ because Python counts from 0.
+
+```python
+def recall_at_k(rels, k, R):
+    return sum(rels[:k]) / R
+
+def reciprocal_rank(rels):
+    return next((1 / (i + 1) for i, r in enumerate(rels) if r), 0.0)   # 0 if nothing relevant
 
 def ndcg_at_k(rels, k):
-    dcg = sum(r / np.log2(i + 2) for i, r in enumerate(rels[:k]))
-    idcg = sum(r / np.log2(i + 2) for i, r in enumerate(sorted(rels, reverse=True)[:k]))
+    dcg = sum(r / math.log2(i + 2) for i, r in enumerate(rels[:k]))   # rank i+1 -> log2(i+2)
+    idcg = sum(r / math.log2(i + 2) for i, r in enumerate(sorted(rels, reverse=True)[:k]))
     return dcg / idcg if idcg else 0.0
-
-def paired_bootstrap(a, b, n_boot=10_000, seed=0):
-    """95% CI for mean(b) - mean(a), resampling the same case indices for both."""
-    rng = np.random.default_rng(seed)
-    a, b = np.asarray(a), np.asarray(b)
-    diffs = [b[idx].mean() - a[idx].mean() for idx in (rng.integers(0, len(a), len(a)) for _ in range(n_boot))]
-    return np.percentile(diffs, [2.5, 97.5])
 ```
 
-An evaluation record should hold, per case: input, expected answer or rubric, expected sources, retrieved contexts, generated answer, per-metric scores, failure category, latency, token counts, cost, and the versions of prompt, model, and index.
+*Predict:* a query returns `[1, 1, 0, 0, 0]` and there are 4 relevant documents in total. nDCG@5 computed this way is 1.0. Is the retriever perfect?
 
-Runnable scripts: [`code/17-llm-evaluation/eval.py`](../../code/17-llm-evaluation/eval.py) (version comparison) and [`code/16-rag/rag_eval.py`](../../code/16-rag/rag_eval.py) (ranking metrics).
+**Step 2: exact match and token F1.** Normalize first (lowercase, strip punctuation and articles) so formatting noise doesn't count as wrong. F1 counts shared tokens with multiplicity, which the `Counter` intersection does in one line.
+
+```python
+def normalize(s):
+    s = s.lower().translate(str.maketrans("", "", string.punctuation))
+    return [t for t in s.split() if t not in {"a", "an", "the"}]
+
+def token_f1(pred, ref):
+    p, r = normalize(pred), normalize(ref)
+    overlap = sum((Counter(p) & Counter(r)).values())   # shared tokens, counted with multiplicity
+    if overlap == 0:
+        return 0.0
+    prec, rec = overlap / len(p), overlap / len(r)
+    return 2 * prec * rec / (prec + rec)
+```
+
+*Predict:* the answer "not within 30 days" against the reference "within 30 days". F1 is high. Is the answer right?
+
+**Step 3: faithfulness.** Split the answer into claims and ask, for each one, whether the retrieved context supports it. The score is the supported fraction. Frameworks such as RAGAS do this with an LLM or an NLI (entailment) model as the `supported` function; here a word-overlap rule stands in so the script runs offline.
+
+```python
+def faithfulness(answer, context, supported):
+    """`supported(claim, context) -> bool` is an NLI model or LLM judge in production."""
+    claims = [c.strip() for c in re.split(r"(?<=[.!?])\s+", answer) if c.strip()]
+    verdicts = [supported(c, context) for c in claims]
+    return sum(verdicts) / len(claims), list(zip(claims, verdicts))
+```
+
+*Predict:* the overlap rule passes "Refunds never go to the original payment method." Why, and what kind of judge would catch it?
+
+**Step 4: pass@k for code.** Generate $n$ samples per problem, run the tests, count $c$ passes. pass@k estimates the chance that at least one of $k$ samples passes: one minus the chance that all $k$ come from the $n - c$ failures. It is unbiased, unlike "pass rate of the first $k$ samples".
+
+```python
+def pass_at_k(n, c, k):
+    """Unbiased estimate: chance at least one of k samples passes, from n samples with c passing."""
+    if n - c < k:
+        return 1.0
+    return 1 - math.comb(n - c, k) / math.comb(n, k)
+```
+
+For $n = 20$, $c = 3$, $k = 5$: $\binom{17}{5} = 6188$, $\binom{20}{5} = 15504$, so pass@5 $= 1 - 6188/15504 = 1 - 0.399 = 0.601$.
+
+*Predict:* what is pass@1 for $n = 20$, $c = 3$, without the formula?
+
+**Step 5: calibration.** If the system reports confidence (to route low-confidence answers to a human, say), check it. Bin answers by stated confidence; in each bin compare average confidence with actual accuracy; weight the gaps by bin size.
+
+```python
+def ece(conf, correct, bins=5):
+    conf, correct = np.asarray(conf), np.asarray(correct)
+    edges = np.linspace(0, 1, bins + 1)
+    total = 0.0
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        m = (conf > lo) & (conf <= hi)
+        if m.any():                               # weight each bin's |accuracy - confidence| by its size
+            total += m.mean() * abs(correct[m].mean() - conf[m].mean())
+    return total
+```
+
+On the script's ten synthetic answers: bin (0.4, 0.6] holds 2 answers, confidence 0.575, accuracy 0.5, gap 0.075. Bin (0.6, 0.8] holds 4, confidence 0.725, accuracy 0.25, gap 0.475. Bin (0.8, 1.0] holds 4, confidence 0.9, accuracy 0.75, gap 0.15. ECE $= 0.2(0.075) + 0.4(0.475) + 0.4(0.15) = 0.015 + 0.19 + 0.06 = 0.265$.
+
+*Predict:* a system always says 50% confidence and is right half the time. What is its ECE, and is it useful?
+
+**Step 6: paired bootstrap.** Resample *cases* with replacement, and use the same resampled cases for both versions. That keeps each case's difficulty attached to both scores, which is what makes the interval narrow enough to be useful.
+
+```python
+def paired_bootstrap(a, b, n_boot=10_000, seed=0):
+    rng = np.random.default_rng(seed)
+    a, b = np.asarray(a), np.asarray(b)
+    idx = rng.integers(0, len(a), (n_boot, len(a)))   # resample CASES; both versions share them
+    return np.percentile(b[idx].mean(1) - a[idx].mean(1), [2.5, 97.5])
+```
+
+*Predict:* resample `a` and `b` with *separate* indices. Does the interval get wider or narrower?
+
+### Use the library
+
+The metric math is small; the libraries add datasets, judges, and reporting:
+
+```python
+from sklearn.metrics import ndcg_score                    # graded relevance, batched queries
+ndcg_score([[0, 1, 0, 1, 0]], [[5, 4, 3, 2, 1]])          # true relevance, system scores -> 0.651
+
+import evaluate                                           # pip install evaluate
+squad = evaluate.load("squad")                            # exact match and token F1, normalized like step 2
+```
+
+RAGAS implements step 3 (faithfulness) plus context precision and recall with an LLM judge; DeepEval wraps metrics as pytest-style tests for CI; Inspect and promptfoo run eval suites against models and prompts. Whatever you use, freeze the judge model and its prompt, log every judge rationale, and check the judge against at least a hundred human labels before trusting its numbers.
+
+### Run it
+
+```bash
+uv run code/17-llm-evaluation/eval_scratch.py
+```
+
+Key lines of output:
+
+```text
+recall@1,3,5: [0.0, 0.5, 1.0] RR 0.500  nDCG@5 0.651
+MRR over 4 queries (first relevant at 1, 2, none, 3): 0.458
+EM 0  F1 0.571  |  EM('The 30 days of purchase.') 1
+  UNSUPPORTED | A store credit option is also available.
+faithfulness = 0.67
+pass@1 = 0.150  pass@5 = 0.601  pass@10 = 0.895
+mean confidence 0.76, accuracy 0.50, ECE 0.265
+accuracy 0.75 -> 0.85; paired 95% CI for the gain [-0.025, +0.225]
+```
+
+The first three lines are worked examples 1 and 2. The last line rebuilds worked example 3's shape (6 fixed, 2 broken out of 40) and gets the same interval, which includes 0. The figure, failure categories, latency, and cost comparison are in [`code/17-llm-evaluation/eval.py`](../../code/17-llm-evaluation/eval.py).
 
 ## 5. Engineering
 
 **LLM-as-judge.** Useful for scaling rubric grading, but judges have known biases: position bias (preferring the first answer shown), verbosity bias (preferring longer answers), self-preference (favoring their own model family), and inconsistency across runs. Mitigate with clear rubrics, randomized order, reference answers, pairwise comparisons, and regular agreement checks against human labels.
+
+**Eval-driven development.** Write the eval cases before the change, the way you would write a failing test: a new prompt, model, or agent step ships only when it fixes the target cases without regressing the rest. Keep the suite in version control next to the code, run a fast subset in CI on every change and the full suite before release, and turn every production incident into a new case.
 
 **Human evaluation** remains the ground truth for usefulness and tone; sample regularly and measure agreement between raters.
 
@@ -139,6 +249,7 @@ Runnable scripts: [`code/17-llm-evaluation/eval.py`](../../code/17-llm-evaluatio
 - Treating a 2-point change on 50 cases as meaningful.
 - Using only exact match for free-form answers.
 - Letting the eval set go stale as the product changes.
+- Letting judge or parsing failures become missing values that silently drop out of the average. Count them as failures and report them.
 
 ## 6. Knowledge check
 
@@ -168,6 +279,12 @@ DCG@5 $= 1/\log_2 2 + 1/\log_2 4 = 1 + 0.5 = 1.5$. With $R = 3$ the ideal orderi
 **Next:** [LLM inference](../18-llm-inference/01-llm-inference.md)
 
 **Related:** [The RAG pipeline](../16-rag/01-rag-pipeline.md) · [Classification metrics](../04-classification/02-classification-metrics.md) · [Securing AI systems](../21-safety-security/01-ai-security.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Natural Language Inference — Textual Entailment](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/21-nli-textual-entailment) · [Long-Context Evaluation — NIAH, RULER, LongBench, MRCR](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/28-long-context-evaluation) · [Evaluation: Benchmarks, Evals, LM Harness](https://aiengineeringfromscratch.com/lesson?path=phases/10-llms-from-scratch/10-evaluation) · [Benchmarks: SWE-bench, GAIA, AgentBench](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/19-benchmarks-swebench-gaia) · [METR Time Horizons and External Capability Evaluation](https://aiengineeringfromscratch.com/lesson?path=phases/15-autonomous-systems/21-metr-external-evaluation) · [Language Model Evaluation Harness](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/49-lm-eval-harness) · [Classical Metrics](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/71-classical-metrics) · [Leaderboard Aggregation](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/74-leaderboard-aggregation)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [RAG Evaluation: Precision, Recall, MRR, nDCG, Faithfulness, Answer Relevance](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/68-rag-eval-precision-recall), [Code Exec Metric](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/72-code-exec-metric), [Perplexity and Calibration](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/73-perplexity-calibration), [LLM Evaluation — RAGAS, DeepEval, G-Eval](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/27-llm-evaluation-frameworks), [Evaluation & Testing LLM Applications](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/10-evaluation), [Eval-Driven Agent Development](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/30-eval-driven-agent-development).*
+<!-- /deeper -->
 
 ## Interview angle
 

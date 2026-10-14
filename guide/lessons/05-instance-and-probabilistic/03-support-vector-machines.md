@@ -5,6 +5,7 @@ skill: classical-ml
 minutes: 30
 prerequisites: [logistic-regression, vectors-and-matrices]
 related: [logistic-regression, k-nearest-neighbors, text-to-vectors]
+adapted_from: [phases/02-ml-fundamentals/05-support-vector-machines]
 ---
 
 # Support vector machines
@@ -86,6 +87,64 @@ A trained linear SVM has $w = (3, 4)$ and $b = -2$.
 
 ## 4. Implementation
 
+### Build it from scratch
+
+The full script is [`code/05-instance-and-probabilistic/svm_scratch.py`](../../code/05-instance-and-probabilistic/svm_scratch.py). It trains a linear SVM with plain NumPy by subgradient descent on the soft-margin objective, then checks it against scikit-learn. Production solvers use the dual form or coordinate descent instead, but they minimize the same objective.
+
+**Hinge loss and the objective.** Each point pays $\max(0, 1 - y_i f(x_i))$. Points with $y_i f(x_i) \ge 1$ sit outside the street and pay nothing; points inside the street or on the wrong side pay linearly. We write the soft margin as $\frac{\lambda}{2}\lVert w\rVert^2 + \frac{1}{n}\sum_i \text{hinge}_i$. This is the section 3 objective divided by $Cn$, so it has the same minimizer when $C = 1/(\lambda n)$: large $\lambda$ means small $C$, a wider street with more violations.
+
+```python
+def hinge(X, y, w, b):
+    margins = y * (X @ w + b)                  # y_i f(x_i): >= 1 means safely outside the street
+    return np.maximum(0.0, 1.0 - margins)      # [n], zero for points beyond the margin
+
+def objective(X, y, w, b, lam):                # lambda/2 ||w||^2 + mean hinge
+    return 0.5 * lam * w @ w + hinge(X, y, w, b).mean()
+```
+
+*Predict:* a correctly classified point has $y f(x) = 0.5$. What is its hinge loss? And if you multiply $\lambda$ by 10, does the margin width $2/\lVert w\rVert$ grow or shrink?
+
+The script's first print applies `hinge` to the two points of the worked example in section 3 ($w = (3, 4)$, $b = -2$).
+
+**One subgradient step.** The hinge has a corner at $y f(x) = 1$, so we use a subgradient. Points outside the margin contribute zero gradient; only the "active" violators pull on $w$ and $b$. The regularizer shrinks $w$ every step. This is the support-vector idea in code: points that never become active never affect the answer.
+
+```python
+def step(X, y, w, b, lam, lr):
+    active = y * (X @ w + b) < 1               # only margin violators push on w and b
+    grad_w = lam * w - (y[active, None] * X[active]).sum(axis=0) / len(y)
+    grad_b = -y[active].sum() / len(y)
+    return w - lr * grad_w, b - lr * grad_b
+```
+
+*Predict:* you delete a training point that ends far outside the margin and retrain. Does the boundary move?
+
+**Train.** Repeat the step with a learning rate that decays as $1/\sqrt{t}$. A fixed step would bounce around the corner of the hinge forever; the decay lets it settle. Labels must be $\pm 1$, so the script converts scikit-learn's $\{0, 1\}$ with `2 * y01 - 1`.
+
+```python
+def fit_linear_svm(X, y, lam=0.01, lr=0.5, epochs=3000):
+    w, b = np.zeros(X.shape[1]), 0.0
+    for t in range(epochs):
+        w, b = step(X, y, w, b, lam, lr / np.sqrt(1 + t))   # decaying step for a non-smooth loss
+    return w, b
+```
+
+*Predict:* if you forget the label conversion and train on $\{0, 1\}$, what do the class-0 points contribute to `grad_w`?
+
+**The RBF kernel matrix.** A kernel SVM never builds features; it needs only pairwise similarities. Expanding $\lVert a - b\rVert^2 = \lVert a\rVert^2 + \lVert b\rVert^2 - 2a\cdot b$ computes all pairs with one matrix product. Clipping at 0 removes tiny negative values from floating-point rounding.
+
+```python
+def rbf_kernel(A, B, gamma=0.5):
+    sq = (A**2).sum(1)[:, None] + (B**2).sum(1)[None, :] - 2 * A @ B.T   # ||a - b||^2 for all pairs
+    return np.exp(-gamma * np.maximum(sq, 0.0))
+
+K = rbf_kernel(np.array([[0.0, 0.0], [1.0, 1.0], [3.0, 3.0]]), np.array([[0.0, 0.0]]))
+print(f"\nRBF similarity to (0,0), gamma=0.5: {K.ravel().round(4)}")
+```
+
+*Predict:* the kernel matrix for $n$ training points has how many entries? At $n = 100{,}000$ in float64, about how many gigabytes is that?
+
+### Use the library
+
 ```python
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import make_pipeline
@@ -101,7 +160,37 @@ search = GridSearchCV(rbf, {"svc__C": [0.1, 1, 10, 100], "svc__gamma": [0.01, 0.
 search.fit(X_train, y_train)
 ```
 
-`TfidfVectorizer` comes from `sklearn.feature_extraction.text`. Runnable script: [`code/05-instance-and-probabilistic/nb_svm.py`](../../code/05-instance-and-probabilistic/nb_svm.py).
+`TfidfVectorizer` comes from `sklearn.feature_extraction.text`.
+
+| Scratch | scikit-learn |
+|---|---|
+| `fit_linear_svm(..., lam=)` | `SVC(kernel="linear", C=1/(lam*n))`; `LinearSVC(C=)` for large data |
+| `w`, `b` | `coef_`, `intercept_` |
+| points with `y * f(x) <= 1` | `support_`, `support_vectors_` |
+| `rbf_kernel(..., gamma=)` | `SVC(kernel="rbf", gamma=)` |
+
+One difference: `LinearSVC` by default uses the squared hinge and also regularizes the intercept, so its weights differ slightly from `SVC(kernel="linear")`. The script compares against `SVC`, which minimizes exactly our objective.
+
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/05-instance-and-probabilistic/svm_scratch.py
+```
+
+Key output:
+
+```text
+worked example: margin width 0.40, hinge losses [0.  1.2]
+
+scratch: w=[1.439 0.334] b=0.042  objective 0.1531  train acc 0.935
+sklearn: w=[1.439 0.334] b=0.042  objective 0.1531  train acc 0.935  support vectors 35
+
+RBF similarity to (0,0), gamma=0.5: [1.000e+00 3.679e-01 1.000e-04]
+```
+
+On this synthetic data the scratch weights match scikit-learn's to three decimals. The RBF line matches the worked example: $e^{-0.5 \times 2} = 0.368$ for $(1, 1)$, and $e^{-0.5 \times 18} \approx 0.0001$ for $(3, 3)$. The figure script is [`code/05-instance-and-probabilistic/nb_svm.py`](../../code/05-instance-and-probabilistic/nb_svm.py).
 
 ## 5. Engineering
 
@@ -148,6 +237,12 @@ $\lVert w \rVert = \sqrt{2} = 1.414$, so the margin is $2/1.414 = 1.414$. $f(x) 
 **Next:** [Decision trees](../06-trees-and-ensembles/01-decision-trees.md)
 
 **Related:** [Logistic regression](../04-classification/01-logistic-regression.md) · [K-nearest neighbors](01-k-nearest-neighbors.md) · [Model card: SVM](../../models/support-vector-machine.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Convex Optimization](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/18-convex-optimization)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Support Vector Machines](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/05-support-vector-machines).*
+<!-- /deeper -->
 
 ## Interview angle
 

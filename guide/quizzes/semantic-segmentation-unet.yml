@@ -1,0 +1,128 @@
+title: Semantic segmentation and U-Net
+lesson: semantic-segmentation-unet
+questions:
+  - id: seg-skips
+    type: single
+    difficulty: easy
+    prompt: Why does U-Net need skip connections between encoder and decoder?
+    options:
+      - Transposed convolutions require extra inputs
+      - To match framework shape conventions
+      - The encoder trades spatial detail for context; skips hand the decoder the encoder's high-resolution features so it can place edges precisely
+      - To speed up training
+    answer: 2
+    explanation: Decoding from the bottleneck alone gives blocky edges and loses small objects. Concatenating encoder features at each resolution supplies the detail.
+    why_not:
+      - Upsampling layers need no extra inputs.
+      - Shapes are not the reason; skips change what information is available.
+      - Correct.
+      - Speed is not the purpose, though shorter gradient paths help training a little.
+  - id: seg-imbalance
+    type: single
+    difficulty: medium
+    prompt: A task has 99 percent background and 1 percent tumour pixels. Training with plain cross-entropy reaches 99 percent pixel accuracy. What most likely happened?
+    options:
+      - The loss was implemented incorrectly
+      - The model converged to a good solution
+      - The model predicts background almost everywhere; pixel accuracy is dominated by the majority class
+      - The optimizer failed
+    answer: 2
+    explanation: All-background predictions score 99 percent accuracy and 0 tumour IoU. Add Dice (or focal) loss and report per-class IoU or Dice.
+    why_not:
+      - A correct cross-entropy produces exactly this behaviour on imbalanced data.
+      - 99 percent accuracy is what doing nothing scores here.
+      - Correct.
+      - The optimizer found a real minimum of the wrong objective.
+  - id: seg-task-type
+    type: single
+    difficulty: easy
+    prompt: Which task gives each of several touching cars its own mask?
+    options:
+      - Semantic segmentation
+      - Instance segmentation
+      - Image classification
+      - Neither; you need a detector
+    answer: 1
+    explanation: Semantic segmentation merges touching cars into one "car" region. Instance segmentation (and panoptic) keeps separate object ids.
+    why_not:
+      - Semantic labels say "car" but not which car.
+      - Correct.
+      - Classification gives one label per image.
+      - Instance segmentation often uses a detector inside it, but its output is per-object masks.
+  - id: seg-checkerboard
+    type: single
+    difficulty: hard
+    prompt: A decoder using `ConvTranspose2d(kernel_size=3, stride=2)` produces checkerboard patterns. Why?
+    options:
+      - Transposed convolution is broken in PyTorch
+      - The learning rate is too low
+      - Kernel size is not divisible by stride, so alternate output pixels receive different numbers of contributions
+      - Batch norm is missing
+    answer: 2
+    explanation: With kernel 3 and stride 2, interior outputs alternate between 1 and 2 contributions, creating a periodic pattern. Kernel 4 with stride 2, or bilinear upsampling plus a convolution, gives even coverage.
+    why_not:
+      - It is a property of the operation, not a bug.
+      - Learning rate does not create a fixed spatial period.
+      - Correct.
+      - Normalization does not fix uneven overlap.
+  - id: seg-miou-hides
+    type: single
+    difficulty: medium
+    prompt: You report mIoU = 0.78 on 10 classes. Why also publish per-class IoU?
+    options:
+      - A mean can hide failures; 0.78 is consistent with eight classes at 0.9 and two at 0.3
+      - Frameworks require it
+      - Only medical imaging needs it
+      - Per-class IoU is always higher than mIoU
+    answer: 0
+    explanation: Deployment decisions depend on the weakest classes the product needs, which the mean conceals.
+    why_not:
+      - Correct.
+      - No framework requires it.
+      - Any multi-class task can hide a weak class.
+      - By definition some classes are at or below the mean.
+  - id: seg-iou-dice-calc
+    type: numeric
+    difficulty: medium
+    prompt: A model predicts 60 tumour pixels; the truth has 50; 40 pixels are in both. What is the Dice score for the tumour class? (Three decimals.)
+    answer: 0.727
+    tolerance: 0.002
+    explanation: Dice $= 2 \times 40/(60 + 50) = 80/110 = 0.727$. IoU is $40/70 = 0.571$, and $2 \times 0.571/1.571 = 0.727$ confirms it.
+  - id: seg-bottleneck-shape
+    type: fill
+    difficulty: medium
+    prompt: A four-level U-Net with base width 64 receives a 512 by 512 image. What is the bottleneck's spatial size per side? Answer with a number.
+    answer: ["32"]
+    explanation: Four poolings divide each side by $2^4 = 16$, so $512/16 = 32$. The bottleneck is $[1024, 32, 32]$.
+  - id: seg-mask-resize
+    type: single
+    difficulty: hard
+    prompt: After resizing images and masks with bilinear interpolation, training masks contain class id 1.5 on borders, and IoU for class 2 is oddly high near class-1 edges. What is the fix?
+    options:
+      - Use a higher learning rate
+      - Resize masks with nearest-neighbour interpolation (images can stay bilinear)
+      - Add Dice loss
+      - Normalize the masks
+    answer: 1
+    explanation: Bilinear interpolation averages class ids and creates labels that don't exist (rounding 1.5 can give class 2). Masks must use nearest-neighbour so every pixel keeps a valid id.
+    why_not:
+      - Optimisation can't fix corrupted labels.
+      - Correct.
+      - The loss is not the problem; the targets are wrong.
+      - Class ids are categories; normalizing them is meaningless.
+  - id: seg-design-hires
+    type: single
+    difficulty: hard
+    prompt: You must segment 4000 by 4000 pixel satellite tiles on a GPU with 16 GB. Which plan is most sensible?
+    options:
+      - Downsample to 256 by 256 and upsample the prediction
+      - Train on random 512 by 512 crops and predict with overlapping tiles stitched together, using a pretrained encoder
+      - Train on full 4000 by 4000 images with batch size 1
+      - Use image classification on each tile instead
+    answer: 1
+    explanation: Crops fit memory and keep native resolution; overlapping tiles avoid seams at prediction time; a pretrained encoder reduces label needs.
+    why_not:
+      - Small buildings and roads would vanish at that downsampling.
+      - Correct.
+      - Activations at that size do not fit in 16 GB for a U-Net.
+      - Classification gives one label per tile, not boundaries.

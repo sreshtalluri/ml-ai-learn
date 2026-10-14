@@ -10,7 +10,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "gen:quizzes": "node scripts/gen-quizzes.mjs",
-    "check:quizzes": "node scripts/gen-quizzes.mjs --check"
+    "check:quizzes": "node scripts/gen-quizzes.mjs --check",
+    "gen:upstream": "node scripts/gen-upstream.mjs",
+    "check:upstream": "node scripts/gen-upstream.mjs --check"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

@@ -1,0 +1,125 @@
+title: Few-shot and chain-of-thought
+lesson: few-shot-cot
+questions:
+  - id: fs-define
+    type: single
+    difficulty: easy
+    prompt: What is the difference between zero-shot and few-shot prompting?
+    options:
+      - Zero-shot gives only the instruction; few-shot adds input-output examples before the real input
+      - Zero-shot doesn't use a system prompt
+      - Few-shot uses a different, smaller model
+      - Few-shot trains the model on the examples
+    answer: 0
+    explanation: Few-shot examples are part of the context. They demonstrate format and style; no weights change.
+    why_not:
+      - Correct.
+      - Either style can have a system prompt.
+      - The model is the same; only the context differs.
+      - In-context examples don't update weights; that would be fine-tuning.
+  - id: fs-why-cot
+    type: single
+    difficulty: medium
+    prompt: Why does chain-of-thought improve accuracy on multi-step problems even though the model's weights don't change?
+    options:
+      - It activates a hidden reasoning mode in the weights
+      - Writing intermediate results as tokens lets later tokens condition on them, so each step is a small prediction instead of one big leap
+      - It makes the model use a larger vocabulary
+      - It reduces the number of tokens the model reads
+    answer: 1
+    explanation: A transformer does a fixed amount of work per token. Writing steps spreads the computation over more tokens and puts intermediate results in the context.
+    why_not:
+      - There's no special mode; the mechanism is extra generated context.
+      - Correct.
+      - The vocabulary is fixed.
+      - CoT increases tokens; that's its cost.
+  - id: fs-compound
+    type: numeric
+    difficulty: medium
+    prompt: Each reasoning step fails independently with probability 0.1. What is the probability a 5-step chain is fully correct? (3 decimals)
+    answer: 0.590
+    tolerance: 0.002
+    explanation: |
+      $(1 - 0.1)^5 = 0.9^5$. $0.9^2 = 0.81$, $0.81^2 = 0.6561$, $0.6561 \times 0.9 = 0.5905$.
+  - id: fs-sc-bound
+    type: numeric
+    difficulty: hard
+    prompt: Each chain is right with probability 0.6. With 3 independent chains, what is the probability that at least 2 are right? (3 decimals)
+    answer: 0.648
+    tolerance: 0.002
+    explanation: |
+      $k = 2$: $3 \times 0.6^2 \times 0.4 = 3 \times 0.36 \times 0.4 = 0.432$. $k = 3$: $0.6^3 = 0.216$. Sum $0.648$, up from 0.6 for one chain.
+  - id: fs-sc-fail
+    type: single
+    difficulty: hard
+    prompt: In which situation does self-consistency voting make accuracy worse than a single chain?
+    options:
+      - When single-chain accuracy is 0.9 and errors are random
+      - When the model usually makes the same wrong answer, so wrong chains agree and outvote the right one
+      - When you use 5 chains instead of 3
+      - When the answers are numbers
+    answer: 1
+    explanation: Voting amplifies whatever the majority does. With agreeing wrong chains and p = 0.4, five-way voting gives about 0.32.
+    why_not:
+      - High accuracy with random errors is where voting helps most.
+      - Correct.
+      - More chains help when errors scatter; the count alone doesn't cause harm.
+      - Short comparable answers like numbers are what voting needs.
+  - id: fs-temp0
+    type: single
+    difficulty: medium
+    prompt: A teammate runs self-consistency with 5 chains at temperature 0 and sees no accuracy gain. Why?
+    options:
+      - Five chains is too few
+      - Greedy decoding returns the same chain every time, so all five votes are identical
+      - Temperature 0 disables chain-of-thought
+      - The extractor can't parse greedy outputs
+    answer: 1
+    explanation: Self-consistency needs diverse samples; at temperature 0 there is nothing to vote over.
+    why_not:
+      - The count isn't the issue; identical samples give one vote five times.
+      - Correct.
+      - The model still writes its reasoning at temperature 0.
+      - Parsing doesn't depend on temperature.
+  - id: fs-examples
+    type: single
+    difficulty: medium
+    prompt: Your few-shot classifier labels most inputs with the label of the last example. What is the best first fix?
+    options:
+      - Add more examples with the same label
+      - Balance examples across labels, vary their order, and retrieve examples similar to each input
+      - Remove the instruction and keep only examples
+      - Raise the temperature
+    answer: 1
+    explanation: Models can be biased by label frequency and recency in examples. Balance, order, and relevance address the cause.
+    why_not:
+      - That strengthens the bias.
+      - Correct.
+      - Instructions and label definitions help reduce the bias; removing them makes it worse.
+      - Random noise doesn't fix a systematic bias.
+  - id: fs-reasoning-model
+    type: single
+    difficulty: medium
+    prompt: You switch to a reasoning model that thinks before answering. What should you do with your hand-written "Let's think step by step" scaffolding?
+    options:
+      - Keep it and add more worked reasoning examples
+      - Remove it, state the goal, constraints, and output format clearly, and control effort with the reasoning or thinking budget setting
+      - Replace it with "answer immediately"
+      - Run self-consistency with 20 chains on top
+    answer: 1
+    explanation: Reasoning models already do chain-of-thought internally; extra scaffolding is redundant and can hurt.
+    why_not:
+      - Redundant tokens, and rigid examples can constrain the model's own reasoning.
+      - Correct.
+      - That fights the model's design and usually lowers accuracy on hard tasks.
+      - Very expensive; measure a single call first.
+  - id: fs-choose
+    type: match
+    difficulty: medium
+    prompt: Match each task with the technique that fits it best.
+    pairs:
+      - ["Extract invoice fields into an exact JSON layout", "Few-shot examples plus structured output"]
+      - ["Grade-school word problem on a non-reasoning model", "Chain-of-thought"]
+      - ["High-stakes numeric answer, no way to verify it", "Self-consistency voting"]
+      - ["Puzzle where single chains often dead-end", "Tree-of-thought search"]
+    explanation: Examples fix format, CoT lowers per-step error, voting removes random errors, and tree search explores alternatives.

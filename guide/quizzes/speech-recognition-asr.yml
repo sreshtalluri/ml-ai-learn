@@ -1,0 +1,130 @@
+title: Speech recognition
+lesson: speech-recognition-asr
+questions:
+  - id: asr-collapse
+    type: fill
+    difficulty: easy
+    prompt: "Apply the CTC collapse rule (merge repeats, then delete blanks `_`) to the path `cc_aa_t_t`. What text results?"
+    answer: ["catt"]
+    explanation: "`cc` → c, `_`, `aa` → a, `_`, `t`, `_`, `t`. The blank between the two t's keeps both: catt."
+  - id: asr-blank
+    type: single
+    difficulty: easy
+    prompt: Why does CTC need a blank token?
+    options:
+      - To mark the end of a sentence
+      - To fill frames with no new output and to separate genuine double letters, which would otherwise merge
+      - To represent unknown words
+      - To pad batches to the same length
+    answer: 1
+    explanation: Without blanks, `ll` would always collapse to one `l`, and every frame would have to emit a letter.
+    why_not:
+      - CTC has no end-of-sentence role for the blank.
+      - Correct.
+      - Unknown words are handled by the vocabulary (characters or subwords).
+      - Padding is handled by length arguments, not by the blank.
+  - id: asr-forward
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Two frames, vocabulary {blank, a}. Frame 1: P(blank) = 0.3, P(a) = 0.7. Frame 2: P(blank) = 0.6, P(a) = 0.4. What is P("a") under CTC? (2 decimals)
+    answer: 0.82
+    tolerance: 0.005
+    explanation: |
+      Paths collapsing to "a": `aa` $0.7 \times 0.4 = 0.28$, `a_` $0.7 \times 0.6 = 0.42$, `_a` $0.3 \times 0.4 = 0.12$. Sum $0.82$.
+  - id: asr-greedy
+    type: single
+    difficulty: medium
+    prompt: Why can greedy CTC decoding return a transcript that isn't the most probable one?
+    options:
+      - Greedy decoding ignores the blank token
+      - It picks the single best path, but a transcript's probability is the sum over many paths, and another transcript can have more total mass
+      - Greedy decoding is only an approximation of the softmax
+      - It always returns an empty string
+    answer: 1
+    explanation: Two frames at P(blank) = 0.6 give greedy "" (0.36) while "a" sums to 0.64 over three paths.
+    why_not:
+      - Greedy decoding uses blanks and then removes them.
+      - Correct.
+      - It uses the softmax outputs exactly; the issue is path versus transcript.
+      - It returns whatever the argmax path collapses to.
+  - id: asr-wer
+    type: numeric
+    difficulty: medium
+    prompt: A 25-word reference is transcribed with 3 substitutions, 2 deletions, and 1 insertion. What is the WER? (2 decimals)
+    answer: 0.24
+    tolerance: 0.001
+    explanation: $(3 + 2 + 1) / 25 = 6 / 25 = 0.24$.
+  - id: asr-wer-over
+    type: single
+    difficulty: medium
+    prompt: Can word error rate exceed 1.0?
+    options:
+      - No, it is a fraction of reference words
+      - Yes, because insertions are not limited by the reference length
+      - Only if the reference is empty
+      - Only for character error rate
+    answer: 1
+    explanation: A hypothesis that adds many words that weren't said can have more errors than reference words.
+    why_not:
+      - Insertions are counted in the numerator but not limited by N.
+      - Correct.
+      - An empty reference makes WER undefined, not merely above 1.
+      - Word error rate can too.
+  - id: asr-streaming
+    type: single
+    difficulty: medium
+    prompt: Which architecture is the usual choice for low-latency streaming recognition on a device?
+    options:
+      - Attention encoder-decoder over a 30-second window
+      - Streaming transducer (RNN-T style), or chunked CTC
+      - Any model, as long as beam width is large
+      - A text LLM with no audio encoder
+    answer: 1
+    explanation: Transducers and chunked CTC process audio left to right and emit tokens as it arrives.
+    why_not:
+      - Full-window attention needs the whole chunk before decoding, adding latency.
+      - Correct.
+      - Beam width doesn't make a non-streaming model stream.
+      - A text model can't hear audio.
+  - id: asr-hallucinate
+    type: single
+    difficulty: hard
+    prompt: A Whisper-based transcriber outputs fluent sentences during long silences. What is the best first fix?
+    options:
+      - Increase the beam size
+      - Run voice activity detection and only transcribe speech regions; reject low-confidence or repetitive segments
+      - Switch the language to auto-detect
+      - Lower the audio volume
+    answer: 1
+    explanation: Autoregressive decoders can hallucinate on non-speech. Don't feed them silence, and use their confidence signals.
+    why_not:
+      - A bigger beam still decodes from silence.
+      - Correct.
+      - Language ID errors on silence often make things worse.
+      - Volume doesn't stop the decoder from generating text.
+  - id: asr-normalize
+    type: single
+    difficulty: medium
+    prompt: Your system's WER is 12 percent; a paper reports 4 percent on the same test set. What should you check first?
+    options:
+      - Whether your GPU is slower
+      - Whether both used the same text normalization (casing, punctuation, numbers) before computing WER
+      - Whether the paper used more beams
+      - Whether your audio files are larger
+    answer: 1
+    explanation: Unnormalized punctuation and casing differences count as errors and can inflate WER several-fold.
+    why_not:
+      - Speed doesn't change WER.
+      - Correct.
+      - Beam size matters a little; normalization can matter a lot more.
+      - File size isn't relevant.
+  - id: asr-compare
+    type: match
+    difficulty: medium
+    prompt: Match each formulation with its defining property.
+    pairs:
+      - ["CTC", "Independent per-frame predictions with a blank; fast, non-autoregressive"]
+      - ["RNN-T (transducer)", "Prediction network over past tokens; streams left to right"]
+      - ["Attention encoder-decoder", "Autoregressive decoder cross-attends to all audio; strong offline, can hallucinate"]
+    explanation: These are the three standard ways to align audio frames with text.

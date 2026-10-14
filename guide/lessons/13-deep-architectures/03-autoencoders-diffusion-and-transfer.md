@@ -5,6 +5,7 @@ skill: deep-learning
 minutes: 35
 prerequisites: [neural-network-forward-pass, training-and-regularization, pca]
 related: [convolutional-networks, adapting-llms, pca]
+adapted_from: [phases/04-computer-vision/05-transfer-learning, phases/08-generative-ai/02-autoencoders-vae, phases/08-generative-ai/06-diffusion-ddpm-from-scratch]
 ---
 
 # Autoencoders, diffusion, and transfer learning
@@ -84,6 +85,85 @@ A pretrained image backbone has 25 million parameters and outputs a 2,048-dimens
 
 ## 4. Implementation
 
+The full script is [`code/13-deep-architectures/generative_scratch.py`](../../code/13-deep-architectures/generative_scratch.py) (NumPy only, synthetic data). It trains an autoencoder by hand, shows the two extra pieces a VAE needs, and builds a complete one-dimensional diffusion model: schedule, forward noising, a trained noise predictor, and the reverse sampler.
+
+### Build it from scratch
+
+**Step 1: a linear autoencoder.** Encode with `E` (`[d, k]`), decode with `D` (`[k, d]`), and run gradient descent on the squared reconstruction error. The two gradient lines are backpropagation through two matrix multiplies.
+
+```python
+def train_autoencoder(X, k, lr=0.01, steps=3000):
+    d = X.shape[1]
+    E, D = rng.normal(scale=0.1, size=(d, k)), rng.normal(scale=0.1, size=(k, d))
+    for _ in range(steps):
+        Z = X @ E                                  # encode  [n, k]
+        R = Z @ D - X                              # reconstruction error [n, d]
+        gD = Z.T @ R / len(X)                      # dL/dD
+        gE = X.T @ (R @ D.T) / len(X)              # dL/dE, chain rule through Z
+        E, D = E - lr * gE, D - lr * gD
+    return E, D
+```
+
+*Predict:* with no nonlinearity and a 2-number bottleneck, what is the best reconstruction this can reach? Compare it with [PCA](../08-dimensionality-reduction/01-pca.md) keeping 2 components.
+
+**Step 2: the VAE's two extra pieces.** The encoder outputs a mean and a log-variance instead of one code. Sampling $z$ directly would block gradients, so write it as $z = \mu + \sigma\epsilon$ with the randomness moved into $\epsilon$. The KL term, which pulls each code distribution toward $\mathcal{N}(0, 1)$, has a closed form.
+
+```python
+def reparameterize(mu, log_var, eps):
+    return mu + np.exp(0.5 * log_var) * eps        # z = mu + sigma * eps; randomness is in eps
+
+def kl_to_standard_normal(mu, log_var):
+    return 0.5 * np.sum(np.exp(log_var) + mu ** 2 - 1 - log_var)
+```
+
+*Predict:* for $\mu = 1$, $\sigma = 1$ in one dimension, the KL is $0.5(1 + 1 - 1 - 0)$. What is it, and what does the penalty push $\mu$ toward?
+
+**Step 3: the noise schedule and forward process.** Pick a small $\beta_t$ for each step, compute $\bar\alpha_t$ as a running product, and jump to any step in one line with the closed-form formula from section 3.
+
+```python
+T = 100
+betas = np.linspace(1e-4, 0.2, T)                  # noise added at each step (larger than the
+alphas = 1 - betas                                 # usual 0.02 because T is only 100)
+alpha_bar = np.cumprod(alphas)                     # signal variance left after t steps
+
+def noise(x0, t, eps):
+    return np.sqrt(alpha_bar[t]) * x0 + np.sqrt(1 - alpha_bar[t]) * eps
+```
+
+*Predict:* is $\bar\alpha_T$ close to 0 or to 1? What does $x_T$ look like, whatever $x_0$ was?
+
+**Step 4: train the noise predictor.** The DDPM loss is a regression: given $x_t$, predict the $\epsilon$ that made it. Real models use a U-Net or transformer conditioned on $t$. Here the data is one number, so a separate least-squares fit per step on five fixed features is enough, and it minimizes the same loss.
+
+```python
+def fit_noise_predictor(n=4000):
+    W = np.zeros((T, 5))
+    for t in range(T):                             # minimize ||eps - eps_hat(x_t, t)||^2
+        x0, eps = sample_data(n), rng.normal(size=n)
+        W[t] = np.linalg.lstsq(features(noise(x0, t, eps)), eps, rcond=None)[0]
+    return W
+```
+
+*Predict:* at small $t$, $x_t$ is nearly $x_0$. Is the noise easy or hard to predict there?
+
+**Step 5: generate.** Start from pure noise. At each step, subtract the predicted noise (scaled for that step), rescale, and add a little fresh noise, except at the last step.
+
+```python
+def sample(W, n):
+    x = rng.normal(size=n)                         # x_T ~ N(0, 1)
+    for t in reversed(range(T)):
+        eps_hat = features(x) @ W[t]
+        x = (x - betas[t] / np.sqrt(1 - alpha_bar[t]) * eps_hat) / np.sqrt(alphas[t])
+        if t > 0:
+            x += np.sqrt(betas[t]) * rng.normal(size=n)   # fresh noise, except at the last step
+    return x
+```
+
+*Predict:* the data has two clusters, at $-2$ and $+2$. Starting from a single Gaussian centered at 0, where do the samples end up?
+
+### Use the library
+
+PyTorch supplies the networks and autograd; the Hugging Face `diffusers` library supplies production schedulers (DDPM, DDIM, and faster samplers that need tens of steps instead of hundreds) and pretrained U-Nets. For transfer learning, `torchvision` and `timm` supply pretrained backbones, so the only from-scratch part is the new head.
+
 ```python
 import torch
 from torch import nn
@@ -103,7 +183,25 @@ for p in model.parameters():
 model.fc = nn.Linear(model.fc.in_features, 5)      # only this layer trains at first
 ```
 
-Runnable script (diffusion forward-process figure): [`code/13-deep-architectures/architectures.py`](../../code/13-deep-architectures/architectures.py).
+### Run it
+
+```bash
+uv run code/13-deep-architectures/generative_scratch.py
+```
+
+Key lines of the output (all data is synthetic):
+
+```text
+reconstruction MSE: autoencoder 0.00153, PCA 0.00151, data variance 0.937
+z for eps = [0.5, -2]: [ 1.5 -1. ]
+KL(N(mu, sigma^2) || N(0, 1)): 0.8181
+x_t = 1.30;  recovered x0 = 2.00
+t = 100: alpha_bar = 0.0000  (signal std 0.005)
+fraction near -2: 0.51, near +2: 0.49, between (|x| < 1): 0.00
+mean |x| = 1.99 (data: about 2.0)
+```
+
+A linear autoencoder reaches PCA's error, because the best linear 2-d code *is* the top-2 principal subspace. The fourth line is the worked example above. Starting from one Gaussian, the sampler splits the samples evenly between the two clusters and leaves none in the gap. The figure script is [`code/13-deep-architectures/architectures.py`](../../code/13-deep-architectures/architectures.py).
 
 ## 5. Engineering
 
@@ -119,7 +217,7 @@ Runnable script (diffusion forward-process figure): [`code/13-deep-architectures
 | Moderate data | fine-tune the top layers with a small learning rate |
 | Lots of data, different domain | fine-tune everything, or pretrain on in-domain data |
 
-Use a lower learning rate for pretrained layers than for the new head, and match the pretrained model's preprocessing (normalization, resolution, tokenizer).
+Use a lower learning rate for pretrained layers than for the new head, and match the pretrained model's preprocessing (normalization, resolution, tokenizer). A common recipe is discriminative learning rates: the head at the base rate, and each earlier group of layers at a fraction of the one above it (for example 0.3×), because early layers hold generic edges and textures that need little change. When the fine-tuning batch is small, also freeze BatchNorm's running statistics (put those layers in eval mode); otherwise a few noisy batches overwrite statistics estimated on millions of images.
 
 > [!WARNING]
 > **Failure modes.** Catastrophic forgetting when fine-tuning too aggressively; preprocessing mismatches with the pretrained model; licensing restrictions on pretrained weights; generative models reproducing training data or harmful content; anomaly detectors that reconstruct anomalies too well.
@@ -152,9 +250,15 @@ $\sqrt{0.36} = 0.6$ and $\sqrt{0.64} = 0.8$: $x_t = 0.6(1.0) + 0.8(2.0) = 2.2$. 
 - Diffusion models add noise in a fixed forward process ($x_t = \sqrt{\bar\alpha_t}x_0 + \sqrt{1-\bar\alpha_t}\epsilon$) and learn to predict and remove it.
 - Transfer learning reuses pretrained features: train a head for small data, fine-tune more with more data, always with care for learning rates and preprocessing.
 
-**Next:** [Self-attention](../14-transformers/01-self-attention.md)
+**Next:** [GANs, generator versus discriminator](04-gans-generator-discriminator.md)
 
 **Related:** [PCA](../08-dimensionality-reduction/01-pca.md) · [Adapting LLMs](../15-llms/03-adapting-llms.md) · [Model card: autoencoder](../../models/autoencoder.md) · [Model card: diffusion model](../../models/diffusion-model.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [World Models & Video Diffusion](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/28-world-models-video-diffusion) · [Generative Models — Taxonomy & History](https://aiengineeringfromscratch.com/lesson?path=phases/08-generative-ai/01-generative-models-taxonomy-history) · [Evaluation — FID, CLIP Score, Human Preference](https://aiengineeringfromscratch.com/lesson?path=phases/08-generative-ai/14-evaluation-fid-clip-score)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Transfer Learning & Fine-Tuning](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/05-transfer-learning), [Autoencoders & Variational Autoencoders (VAE)](https://aiengineeringfromscratch.com/lesson?path=phases/08-generative-ai/02-autoencoders-vae), [Diffusion Models — DDPM from Scratch](https://aiengineeringfromscratch.com/lesson?path=phases/08-generative-ai/06-diffusion-ddpm-from-scratch).*
+<!-- /deeper -->
 
 ## Interview angle
 

@@ -1,0 +1,145 @@
+title: Debugging neural networks
+lesson: debugging-neural-networks
+questions:
+  - id: dnn-silent
+    type: single
+    difficulty: easy
+    prompt: Why is debugging a neural network harder than debugging ordinary code?
+    options:
+      - There are no debugging tools for neural networks
+      - A broken network usually runs without errors and produces plausible-looking numbers, so bugs are silent
+      - Neural networks are written in special languages
+      - Neural networks can't be tested
+    answer: 1
+    explanation: Shape broadcasting, shuffled labels, or a dead layer all run fine and still print a loss.
+    why_not:
+      - Gradient checks, hooks, anomaly detection, and experiment trackers all exist.
+      - Correct.
+      - They are ordinary Python (or C++/CUDA underneath).
+      - Every check in this lesson is a test; they just test behaviour, not exact outputs.
+  - id: dnn-initial-loss
+    type: numeric
+    difficulty: easy
+    prompt: What step-0 cross-entropy loss do you expect from a well-initialized 10-class classifier? Give 3 decimals.
+    answer: 2.303
+    tolerance: 0.002
+    explanation: "A near-uniform prediction gives $-\\ln(1/10) = \\ln 10 = 2.303$."
+  - id: dnn-overfit-batch
+    type: single
+    difficulty: easy
+    prompt: What is the overfit-one-batch test?
+    options:
+      - Train on the full dataset until it overfits
+      - Tune hyperparameters on the validation set until it overfits
+      - Use a very large batch size
+      - Train repeatedly on one small batch with regularization off and check the loss goes near zero
+    answer: 3
+    explanation: Any correct model with enough capacity can memorize a handful of examples. If it can't, the loss, backward pass, optimizer wiring, or input-label pairing is broken.
+    why_not:
+      - That costs a full run and confounds data issues with plumbing issues.
+      - Overfitting the validation set is a mistake, not a test.
+      - Batch size isn't the point; the batch is deliberately small.
+      - Correct.
+  - id: dnn-nan
+    type: single
+    difficulty: medium
+    prompt: A run's loss becomes NaN after a few steps. What is the most likely cause?
+    options:
+      - The model has too few parameters
+      - The activation function is wrong
+      - The learning rate is too high (or a log/division hit zero), so values overflow
+      - The dataset is too small
+    answer: 2
+    explanation: Overshooting updates blow up weights and logits; overflow or log(0) then produces inf and NaN. Lower the LR 10×, use fused logits-in losses, add clipping.
+    why_not:
+      - A small model underfits; it doesn't produce NaN.
+      - Standard activations don't produce NaN on their own.
+      - Correct.
+      - Small data causes overfitting, not NaN.
+  - id: dnn-val-flat
+    type: single
+    difficulty: hard
+    prompt: Training loss falls steadily, but validation loss is flat from the very first epoch. What does this point to?
+    options:
+      - A train/validation mismatch, for example different preprocessing, a leak in training features, or a distribution shift
+      - The learning rate is too low
+      - The model needs more layers
+      - Classic overfitting
+    answer: 0
+    explanation: Overfitting shows validation improving first and then getting worse. Flat from the start means what's learned on train doesn't transfer at all, which usually means the two sets aren't processed or drawn the same way.
+    why_not:
+      - Correct.
+      - A low LR would slow training loss too.
+      - Capacity isn't the issue when training loss is falling.
+      - Overfitting has an initial period where validation improves.
+  - id: dnn-flat-first-check
+    type: single
+    difficulty: medium
+    prompt: The loss doesn't move at all from step 0. What do you check first?
+    options:
+      - Try a different architecture
+      - Switch optimizers
+      - That gradients are nonzero and reach the parameters, the optimizer holds the model's parameters, the LR isn't tiny, and the loss depends on the model's output
+      - Collect more data
+    answer: 2
+    explanation: A perfectly flat loss usually means updates aren't happening, which is a wiring problem. Architecture and data come later.
+    why_not:
+      - Changing the architecture before checking the plumbing adds unknowns.
+      - A different optimizer won't help if gradients never reach the weights.
+      - Correct.
+      - More data doesn't help a model that isn't updating.
+  - id: dnn-ratio-calc
+    type: numeric
+    difficulty: medium
+    prompt: A hidden layer has weight norm 8.0 and gradient norm 0.16, trained with SGD at learning rate 0.05. What is the update-to-weight ratio?
+    answer: 0.001
+    tolerance: 0.00005
+    explanation: "$r = \\eta\\lVert\\nabla W\\rVert / \\lVert W\\rVert = 0.05 \\times 0.16 / 8.0 = 0.008 / 8.0 = 0.001$, right at the common heuristic."
+  - id: dnn-tell-apart
+    type: single
+    difficulty: hard
+    prompt: Two runs both stall near $\ln K$. Run A's layer 2 has 97% of units off for every example and gradient norms around $10^{-4}$. Run B's per-layer stats look healthy and it can overfit one batch. Which diagnosis fits?
+    options:
+      - Both have dead ReLUs
+      - A has dead ReLUs (a model/initialization problem); B most likely has a data problem such as shuffled or misaligned labels
+      - A has shuffled labels; B has dead ReLUs
+      - Both have learning rates that are too low
+    answer: 1
+    explanation: Sick internals point to the model; healthy internals plus the ability to memorize point to the data having no learnable signal.
+    why_not:
+      - B's units are alive and its gradients are normal.
+      - Correct.
+      - Shuffled labels don't kill units; dead units don't depend on labels.
+      - A low LR would show small updates in every layer, not dead units, and B can overfit a batch.
+  - id: dnn-lr-finder
+    type: single
+    difficulty: medium
+    prompt: An LR range test shows the loss lowest at learning rate 1.0, exploding just above it. What learning rate do you start with?
+    options:
+      - "1.0, the minimum"
+      - About 0.1, roughly 10× below the minimum, then confirm with a couple of short runs
+      - "10, since higher is faster"
+      - "0.0001, to be safe"
+    answer: 1
+    explanation: The minimum sits right next to the divergence point and is biased by training progress during the sweep, so back off about 10×.
+    why_not:
+      - Right at the edge, small changes in data or schedule push it into divergence.
+      - Correct.
+      - The sweep already showed that range diverges.
+      - Four orders of magnitude below wastes most of the training budget.
+  - id: dnn-gradcheck-bug
+    type: single
+    difficulty: hard
+    prompt: Your hand-written backward pass gives a gradient-check relative error of 1.1 on hidden layers but $10^{-7}$ on the output layer. Where is the bug most likely?
+    options:
+      - In the softmax cross-entropy gradient
+      - In how gradients pass back through the hidden activations, for example a missing ReLU mask
+      - In the finite-difference step size
+      - Nowhere; errors around 1 are normal with ReLU
+    answer: 1
+    explanation: The output layer's gradient comes straight from the loss, and it checks out. Errors appear only once the gradient passes back through an activation, so the activation's backward is wrong.
+    why_not:
+      - If that were wrong, the output layer would fail too.
+      - Correct.
+      - A bad step size gives errors around $10^{-4}$ in every layer, not exactly where activations are.
+      - ReLU kinks add small errors on rare entries, not errors of order 1 across a layer.

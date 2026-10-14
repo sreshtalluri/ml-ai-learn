@@ -1,0 +1,120 @@
+title: Vision-language models
+lesson: vision-language-models
+questions:
+  - id: vlm-train-projector
+    type: single
+    difficulty: easy
+    prompt: In the first (alignment) stage of training a ViT-projector-LLM model, which component is usually trained?
+    options:
+      - All components together
+      - The vision encoder only
+      - The LLM only
+      - The projector only, with the vision encoder and LLM frozen
+    answer: 3
+    explanation: The projector is small (tens of millions of parameters) and learns to map vision features into the LLM's embedding space. Later stages unfreeze more.
+    why_not:
+      - That comes later, if at all.
+      - The vision encoder is usually frozen early to keep its pretrained features.
+      - The LLM is frozen in alignment.
+      - Correct.
+  - id: vlm-why-clip
+    type: single
+    difficulty: medium
+    prompt: Why do most VLMs use a CLIP- or SigLIP-trained vision encoder rather than an ImageNet-supervised one?
+    options:
+      - They have more parameters
+      - ResNets cannot produce tokens
+      - Their features were trained to align with text, so a small projector can map them into the LLM's word space
+      - They are always faster
+    answer: 2
+    explanation: Contrastive image-text pretraining shapes features that are already language-compatible.
+    why_not:
+      - Size is not the reason.
+      - Any CNN feature map can be flattened into tokens.
+      - Correct.
+      - Speed depends on the specific model.
+  - id: vlm-tokens
+    type: numeric
+    difficulty: easy
+    prompt: A VLM's vision encoder uses 14-pixel patches at 448 by 448 pixels with no token merging. How many image tokens does one image produce?
+    answer: 1024
+    tolerance: 0
+    explanation: $448/14 = 32$ per side, $32^2 = 1024$.
+  - id: vlm-tiling
+    type: numeric
+    difficulty: medium
+    prompt: A model tiles a large image into 4 tiles of 336 pixels plus one thumbnail (14-pixel patches) and then applies 2 by 2 token merging. How many image tokens result?
+    answer: 720
+    tolerance: 0
+    explanation: Each tile has $24^2 = 576$ tokens; five views give $2880$; merging divides by 4, giving $720$.
+  - id: vlm-projector-params
+    type: numeric
+    difficulty: medium
+    prompt: How many parameters (in millions, one decimal) does a two-layer MLP projector from 1024 to 4096 to 4096 have, including biases?
+    answer: 21.0
+    tolerance: 0.1
+    explanation: $1024 \times 4096 + 4096 + 4096 \times 4096 + 4096 = 20{,}979{,}712 \approx 21.0$ million.
+  - id: vlm-bridges
+    type: single
+    difficulty: medium
+    prompt: Compared with an MLP projector, what does a Q-Former (as in BLIP-2) trade?
+    options:
+      - It keeps every patch token but needs a larger LLM
+      - A fixed small number of query tokens per image (cheap context) at the risk of losing fine detail such as small text
+      - It removes the vision encoder
+      - It makes images free in the context window
+    answer: 1
+    explanation: Learned queries cross-attend to patch features and summarise them into, for example, 32 tokens regardless of resolution.
+    why_not:
+      - That describes the MLP projector.
+      - Correct.
+      - The Q-Former reads features from a vision encoder.
+      - The 32 query tokens still occupy the context.
+  - id: vlm-hallucination
+    type: single
+    difficulty: hard
+    prompt: A VLM confidently describes objects that are not in the image. Which evaluation best measures this?
+    options:
+      - Perplexity on captions
+      - Average answer length
+      - Yes/no questions about objects that are present and absent in labelled images, reporting the false-yes rate on absent objects separately
+      - Token generation latency
+    answer: 2
+    explanation: Absent-object probes (POPE-style) isolate object hallucination; aggregate accuracy hides it.
+    why_not:
+      - Perplexity measures fluency, not grounding.
+      - Length says nothing about correctness.
+      - Correct.
+      - Latency is unrelated.
+  - id: vlm-merge-bug
+    type: single
+    difficulty: hard
+    prompt: After porting a VLM to a new serving stack, answers ignore the image and later text seems garbled. The prompt has 576 `<image>` placeholders but the new processor produces 729 image features. What is the most likely cause and fix?
+    options:
+      - The LLM is too small; use a larger one
+      - Preprocessing (resolution or patch size) differs from the checkpoint's, so placeholder and feature counts disagree; match the processor configuration and fail loudly on any mismatch
+      - Sampling temperature is too high
+      - The projector needs retraining
+    answer: 1
+    explanation: 729 is $27^2$ (378 pixels with 14-pixel patches) versus 576, which is $24^2$ (336 pixels). Use the checkpoint's own processor and assert that counts match.
+    why_not:
+      - Model size does not explain a count mismatch.
+      - Correct.
+      - Temperature does not change the input sequence.
+      - The weights are fine; the inputs are wrong.
+  - id: vlm-design-counting
+    type: single
+    difficulty: medium
+    prompt: A warehouse needs an exact count of boxes on each pallet photo, plus a one-sentence damage note. Which design is best?
+    options:
+      - Ask a VLM for both
+      - A fine-tuned detector for the count, and a VLM (optionally given the detections) for the damage note
+      - CLIP zero-shot with prompts for each possible count
+      - A segmentation model for the note
+    answer: 1
+    explanation: Detectors count reliably and are easy to evaluate; VLMs are weak at counting but good at short descriptions.
+    why_not:
+      - VLM counting is unreliable, especially for many similar objects.
+      - Correct.
+      - CLIP is poor at counting.
+      - Segmentation produces masks, not sentences.

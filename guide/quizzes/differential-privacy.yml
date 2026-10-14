@@ -1,0 +1,125 @@
+title: Differential privacy
+lesson: differential-privacy
+questions:
+  - id: dp-definition
+    type: single
+    difficulty: easy
+    prompt: What does (ε, δ)-differential privacy guarantee?
+    options:
+      - The output never contains any personal data
+      - For datasets differing in one record, the probability of any output changes by at most a factor $e^\varepsilon$, except with probability δ
+      - Training data is encrypted at rest
+      - The model cannot learn any fact from the data
+    answer: 1
+    explanation: DP bounds how much the output can depend on any one record, so observers learn little about whether you were in the data.
+    why_not:
+      - DP bounds influence; the output can still describe patterns in the data.
+      - Correct.
+      - Encryption protects storage, not what a released output reveals.
+      - DP allows learning population-level patterns; that is its purpose.
+  - id: dp-laplace
+    type: numeric
+    difficulty: easy
+    prompt: You release a count (sensitivity 1) with the Laplace mechanism at ε = 0.25. What is the noise scale b?
+    answer: 4
+    tolerance: 0
+    explanation: $b = \Delta / \varepsilon = 1 / 0.25 = 4$.
+  - id: dp-sgd-steps
+    type: order
+    difficulty: easy
+    prompt: Put the steps of one DP-SGD update in order.
+    options:
+      - Compute each example's gradient separately
+      - Clip each per-example gradient to norm C
+      - Sum the clipped gradients and add Gaussian noise with standard deviation σC
+      - Update the parameters and record the step's privacy cost
+    explanation: Per-example gradients, clip, noise the sum, step and account.
+  - id: dp-clip-why
+    type: single
+    difficulty: medium
+    prompt: Why does DP-SGD clip each example's gradient rather than the batch gradient?
+    options:
+      - To speed up training
+      - To bound how much any one example can change the sum, which sets the sensitivity the noise must cover
+      - To make the loss convex
+      - Clipping the batch gradient gives the same guarantee
+    answer: 1
+    explanation: Per-example clipping caps one example's contribution at C, so noise proportional to C hides it. A batch clip lets one outlier still dominate.
+    why_not:
+      - Per-example gradients are slower, not faster.
+      - Correct.
+      - Clipping does not change the shape of the loss.
+      - Batch clipping does not bound any single example's influence.
+  - id: dp-rdp-eps
+    type: numeric
+    difficulty: hard
+    prompt: |
+      Full-batch DP gradient descent runs $T = 100$ steps with $\sigma = 16$ and $\delta = 10^{-5}$. Using $\varepsilon = \min_\alpha \left[\frac{T\alpha}{2\sigma^2} + \frac{\ln(1/\delta)}{\alpha-1}\right]$, compute ε to one decimal place. (Hint: the minimum is at $\alpha - 1 = \sqrt{\ln(10^5) \cdot 2\sigma^2 / T}$.)
+    answer: 3.2
+    tolerance: 0.05
+    explanation: |
+      $\frac{T}{2\sigma^2} = \frac{100}{512} = 0.1953$. $\alpha - 1 = \sqrt{11.513 / 0.1953} = \sqrt{58.95} = 7.678$, so $\alpha = 8.678$. $\varepsilon = 0.1953 \times 8.678 + 11.513 / 7.678 = 1.695 + 1.499 = 3.19$.
+  - id: dp-more-data
+    type: single
+    difficulty: medium
+    prompt: At the same σ, C, and number of steps, why does DP training lose less accuracy on 20,000 examples than on 200?
+    options:
+      - ε is smaller with more data in full-batch training
+      - The noise is added to the gradient sum and does not grow with n, so after dividing by n it is 100 times smaller relative to the signal
+      - Larger datasets need no clipping
+      - The accountant ignores large datasets
+    answer: 1
+    explanation: The noise standard deviation in the averaged gradient is $\sigma C / n$.
+    why_not:
+      - In the full-batch accountant, ε depends on σ, T, and δ, not on n.
+      - Correct.
+      - Clipping is still required to bound sensitivity.
+      - The accountant applies to every run regardless of size.
+  - id: dp-api-key
+    type: single
+    difficulty: hard
+    prompt: A DP fine-tuned model (example-level, ε = 3) still reproduces one customer's API key. Which is the most plausible explanation?
+    options:
+      - DP guarantees fail randomly
+      - The key appears in many of that customer's records, so example-level DP does not bound what the model learns about it; user-level DP and secret scrubbing are needed
+      - ε = 3 means nothing is protected
+      - The model was too small
+    answer: 1
+    explanation: DP protects each unit of privacy. When one person contributes many records, protect the person (user-level DP) and scrub secrets before training.
+    why_not:
+      - The failure probability δ is tiny and doesn't explain a reproducible leak.
+      - Correct.
+      - ε = 3 is a meaningful bound per record; the issue is the unit of privacy.
+      - Smaller models also memorize repeated strings.
+  - id: dp-post-processing
+    type: single
+    difficulty: easy
+    prompt: You trained a model with DP at ε = 2. Publishing its generated text costs how much additional privacy budget?
+    options:
+      - None, because post-processing a DP output is free
+      - ε = 2 for each generated sample
+      - It depends on the temperature
+      - It voids the guarantee entirely
+    answer: 0
+    explanation: Anything computed from a DP output without touching the data again is just as private.
+    why_not:
+      - Correct.
+      - The budget was spent during training; sampling from the model doesn't touch the data again.
+      - Sampling settings are post-processing too.
+      - Post-processing cannot weaken a DP guarantee.
+  - id: dp-scope
+    type: single
+    difficulty: medium
+    prompt: A RAG assistant retrieves customer records at query time and the model was trained with DP. Which risk does DP training NOT address?
+    options:
+      - The model memorizing a record from its fine-tuning data
+      - A user tricking the assistant into revealing another customer's retrieved record
+      - Membership inference on the fine-tuning set
+      - Verbatim regurgitation of a fine-tuning example
+    answer: 1
+    explanation: Data supplied at inference time never went through DP training; protect it with access control and output checks.
+    why_not:
+      - That is exactly what DP training bounds.
+      - Correct.
+      - DP bounds membership inference on the training set.
+      - DP bounds this for training records.

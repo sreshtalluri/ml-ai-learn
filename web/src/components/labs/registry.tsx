@@ -31,4 +31,9 @@ export const LAB_COMPONENTS: Record<string, ComponentType> = {
   "agent-loop": dynamic(() => import("./AgentLoopLab")),
   "recsys-funnel": dynamic(() => import("./RecsysFunnelLab")),
   "ab-test": dynamic(() => import("./AbTestLab")),
+  "moe-routing": dynamic(() => import("./MoeRoutingLab")),
+  "attention-masks": dynamic(() => import("./AttentionMasksLab")),
+  "clip-similarity": dynamic(() => import("./ClipSimilarityLab")),
+  "q-learning": dynamic(() => import("./QLearningLab")),
+  "zero-sharding": dynamic(() => import("./ZeroShardingLab")),
 };

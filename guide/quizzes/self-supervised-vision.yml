@@ -1,0 +1,129 @@
+title: Self-supervised vision
+lesson: self-supervised-vision
+questions:
+  - id: ssl-batch
+    type: single
+    difficulty: medium
+    prompt: Why did SimCLR need very large batches (thousands of images)?
+    options:
+      - The other views in the batch are the negatives; small batches give too few negatives for a strong contrastive signal
+      - Batch norm requires it
+      - The loss divides by batch size
+      - Large batches are always faster
+    answer: 0
+    explanation: Each view competes against $2N - 2$ negatives. More negatives mean more hard negatives and a sharper signal. MoCo's queue decouples the negative count from batch size.
+    why_not:
+      - Correct.
+      - Batch norm works at ordinary batch sizes.
+      - The averaging is not the reason.
+      - Speed is not the motivation.
+  - id: ssl-dino-collapse
+    type: single
+    difficulty: medium
+    prompt: What keeps DINO, which uses no negatives, from collapsing to a constant output?
+    options:
+      - A large batch size
+      - The learning-rate schedule
+      - Augmentation alone
+      - Centring the teacher's output (subtract a running mean) together with sharpening it (low teacher temperature)
+    answer: 3
+    explanation: Centring stops one dimension from winning for every input; sharpening stops the output from going uniform. Each alone collapses in a different way.
+    why_not:
+      - DINO works without huge batches.
+      - Schedules don't prevent the trivial solution.
+      - Augmentations alone cannot rule out a constant output.
+      - Correct.
+  - id: ssl-mae-ratio
+    type: single
+    difficulty: medium
+    prompt: MAE masks 75 percent of image patches; BERT masks 15 percent of text tokens. Why the difference?
+    options:
+      - 75 percent is arbitrary
+      - BERT requires 15 percent by design
+      - Image patches are highly redundant, so a low ratio can be solved by local interpolation; a high ratio forces semantic understanding
+      - Text tokens are larger than image patches
+    answer: 2
+    explanation: The mask ratio should match the information density of the modality. Neighbouring patches nearly determine each other.
+    why_not:
+      - It was chosen by experiment for this reason.
+      - BERT's ratio was also a tuned choice.
+      - Correct.
+      - Size in bytes is not the point.
+  - id: ssl-linear-probe
+    type: single
+    difficulty: easy
+    prompt: In a linear probe evaluation, what is trained?
+    options:
+      - A full MLP head
+      - The whole encoder
+      - The positional embeddings
+      - A single linear classifier on top of the frozen encoder's features
+    answer: 3
+    explanation: Freezing the encoder isolates feature quality from further training.
+    why_not:
+      - An MLP adds nonlinear capacity, which blurs the measurement.
+      - That is fine-tuning.
+      - Not trained in a probe.
+      - Correct.
+  - id: ssl-mae-asym
+    type: single
+    difficulty: hard
+    prompt: Why does MAE use a large encoder on visible patches only and a small decoder on all positions?
+    options:
+      - The decoder needs its own backbone
+      - The encoder never processes mask tokens, so its cost scales with the 25 percent visible patches; the small decoder is discarded after pretraining
+      - Mask tokens confuse attention
+      - To reduce memory for the dataset
+    answer: 1
+    explanation: Encoder attention cost falls by about $1/(1-r)^2$, roughly 16 times at $r = 0.75$, making pretraining much cheaper.
+    why_not:
+      - The decoder is a few light transformer blocks.
+      - Correct.
+      - Mask tokens are fine in the decoder; the point is cost.
+      - Dataset storage is unaffected.
+  - id: ssl-infonce-chance
+    type: numeric
+    difficulty: medium
+    prompt: SimCLR with $N = 64$ images per batch. What InfoNCE loss would uniform probabilities give? (Natural log, three decimals.)
+    answer: 4.844
+    tolerance: 0.002
+    explanation: $2N = 128$ views; each has $127$ candidates. Uniform probabilities give $\ln 127 = 4.844$.
+  - id: ssl-infonce-hand
+    type: numeric
+    difficulty: hard
+    prompt: A view has logits (cosine divided by temperature) of 1.6 for its twin and 0 and 1.2 for the two negatives. What is its InfoNCE term? (Three decimals.)
+    answer: 0.627
+    tolerance: 0.002
+    explanation: $e^{1.6} = 4.953$, $e^0 = 1$, $e^{1.2} = 3.320$; sum $9.273$; probability $0.534$; $-\ln 0.534 = 0.627$.
+  - id: ssl-shortcut
+    type: single
+    difficulty: hard
+    prompt: Your contrastive model matches views almost perfectly during pretraining, but its nearest neighbours are always images from the same camera, regardless of content. What is happening?
+    options:
+      - The temperature is too high
+      - Shortcut learning; a camera signature shared by both views (colour cast, watermark, compression artefacts) lets the model match views without understanding content
+      - The model has collapsed
+      - The batch is too large
+    answer: 1
+    explanation: Augmentations must destroy cues you don't want learned. Add colour and compression augmentation, crop out watermarks, or sample negatives from the same camera.
+    why_not:
+      - High temperature makes matching harder, not easier.
+      - Correct.
+      - Collapse would map all images to the same point, not cluster by camera.
+      - More negatives would not remove the shared cue.
+  - id: ssl-choose
+    type: single
+    difficulty: medium
+    prompt: You have 2 million unlabelled microscopy images and 3,000 labelled ones. What is the most sensible plan?
+    options:
+      - Train a supervised model on the 3,000 images from scratch
+      - Start from a public self-supervised checkpoint, continue self-supervised pretraining on the 2 million images, then probe or fine-tune on the 3,000
+      - Use zero-shot CLIP with class names
+      - Label all 2 million images first
+    answer: 1
+    explanation: Domain-adaptive self-supervised pretraining uses the unlabelled pile; the labelled set is then enough for a probe or light fine-tune.
+    why_not:
+      - 3,000 images is little for a deep network from scratch.
+      - Correct.
+      - Microscopy is far from web captions; zero-shot is likely weak.
+      - Too expensive, and unnecessary.

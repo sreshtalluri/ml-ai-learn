@@ -5,6 +5,7 @@ skill: llms
 minutes: 40
 prerequisites: [rag-pipeline, word-embeddings, k-nearest-neighbors]
 related: [k-means, text-to-vectors, production-architecture]
+adapted_from: [phases/05-nlp-foundations-to-advanced/14-information-retrieval-search, phases/05-nlp-foundations-to-advanced/22-embedding-models-deep-dive, phases/11-llm-engineering/04-embeddings, phases/19-capstone-projects/65-hybrid-retrieval-bm25-dense]
 ---
 
 # Vector search
@@ -149,39 +150,148 @@ Suppose a user may only see 2% of the corpus. **Post-filtering** (retrieve top 1
 
 ## 4. Implementation
 
+The full script is [`code/16-rag/vector_search_scratch.py`](../../code/16-rag/vector_search_scratch.py) (NumPy only, about two seconds on a laptop). It builds each index type from section 3 on its own k-means and measures recall against exact search on synthetic clustered vectors (64 clusters in 32 dimensions; real embeddings cluster too, but less cleanly).
+
+### Build it from scratch
+
+**Step 1: exact search.** Normalize every vector once, at write time, so cosine becomes a dot product. Then the whole search is one matrix-vector product. `argpartition` finds the top $k$ in $O(N)$ without sorting all $N$ scores; only those $k$ get sorted.
+
 ```python
-import numpy as np
-from sklearn.cluster import KMeans
+def normalize(X):
+    return X / np.linalg.norm(X, axis=-1, keepdims=True)
 
-def brute_force(X, q, k):                       # X: [N, d], q: [d]
-    return np.argsort(((X - q) ** 2).sum(1))[:k]
+def exact_topk(X, q, k):                          # X: [N, d] normalized, q: [d] normalized
+    s = X @ q                                     # one matrix-vector product: N dot products
+    top = np.argpartition(-s, k)[:k]              # top k in O(N), unsorted
+    return top[np.argsort(-s[top])]
+```
 
+*Predict:* you normalize the stored vectors but forget to normalize the query. Does the ranking change?
+
+**Step 2: k-means.** Both IVF and PQ are built on it. Squared distances come from $\lVert x\rVert^2 - 2x \cdot c + \lVert c\rVert^2$, so every point-to-centroid distance is one matrix product instead of a Python loop.
+
+```python
+def kmeans(X, k, rng, iters=10):
+    C = X[rng.choice(len(X), k, replace=False)]   # start from k random points
+    for _ in range(iters):
+        d2 = (X**2).sum(1)[:, None] - 2 * X @ C.T + (C**2).sum(1)   # squared distances [N, k]
+        lab = d2.argmin(1)
+        for j in range(k):
+            if (lab == j).any():
+                C[j] = X[lab == j].mean(0)
+    return C, lab
+```
+
+*Predict:* the shapes are `[N, 1]`, `[N, k]`, and `[k]`. Which broadcasting rule makes the sum `[N, k]`?
+
+**Step 3: IVF.** Cluster the data into $n_{\text{list}}$ cells and store each cell's member IDs (the inverted lists). A query compares itself to the centroids, opens the $n_{\text{probe}}$ nearest cells, and runs exact search on only those members.
+
+```python
 class IVF:
-    def __init__(self, X, nlist):
-        km = KMeans(n_clusters=nlist, n_init=1, random_state=0).fit(X)
-        self.X, self.C = X, km.cluster_centers_                   # C: [nlist, d]
-        self.lists = [np.flatnonzero(km.labels_ == c) for c in range(nlist)]
+    def __init__(self, X, nlist, rng):
+        self.X = X
+        self.C, lab = kmeans(X, nlist, rng)
+        self.lists = [np.flatnonzero(lab == c) for c in range(nlist)]   # inverted lists
 
     def search(self, q, k, nprobe):
-        cells = np.argsort(((self.C - q) ** 2).sum(1))[:nprobe]
+        cells = np.argsort(-(self.C @ q))[:nprobe]                     # nearest centroids
         cand = np.concatenate([self.lists[c] for c in cells])
-        return cand[np.argsort(((self.X[cand] - q) ** 2).sum(1))[:k]]
+        return cand[np.argsort(-(self.X[cand] @ q))[:k]], len(cand)
+```
+
+*Predict:* a query's true neighbor sits just across the border of the nearest cell. Which knob fixes the miss, and what does it cost?
+
+**Step 4: product quantization.** Cut each vector into $m$ subvectors and run k-means with 256 centroids on each position, so a subvector is stored as one byte. At query time, score the query's subvectors against every centroid once (an $[m, 256]$ table); each stored vector's score is then $m$ table lookups added up.
+
+```python
+class PQ:
+    def __init__(self, X, m, rng):
+        self.m, self.ds = m, X.shape[1] // m      # m subvectors of ds dimensions
+        self.books, codes = [], []
+        for j in range(m):
+            sub = X[:, j * self.ds:(j + 1) * self.ds]
+            C, lab = kmeans(sub, 256, rng)        # 256 centroids -> a code fits in one byte
+            self.books.append(C); codes.append(lab)
+        self.codes = np.stack(codes, 1).astype(np.uint8)   # [N, m]: the whole stored index
+
+    def search(self, q, k):
+        table = np.stack([self.books[j] @ q[j * self.ds:(j + 1) * self.ds] for j in range(self.m)])  # [m, 256]
+        s = table[np.arange(self.m), self.codes].sum(1)    # m lookups per vector, no float math on X
+        return np.argsort(-s)[:k]
+```
+
+*Predict:* section 3's example has $d = 768$ and $m = 96$. How big is the lookup table per query, in entries?
+
+**Step 5: BM25 and fusion.** BM25 is TF-IDF with two fixes: term frequency saturates ($k_1$ caps how much a repeated word helps) and long documents are discounted ($b$ normalizes by length). RRF then merges any number of rankings using ranks only, so BM25 scores and cosine scores never need to share a scale.
+
+```python
+def bm25_scores(docs, query, k1=1.5, b=0.75):
+    toks = [re.findall(r"\w+", d.lower()) for d in docs]
+    avgdl = sum(map(len, toks)) / len(toks)
+    df = Counter(t for d in toks for t in set(d))
+    scores = []
+    for d in toks:
+        tf, s = Counter(d), 0.0
+        for t in re.findall(r"\w+", query.lower()):
+            if t in tf:
+                idf = math.log((len(toks) - df[t] + 0.5) / (df[t] + 0.5) + 1)
+                s += idf * tf[t] * (k1 + 1) / (tf[t] + k1 * (1 - b + b * len(d) / avgdl))
+        scores.append(s)
+    return scores
 
 def rrf(rankings, c=60):
     s = {}
     for ranking in rankings:
         for rank, doc in enumerate(ranking, start=1):
             s[doc] = s.get(doc, 0.0) + 1 / (c + rank)
-    return sorted(s, key=s.get, reverse=True)
+    return sorted(s, key=s.get, reverse=True), s
 ```
 
-In production you would use a library or service rather than this loop. FAISS exposes the same ideas as index strings (for example an IVF index with PQ codes), and most vector databases and Postgres's pgvector offer HNSW and IVF indexes with `efSearch` or `probes` settings.
+*Predict:* with $k_1 = 1.5$ and an average-length document, how much more does a word appearing 10 times add than a word appearing once? (Compute $\frac{tf(k_1+1)}{tf + k_1}$ for both.)
 
-Runnable script (cost and memory arithmetic, recall@k, RRF, IVF recall vs `nprobe`, figure): [`code/16-rag/vector_search.py`](../../code/16-rag/vector_search.py).
+### Use the library
+
+FAISS names each idea in an index string, and vector databases expose the same knobs:
+
+```python
+import faiss                                         # pip install faiss-cpu
+d = X.shape[1]
+index = faiss.index_factory(d, "IVF1024,PQ16", faiss.METRIC_INNER_PRODUCT)
+index.train(X)                                       # k-means for the cells and the PQ codebooks
+index.add(X)
+index.nprobe = 8                                     # cells scanned per query
+scores, ids = index.search(Q, 10)
+
+hnsw = faiss.IndexHNSWFlat(d, 32, faiss.METRIC_INNER_PRODUCT)   # M = 32
+hnsw.hnsw.efSearch = 64                              # query-time candidate list
+```
+
+In Postgres, pgvector offers `ivfflat` (with `ivfflat.probes`) and `hnsw` (with `hnsw.ef_search`) indexes. What the libraries add: SIMD and GPU kernels, HNSW graphs (not built here: the build is long, and the knobs in section 3 are what you tune), on-disk indexes, filtered search, and incremental inserts.
+
+### Run it
+
+```bash
+uv run code/16-rag/vector_search_scratch.py
+```
+
+Key lines of output (synthetic vectors):
+
+```text
+dot a=0.8 b=3.0 | cos a=0.8 b=0.6 | L2 a=0.632 b=4.472
+nprobe= 1: recall@10 0.745, vectors scanned 1.1% of N
+nprobe= 4: recall@10 0.995, vectors scanned 3.4% of N
+nprobe=16: recall@10 1.000, vectors scanned 12.2% of N
+memory: float32 128 bytes/vector -> PQ 16 bytes/vector (8x smaller)
+recall@10 PQ only 0.379; PQ top-100 + exact rerank 0.947
+query 'E1234': [1.23, 0.0, 0.0, 0.0] <- exact IDs are BM25's strength
+fused: ['A', 'B', 'E', 'F', 'C', 'D'] {'A': 0.032266, 'B': 0.031754, ...}
+```
+
+The first and last lines reproduce section 3's worked examples. IVF reaches 99.5% recall while scanning 3.4% of the vectors. PQ alone is crude, because neighbors in tight clusters differ by less than the quantization error, but as a shortlist followed by exact rescoring of 100 candidates it recovers most of the recall: the standard production pattern. These recall numbers come from clean synthetic clusters; measure your own index on real queries. The cost arithmetic and the section 2 figure are in [`code/16-rag/vector_search.py`](../../code/16-rag/vector_search.py).
 
 ## 5. Engineering
 
-**Choosing the embedding model and dimension.** Evaluate candidate models on *your* queries and documents with a labeled set, not on a public leaderboard alone. Dimension drives memory and latency linearly: 3072 dimensions cost 4 times what 768 cost. Some models are trained so that a prefix of the vector is itself a good embedding (Matryoshka-style), letting you truncate to 256 or 512 dimensions and re-normalize. Quantizing stored vectors to int8 or binary with a full-precision re-score of the top candidates is another common memory lever.
+**Choosing the embedding model and dimension.** Evaluate candidate models on *your* queries and documents with a labeled set, not on a public leaderboard alone. Dimension drives memory and latency linearly: 3072 dimensions cost 4 times what 768 cost. Some models are trained so that a prefix of the vector is itself a good embedding (Matryoshka-style), letting you truncate to 256 or 512 dimensions and re-normalize. Quantizing stored vectors to int8 or binary with a full-precision re-score of the top candidates is another common memory lever. Read the model card for input formatting: many retrieval embedding models are asymmetric and expect a different prefix or instruction on queries than on documents (E5 uses `query: ` and `passage: `), and skipping it quietly lowers recall.
 
 **Reindexing when the model changes.** Vectors from two different embedding models are not comparable, even at the same dimension. Changing the model means re-embedding the whole corpus. Do it as a blue-green migration: build the new index alongside the old one, compare recall on your eval set, switch reads, then delete the old index. Store the model name and version with every vector and every request trace.
 
@@ -245,6 +355,12 @@ Loop over `nlist`, build `IVF(X, nlist)`, and for each `nprobe` average recall a
 **Next:** [Evaluating LLM systems](../17-llm-evaluation/01-llm-evaluation.md)
 
 **Related:** [The RAG pipeline](01-rag-pipeline.md) · [K-nearest neighbors](../05-instance-and-probabilistic/01-k-nearest-neighbors.md) · [K-means](../07-unsupervised/01-k-means.md) · [Cheat sheet: vector search](../../cheatsheets/vector-search.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Image Retrieval & Metric Learning](https://aiengineeringfromscratch.com/lesson?path=phases/04-computer-vision/20-image-retrieval-metric)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [Information Retrieval and Search](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/14-information-retrieval-search), [Embedding Models — The 2026 Deep Dive](https://aiengineeringfromscratch.com/lesson?path=phases/05-nlp-foundations-to-advanced/22-embedding-models-deep-dive), [Embeddings & Vector Representations](https://aiengineeringfromscratch.com/lesson?path=phases/11-llm-engineering/04-embeddings), [Hybrid Retrieval with BM25 and Dense Embeddings](https://aiengineeringfromscratch.com/lesson?path=phases/19-capstone-projects/65-hybrid-retrieval-bm25-dense).*
+<!-- /deeper -->
 
 ## Interview angle
 

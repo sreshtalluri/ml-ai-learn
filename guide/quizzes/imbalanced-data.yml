@@ -1,0 +1,148 @@
+title: Imbalanced data
+lesson: imbalanced-data
+questions:
+  - id: imb-accuracy-trap
+    type: single
+    difficulty: easy
+    prompt: A fraud dataset has 99.9% legitimate transactions and 0.1% fraud. A model predicts "legitimate" for every transaction. What is its accuracy?
+    options:
+      - "99.9%"
+      - "0.1%"
+      - "50%"
+      - "100%"
+    answer: 0
+    explanation: Accuracy is 999 correct out of 1,000, so 99.9%, while the model catches zero fraud. This is why accuracy is misleading on rare positives.
+    why_not:
+      - Correct. Every legitimate transaction is a true negative.
+      - 0.1% is the fraud rate, which would be the accuracy of always predicting fraud.
+      - 50% would only come from random guessing on balanced classes.
+      - The model misses every fraud case, so it can't be 100%.
+  - id: imb-metric-useless
+    type: single
+    difficulty: easy
+    prompt: Which metric exposes the always-predict-negative model as useless?
+    options:
+      - Accuracy
+      - True negative rate (specificity)
+      - Recall or F1 on the positive class
+      - The fraction of rows predicted negative
+    answer: 2
+    explanation: Recall = TP / (TP + FN) = 0, so F1 = 0 as well. Metrics centered on the positive class show it catches nothing.
+    why_not:
+      - Accuracy is 99.9% here, which hides the failure.
+      - Specificity is 100% because every negative is correctly rejected.
+      - Correct. Both are 0.
+      - That fraction is 100% and says nothing about catching positives.
+  - id: imb-smote-how
+    type: single
+    difficulty: easy
+    prompt: How does SMOTE create synthetic minority samples?
+    options:
+      - By flipping the labels of majority samples near the boundary
+      - By interpolating between a minority sample and one of its k nearest minority neighbors
+      - By sampling points uniformly anywhere in feature space
+      - By duplicating existing minority samples exactly
+    answer: 1
+    explanation: "SMOTE picks a minority point x_i, one of its k nearest minority neighbors x_j, and returns x_i + λ(x_j − x_i) with λ uniform on [0, 1)."
+    why_not:
+      - Flipping labels corrupts data; SMOTE never changes existing labels.
+      - Correct.
+      - Uniform sampling would scatter positives into regions with no positive evidence.
+      - That is random oversampling, which SMOTE was designed to improve on.
+  - id: imb-threshold-lower
+    type: single
+    difficulty: medium
+    prompt: You lower the classification threshold from 0.5 to 0.3. What usually happens?
+    options:
+      - Precision and recall both increase
+      - Precision increases and recall decreases
+      - Recall increases and precision usually decreases
+      - Neither changes; the threshold only affects speed
+    answer: 2
+    explanation: More rows are predicted positive. You catch more true positives (recall cannot go down) but usually admit more false positives, so precision tends to fall.
+    why_not:
+      - Lowering the threshold trades precision for recall; it doesn't improve both at once.
+      - That is what raising the threshold does.
+      - Correct.
+      - The threshold directly decides which rows are flagged.
+  - id: imb-auprc-baseline
+    type: single
+    difficulty: medium
+    prompt: Why is AUPRC often more informative than ROC AUC on highly imbalanced data?
+    options:
+      - ROC AUC cannot be computed on imbalanced data
+      - AUPRC uses a single fixed threshold
+      - AUPRC is always higher than ROC AUC
+      - A random ranking scores the positive rate on AUPRC but 0.5 on ROC AUC, so gains on the rare class are easier to see
+    answer: 3
+    explanation: The false positive rate in ROC divides by the huge negative count, so many false positives barely move it. Precision counts every false positive directly, and AUPRC's random baseline is the prevalence.
+    why_not:
+      - ROC AUC can be computed; it is just less sensitive to false positives when negatives dominate.
+      - Both are threshold-free summaries over all thresholds.
+      - On rare positives AUPRC is usually much lower than ROC AUC.
+      - Correct.
+  - id: imb-weights-calc
+    type: numeric
+    difficulty: medium
+    prompt: A training set has 2,400 rows, 121 of them positive. Using balanced class weights $w_c = n / (C \cdot n_c)$, what is the weight of one positive row? (Two decimals.)
+    answer: 9.92
+    tolerance: 0.01
+    explanation: |
+      $w_1 = 2400 / (2 \cdot 121) = 2400 / 242 = 9.917$. The negative weight is $2400 / (2 \cdot 2279) = 0.5265$, so one positive counts as $2279 / 121 = 18.83$ negatives.
+  - id: imb-mcc-calc
+    type: numeric
+    difficulty: hard
+    prompt: "On a test set, TP = 27, FP = 128, FN = 7, TN = 638. Compute the Matthews correlation coefficient (three decimals)."
+    answer: 0.320
+    tolerance: 0.002
+    explanation: |
+      Numerator: $27 \cdot 638 - 128 \cdot 7 = 17226 - 896 = 16330$.
+      Denominator: $\sqrt{155 \cdot 34 \cdot 766 \cdot 645} = \sqrt{2603748900} = 51026.9$.
+      MCC $= 16330 / 51026.9 = 0.320$.
+  - id: imb-prior-correct
+    type: numeric
+    difficulty: hard
+    prompt: A logistic model trained with balanced class weights (negatives outnumber positives 19 to 1) outputs $p_w = 0.6$. Using prior correction (divide the odds by 19), what is the real-world probability? (Three decimals.)
+    answer: 0.073
+    tolerance: 0.002
+    explanation: |
+      Odds $= 0.6 / 0.4 = 1.5$. Divide by 19: $0.0789$. Probability $= 0.0789 / 1.0789 = 0.073$.
+  - id: imb-smote-leak
+    type: single
+    difficulty: hard
+    prompt: A teammate applies SMOTE to the whole dataset, then runs 5-fold cross-validation, and F1 jumps from 0.45 to 0.80. What is the most likely explanation?
+    options:
+      - SMOTE genuinely improved the model's ranking ability
+      - Synthetic points built from validation-fold positives leaked into training folds, inflating the score
+      - Cross-validation is not valid for classification
+      - F1 always rises when the training set grows
+    answer: 1
+    explanation: Resampling before splitting puts near-copies of evaluation positives into training. Resample inside each training fold only, for example with imbalanced-learn's Pipeline, and keep evaluation folds at the real class ratio.
+    why_not:
+      - Possible in principle, but a jump this large from resampling alone is a leakage red flag; check AUPRC with a leak-free setup first.
+      - Correct.
+      - Stratified cross-validation is the standard way to evaluate classifiers.
+      - More rows don't guarantee better F1, and these extra rows are synthetic.
+  - id: imb-strategy
+    type: single
+    difficulty: medium
+    prompt: "You have 500 million ad impressions with a 0.2% click rate and need to train daily within a fixed compute budget. Which strategy fits best?"
+    options:
+      - SMOTE the clicks up to 50% of the data
+      - Randomly downsample non-clicks, then correct predicted probabilities for the sampling rate
+      - Train on all data with no changes and report accuracy
+      - Oversample clicks by duplication until the classes match
+    answer: 1
+    explanation: With huge negative counts, downsampling negatives cuts training cost with little information loss. Because click probabilities feed bidding, you must undo the sampling, by dividing the odds by the inverse sampling rate or by weighting kept negatives.
+    why_not:
+      - SMOTE on 1 million positives would add hundreds of millions of synthetic rows, increasing cost, and interpolation in sparse ad features is not meaningful.
+      - Correct.
+      - Training on everything may not fit the budget, and accuracy is meaningless at a 0.2% click rate.
+      - Duplicating clicks also grows the data enormously and adds no new information.
+  - id: imb-equivalence
+    type: short
+    difficulty: hard
+    prompt: Class weights raised recall from 0.44 to 0.79 but AUPRC barely moved (0.548 to 0.551). Explain what the weights did, and how you could get a similar result without them.
+    sample_answer: |
+      The weights made the model favor positives by inflating predicted odds (about 18.8 times here), which moves the 0.5 decision boundary toward the negatives. That changes the operating point (more recall, less precision) but not the order in which rows are ranked, which is what AUPRC measures. Lowering the threshold of the unweighted model on a validation set reaches the same operating point: the weighted model's tuned 0.86 maps back to about 0.25 on the unweighted scale, close to the 0.24 found directly.
+    explanation: Re-weighting mostly shifts the intercept of a logistic model, which is equivalent to moving the threshold.

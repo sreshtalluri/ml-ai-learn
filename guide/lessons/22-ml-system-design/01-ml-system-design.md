@@ -4,6 +4,7 @@ summary: Use a repeatable ten-step framework to design an ML system in an interv
 skill: engineering
 minutes: 50
 prerequisites: [ml-workflow, classification-metrics, random-forests-and-boosting]
+adapted_from: [phases/02-ml-fundamentals/19-ml-system-design, phases/02-ml-fundamentals/21-feature-stores-and-training-serving-skew]
 related: [experimentation-and-ab-testing, word-embeddings, production-architecture, reliability-cost-and-observability]
 ---
 
@@ -194,7 +195,98 @@ Ranking order is unchanged by this correction (it is monotonic), so it matters o
 
 ## 4. Implementation
 
-The funnel as code is a chain of narrowing calls, each with its own timeout and fallback:
+Two of the system failures named above, point-in-time leakage and training-serving skew, are invisible in a design diagram and obvious in code. This section builds them from scratch on synthetic purchase data, then shows the production version.
+
+### Build it from scratch
+
+The script is [`code/22-ml-system-design/feature_skew_scratch.py`](../../code/22-ml-system-design/feature_skew_scratch.py) (stdlib only, seeded synthetic users). The task: predict whether a user churns (no purchase in the next 30 days).
+
+**One feature definition.** The function takes `as_of` and only looks at events on or before it. Every feature in a real feature store has this shape: a definition plus a timestamp. Training and serving both call the same function, which is the whole defense against skew.
+
+```python
+def days_since_last(days, as_of):
+    """Days since the user's last purchase, seeing only events on or before `as_of`."""
+    seen = [d for d in days if d <= as_of]
+    return float(as_of - max(seen)) if seen else 365.0
+
+def purchases_30d(days, as_of):
+    return float(sum(1 for d in days if as_of - 30 < d <= as_of))
+```
+
+*Predict:* a user with no purchases yet gets 365. What would happen to the model if offline used 365 but the online service used 0 for the same case?
+
+**Labels look into the future, on purpose.** A label at day `t` asks about days `t+1` to `t+30`. That is fine for a label. It becomes a leak only if a feature also sees past `t`.
+
+```python
+def make_labels(events, label_days, window=30):
+    """Label = 1 (churned) if the user makes no purchase in the 30 days AFTER the label day."""
+    return [(u, t, 0 if any(t < d <= t + window for d in days) else 1)
+            for u, days in sorted(events.items()) for t in label_days if any(d <= t for d in days)]
+```
+
+*Predict:* if you computed `days_since_last` at day `t + 30` instead of `t`, what value would almost every churned user get, and why would accuracy look perfect?
+
+**Two ways to join features to labels.** The offline feature table holds one snapshot per user per week. The point-in-time join takes, for each label, the latest snapshot at or before the label day (binary search over the snapshot days). The naive join takes the user's latest snapshot, which for old labels is from the future.
+
+```python
+def point_in_time_join(labels, table):
+    """For each label at day t, take the latest snapshot with day <= t. Never a later one."""
+    out = []
+    for u, t, y in labels:
+        snaps = table[u]
+        i = bisect.bisect_right([d for d, _ in snaps], t) - 1
+        out.append((snaps[i][1] if i >= 0 else 365.0, y))
+    return out
+
+def naive_latest_join(labels, table):
+    """The classic leak: join every label to the user's LATEST snapshot, which can be from the future."""
+    return [(table[u][-1][1], y) for u, t, y in labels]
+```
+
+*Predict:* the naive join's training accuracy is about the same as the honest one here. Why can a leak hurt badly even when it doesn't inflate the training score? (Look at the threshold each one learns in the output below.)
+
+**Skew detection.** Replay the same (user, time) requests through the offline definition and the online one, and count disagreements. Here the "online" path is a legacy reimplementation with `<=` instead of `<`, a 31-day window. Nothing crashes; the numbers are just quietly different.
+
+```python
+def legacy_purchases_30d(days, as_of):
+    return float(sum(1 for d in days if as_of - 30 <= d <= as_of))   # bug: 31-day window (<= vs <)
+
+def skew_rate(events, requests, offline_fn, online_fn, tol=1e-9):
+    diffs = [abs(offline_fn(events[u], t) - online_fn(events[u], t)) for u, t in requests]
+    return sum(d > tol for d in diffs) / len(diffs), sum(diffs) / len(diffs)
+```
+
+*Predict:* the mismatch rate is the fraction of requests with a purchase exactly 30 days before. Roughly what rate would you expect if users buy on about 20% of days?
+
+**A baseline gate.** Step 6 of the framework as code: a model ships only if it beats the best trivial baseline by a margin you set in advance.
+
+```python
+def beats_baselines(model_acc, baseline_accs, min_lift=0.02):
+    best = max(baseline_accs, key=baseline_accs.get)
+    return best, model_acc - baseline_accs[best], model_acc - baseline_accs[best] >= min_lift
+```
+
+*Predict:* on a dataset that is 95% "no churn", what accuracy does the majority-class baseline get, and why does that make accuracy a poor primary metric there?
+
+### Use the library
+
+In production the definitions live in a [feature store](../../glossary.md#feature-store) such as Feast, and the same registry serves both paths. Feast's offline `get_historical_features` does the point-in-time join against an entity table of (entity, timestamp) rows; `get_online_features` reads the latest materialized values for serving:
+
+```python
+from feast import FeatureStore  # pip install feast
+
+store = FeatureStore(repo_path=".")
+train_df = store.get_historical_features(          # point-in-time join, offline
+    entity_df=labels_df,                            # columns: user_id, event_timestamp, label
+    features=["user_stats:days_since_last", "user_stats:purchases_30d"],
+).to_df()
+online = store.get_online_features(                 # low-latency read, serving
+    features=["user_stats:days_since_last", "user_stats:purchases_30d"],
+    entity_rows=[{"user_id": "u042"}],
+).to_dict()
+```
+
+The funnel that consumes these features is a chain of narrowing calls, each with its own timeout and fallback:
 
 ```python
 def recommend(user_id, ctx, k1=1000, k2=100, k3=20):
@@ -209,9 +301,28 @@ def recommend(user_id, ctx, k1=1000, k2=100, k3=20):
     return rerank(top, rules=[dedupe, diversify_by_creator, policy_filter], k=k3)
 ```
 
-The single most important line is `feature_store.get_items`: the same feature definitions must produce the training data, or the model will see different numbers in production than it learned on.
+The single most important line is `feature_store.get_items`: the same feature definitions must produce the training data, or the model will see different numbers in production than it learned on. The library does not remove the need for the skew check above. Log the served feature vector with each prediction and compare it with the offline value for the same request.
 
-Runnable script (the latency, capacity, and recall arithmetic above, the calibration correction, and this lesson's figure): [`code/22-ml-system-design/recsys_funnel.py`](../../code/22-ml-system-design/recsys_funnel.py).
+### Run it
+
+From `guide/`:
+
+```bash
+uv run code/22-ml-system-design/feature_skew_scratch.py
+```
+
+```text
+synthetic: 300 users, 3895 train labels, 1200 test labels
+point-in-time join: threshold  18 days, train acc 0.912, test acc 0.911
+naive latest join : threshold  97 days, train acc 0.914, test acc 0.646
+skew, shared definition   : mismatch rate 0.000, mean |diff| 0.000
+skew, legacy 31-day window: mismatch rate 0.188, mean |diff| 0.188  -> flag (> 0.01)
+baseline gate: best baseline 'majority class' acc 0.617, lift +0.294 -> ship=True
+```
+
+The leaky join trains to the same accuracy but learns a 97-day threshold, because its features come from the end of the data where churned users have been idle for months. Scored on honest features, that rule falls to 0.646, barely above the 0.617 baseline. Offline metrics did not warn you; only a time-correct evaluation did.
+
+The latency, capacity, and recall arithmetic from section 3, the calibration correction, and this lesson's figure are in [`code/22-ml-system-design/recsys_funnel.py`](../../code/22-ml-system-design/recsys_funnel.py).
 
 ## 5. Engineering
 
@@ -278,6 +389,12 @@ Add a stage with its own $(f, t, \tau)$, let candidate generation return 5,000 i
 **Next:** [Experimentation and A/B testing](02-experimentation-and-ab-testing.md)
 
 **Related:** [ML workflow](../02-ml-workflow/01-ml-workflow.md) · [Classification metrics](../04-classification/02-classification-metrics.md) · [Random forests and boosting](../06-trees-and-ensembles/02-random-forests-and-boosting.md) · [Production architecture](../20-production-ai/01-production-architecture.md) · [Cheat sheet: ML system design](../../cheatsheets/ml-system-design.md) · [Model card: two-tower model](../../models/two-tower-model.md)
+
+<!-- deeper: generated from guide/upstream/map.json by web/scripts/gen-upstream.mjs; edit the map, then run npm run gen:upstream -->
+**Go deeper, code-first** ([AI Engineering from Scratch](https://aiengineeringfromscratch.com)): [Graph Theory for Machine Learning](https://aiengineeringfromscratch.com/lesson?path=phases/01-math-foundations/21-graph-theory) · [Design Success Metrics Before the Result Exists](https://aiengineeringfromscratch.com/lesson?path=phases/14-agent-engineering/52-design-success-metrics) · [Model, System, and Dataset Cards](https://aiengineeringfromscratch.com/lesson?path=phases/18-ethics-safety-alignment/26-model-system-dataset-cards)
+
+*Parts of this lesson are adapted from [AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch) by Rohit Ghumare (MIT license, [notice](../../upstream/LICENSE-ai-engineering-from-scratch.txt)): [ML System Design — From Problem to Deployed Model](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/19-ml-system-design), [Feature Stores and Training-Serving Skew](https://aiengineeringfromscratch.com/lesson?path=phases/02-ml-fundamentals/21-feature-stores-and-training-serving-skew).*
+<!-- /deeper -->
 
 ## Interview angle
 

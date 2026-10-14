@@ -1,0 +1,130 @@
+title: Loss functions
+lesson: loss-functions
+questions:
+  - id: lf-what-is-loss
+    type: single
+    difficulty: easy
+    prompt: What does a loss function represent in neural-network training?
+    options:
+      - The learning-rate schedule
+      - A differentiable measure of how wrong the predictions are, which the optimizer minimizes
+      - The number of incorrect predictions
+      - The size of the training set
+    answer: 1
+    explanation: The loss maps predictions and targets to one scalar. The optimizer follows its gradient, so it must be differentiable (almost everywhere).
+    why_not:
+      - The schedule controls step size; it isn't a measure of error.
+      - Correct.
+      - That is an error count, a metric with zero gradient almost everywhere, so it can't be optimized directly with gradient descent.
+      - Dataset size has nothing to do with the loss definition.
+  - id: lf-ce-vs-mse
+    type: single
+    difficulty: medium
+    prompt: Why is cross-entropy preferred over MSE for training a sigmoid or softmax classifier?
+    options:
+      - Cross-entropy doesn't need labels
+      - Its gradient at the logit is p − y, while MSE's keeps a factor p(1 − p) that nearly vanishes when the model is confidently wrong
+      - MSE only works for regression and gives an error on classification data
+      - Cross-entropy is faster to compute
+    answer: 1
+    explanation: At logit −5 for a positive example, cross-entropy pushes with −0.993 and MSE with −0.013.
+    why_not:
+      - It needs labels just as much.
+      - Correct.
+      - MSE runs fine on 0/1 labels; it just learns poorly from confidently wrong predictions.
+      - The cost difference is negligible and not the reason.
+  - id: lf-mse-constant
+    type: single
+    difficulty: hard
+    prompt: On a balanced binary dataset where the features carry no information, which constant prediction minimizes the loss?
+    options:
+      - 0.5 under MSE, but 0 or 1 under cross-entropy
+      - 0.5 under both MSE and cross-entropy
+      - 0 under MSE, 0.5 under cross-entropy
+      - Cross-entropy has no minimum for a constant prediction
+    answer: 1
+    explanation: "Both losses are proper scoring rules, so the best constant is the base rate, 0.5. MSE is then 0.25 and cross-entropy $\\ln 2 = 0.693$. The losses differ in how hard they correct a committed model, not at this starting point."
+    why_not:
+      - Predicting 1 for every example gives infinite cross-entropy on the half labelled 0.
+      - Correct.
+      - Predicting 0 gives MSE 0.5, worse than 0.25.
+      - "$-[0.5\\ln c + 0.5\\ln(1-c)]$ is minimized at $c = 0.5$."
+  - id: lf-grad-calc
+    type: numeric
+    difficulty: medium
+    prompt: A sigmoid classifier outputs logit $z = -5$ for an example with label 1, so $p = 0.0067$. What is the MSE gradient at the logit, $2(p - y)\,p(1 - p)$? Give 4 decimals.
+    answer: -0.0132
+    tolerance: 0.0003
+    explanation: "$2 \\times (0.0067 - 1) \\times 0.0067 \\times 0.9933 = 2 \\times (-0.9933) \\times 0.006655 = -0.0132$. Cross-entropy's gradient is $p - y = -0.9933$, about 75 times larger."
+  - id: lf-huber-calc
+    type: numeric
+    difficulty: medium
+    prompt: Residuals are $[-0.5, 0.5, 0, 10]$. What is the mean Huber loss with $\delta = 1$?
+    answer: 2.4375
+    tolerance: 0.001
+    explanation: |
+      Small residuals: $\tfrac12 \times 0.25 = 0.125$ each. Outlier: $1 \times (10 - 0.5) = 9.5$. Mean: $(0.125 + 0.125 + 0 + 9.5)/4 = 2.4375$. MSE on the same residuals is 25.125.
+  - id: lf-label-smoothing
+    type: single
+    difficulty: medium
+    prompt: With label smoothing $\varepsilon = 0.1$ and 10 classes, what is the target probability for the true class?
+    options:
+      - "1.0"
+      - "0.9"
+      - "0.91"
+      - "0.99"
+    answer: 2
+    explanation: "$(1 - \\varepsilon) + \\varepsilon/K = 0.9 + 0.01 = 0.91$. Each other class gets 0.01."
+    why_not:
+      - That is the unsmoothed one-hot target.
+      - This forgets that the true class also receives its share $\varepsilon/K$ of the spread mass.
+      - Correct.
+      - That would correspond to $\varepsilon \approx 0.011$.
+  - id: lf-double-softmax
+    type: single
+    difficulty: hard
+    prompt: "A 10-class model's predictions stay near uniform and the loss plateaus around 1.5. The code is `F.cross_entropy(F.softmax(logits, -1), y)`. What's the bug?"
+    options:
+      - The learning rate is too low
+      - Double softmax: F.cross_entropy applies log-softmax itself, so feeding it probabilities (all in [0, 1]) caps how peaked the output can get
+      - The labels should be one-hot
+      - Cross-entropy is the wrong loss for 10 classes
+    answer: 1
+    explanation: Inputs that differ by at most 1 give a softmax whose largest value is at most $e/(e + 9) \approx 0.23$, so the loss can't go below about 1.46. Pass raw logits.
+    why_not:
+      - No learning rate fixes a loss floor built into the computation.
+      - Correct.
+      - F.cross_entropy takes integer class indices; one-hot isn't needed.
+      - Softmax cross-entropy is the standard multi-class loss.
+  - id: lf-multilabel
+    type: single
+    difficulty: medium
+    prompt: Each image can have any subset of 20 tags. Which output and loss do you use?
+    options:
+      - 20 logits, softmax cross-entropy
+      - 20 logits, binary cross-entropy with logits per tag
+      - 1 logit, MSE
+      - 20 logits, InfoNCE
+    answer: 1
+    explanation: Tags are independent yes/no decisions, so each gets its own sigmoid and BCE. Softmax would force the tags to compete for one unit of probability.
+    why_not:
+      - Softmax assumes exactly one correct class per example.
+      - Correct.
+      - One number can't represent 20 independent tags.
+      - InfoNCE learns embeddings by contrasting pairs; it doesn't predict a tag set.
+  - id: lf-imbalance-design
+    type: single
+    difficulty: hard
+    prompt: You train a fraud model (0.5% positives) with `pos_weight=199`. A teammate wants to show the outputs to analysts as "probability of fraud". What should you do first?
+    options:
+      - Nothing; the outputs are probabilities because they pass through a sigmoid
+      - Recalibrate on held-out data (for example Platt or isotonic), because the weighting shifted predicted probabilities upward
+      - Switch to MSE so the outputs are calibrated
+      - Divide every output by 199
+    answer: 1
+    explanation: Reweighting changes the loss's optimum from the true conditional probability to an inflated one. Calibrate before interpreting, or train unweighted and move the threshold.
+    why_not:
+      - A sigmoid output is in [0, 1], but it isn't calibrated after reweighting.
+      - Correct.
+      - Changing the loss doesn't undo the class weighting and brings back weak gradients.
+      - The relation between weighted and true probabilities is not a simple division; it's an odds rescaling, and calibrating on data is safer.

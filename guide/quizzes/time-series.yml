@@ -1,0 +1,135 @@
+title: Time series
+lesson: time-series
+questions:
+  - id: ts-random-split
+    type: single
+    difficulty: easy
+    prompt: Why is a random train/test split invalid for time-series forecasting?
+    options:
+      - It makes the test set too small
+      - It puts future rows in training, so the model can use information it won't have in production
+      - Random splits only work for classification
+      - It changes the series' mean
+    answer: 1
+    explanation: Forecasts are made from the past only. Random splits let the model interpolate between neighbors in time, which inflates scores.
+    why_not:
+      - Split size is a separate choice.
+      - Correct.
+      - Random splits are wrong for time-ordered regression too.
+      - The mean of the whole series doesn't change; the issue is leakage across time.
+  - id: ts-stationary
+    type: single
+    difficulty: easy
+    prompt: What does it mean for a series to be (weakly) stationary?
+    options:
+      - Its values never change
+      - Its mean, variance, and autocorrelation do not change over time
+      - It has no seasonality but may have a trend
+      - It has been scaled to mean 0 and standard deviation 1
+    answer: 1
+    explanation: Stationarity is about stable statistical properties, not constant values.
+    why_not:
+      - Stationary series fluctuate; only their statistics stay stable.
+      - Correct.
+      - A trend changes the mean, so a trending series is not stationary.
+      - Standardizing the whole series doesn't remove a trend.
+  - id: ts-diff
+    type: single
+    difficulty: easy
+    prompt: What is the main purpose of differencing a series?
+    options:
+      - To remove trend (and, at lag m, seasonality) so the series is closer to stationary
+      - To smooth out noise
+      - To fill in missing values
+      - To convert it into a classification problem
+    answer: 0
+    explanation: Modeling the change y_t − y_{t−1} removes a linear trend; y_t − y_{t−m} removes a period-m seasonal pattern.
+    why_not:
+      - Correct.
+      - Differencing amplifies noise (variance doubles for white noise); smoothing is a rolling mean.
+      - Imputation is a separate step.
+      - The target stays numeric.
+  - id: ts-lag3
+    type: single
+    difficulty: easy
+    prompt: When predicting $y_t$, what is the lag-3 feature?
+    options:
+      - $y_{t+3}$
+      - $y_{t-3}$
+      - The mean of $y_{t-3}, \dots, y_t$
+      - $y_t - y_{t-3}$
+    answer: 1
+    explanation: A lag-k feature is the value k steps in the past.
+    why_not:
+      - That is the future; using it is leakage.
+      - Correct.
+      - That window includes y_t itself, which leaks the target.
+      - That is a lag-3 difference, not a lag feature.
+  - id: ts-mae-calc
+    type: numeric
+    difficulty: medium
+    prompt: Actuals for 4 days are $[25, 24, 26, 28]$ and the naive forecasts (previous day's value) are $[23, 25, 24, 26]$. What is the MAE?
+    answer: 1.75
+    tolerance: 0.001
+    explanation: Absolute errors 2, 1, 2, 2 sum to 7; 7/4 = 1.75.
+  - id: ts-mase-calc
+    type: numeric
+    difficulty: medium
+    prompt: A model's MAE is 3.6. The in-sample MAE of the seasonal-naive forecast is 4.5. What is the MASE?
+    answer: 0.8
+    tolerance: 0.001
+    explanation: MASE = 3.6 / 4.5 = 0.8, so the model has 20% less error than seasonal naive.
+  - id: ts-diagnose-rolling
+    type: single
+    difficulty: hard
+    prompt: "A teammate builds `df['roll7'] = df['sales'].rolling(7).mean()` and uses it to predict `df['sales']` on the same row. Walk-forward MAE is suspiciously low. What is wrong?"
+    options:
+      - Nothing; rolling(7) only looks backward
+      - The window includes the current row, so the target is one seventh of its own feature; add .shift(1)
+      - Rolling means should use 30 days
+      - Walk-forward validation can't detect this, so switch to K-fold
+    answer: 1
+    explanation: pandas rolling windows end at and include the current row. shift(1) moves the window so row t only sees t−7..t−1.
+    why_not:
+      - It looks backward but includes today, which is the value being predicted.
+      - Correct.
+      - Window length doesn't fix the inclusion of y_t.
+      - K-fold would hide the problem even more; the bug is in the feature.
+  - id: ts-acf-diff
+    type: single
+    difficulty: hard
+    prompt: After seasonal differencing at lag 7, the ACF is near zero everywhere except about −0.5 at lag 7. What does that indicate?
+    options:
+      - The differencing failed and the seasonality is still there
+      - Expected; differencing white noise e_t − e_{t−7} gives autocorrelation −0.5 at lag 7, so the seasonal pattern is gone
+      - The series has a trend
+      - The model must use lag 7 as a feature
+    answer: 1
+    explanation: Var(e_t − e_{t−7}) = 2σ², Cov at lag 7 = −σ², ratio −0.5. It's a sign of (slight) over-differencing, not leftover seasonality, which would show as a positive spike.
+    why_not:
+      - Leftover seasonality appears as a positive spike.
+      - Correct.
+      - A trend shows as slowly decaying positive autocorrelation at all lags.
+      - It describes the differenced noise, not a required feature.
+  - id: ts-design-many
+    type: single
+    difficulty: medium
+    prompt: You must forecast daily demand 14 days ahead for 20,000 store-product series with promotions and holidays. What is a strong first approach?
+    options:
+      - One ARIMA model per series with default settings
+      - One global gradient-boosting model on lags of at least 14 days, rolling stats, calendar and promotion features, validated walk-forward against seasonal naive
+      - An LSTM per series
+      - A random 80/20 split and the model with best accuracy
+    answer: 1
+    explanation: A global model shares patterns across series and handles exogenous features; lags of 14 or more are available at a 14-day horizon (or use a direct/recursive strategy).
+    why_not:
+      - Workable for a few series, but 20,000 local models can't share information and handle promotions poorly.
+      - Correct.
+      - Thousands of tiny neural models overfit and are costly to maintain.
+      - A random split leaks future data, and accuracy isn't a forecasting metric.
+  - id: ts-walk-forward-why
+    type: short
+    difficulty: medium
+    prompt: Explain the difference between an expanding and a sliding training window in walk-forward validation, and when you'd pick each.
+    sample_answer: An expanding window trains each fold on all data before the test block, so training grows over time; use it when the process is stable and more history helps. A sliding window keeps a fixed-length recent window; use it when the process drifts (pricing changes, new behavior), so old data would mislead. Compare both by walk-forward error.
+    explanation: The trade-off is more data versus more relevant data.
