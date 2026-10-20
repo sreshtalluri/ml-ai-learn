@@ -6,6 +6,7 @@ minutes: 40
 prerequisites: [self-attention, training-and-regularization]
 related: [self-attention, tokenization-and-pretraining, decoding]
 adapted_from: [phases/07-transformers-deep-dive/04-positional-encoding, phases/07-transformers-deep-dive/05-full-transformer, phases/07-transformers-deep-dive/14-build-a-transformer-capstone, phases/19-capstone-projects/32-token-positional-embeddings, phases/19-capstone-projects/34-transformer-block, phases/19-capstone-projects/35-gpt-model-assembly]
+video: { id: transformer-architecture-explained, minutes: 3 }
 ---
 
 # The transformer architecture

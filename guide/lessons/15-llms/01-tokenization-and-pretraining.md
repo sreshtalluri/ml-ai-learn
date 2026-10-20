@@ -6,6 +6,7 @@ minutes: 40
 prerequisites: [transformer-architecture, word-embeddings, logistic-regression]
 related: [decoding, adapting-llms, learning-paradigms]
 adapted_from: [phases/19-capstone-projects/30-bpe-tokenizer-from-scratch, phases/19-capstone-projects/31-tokenized-dataset-sliding-window, phases/19-capstone-projects/36-training-loop-eval, phases/05-nlp-foundations-to-advanced/19-subword-tokenization]
+video: { id: tokenization-explained, minutes: 3 }
 ---
 
 # Tokenization and pretraining
