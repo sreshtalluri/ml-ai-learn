@@ -5,6 +5,7 @@ skill: transformers
 minutes: 45
 prerequisites: [vectors-and-matrices, neural-network-forward-pass, word-embeddings]
 related: [transformer-architecture, tokenization-and-pretraining, recurrent-networks]
+video: { id: self-attention-explained, minutes: 2 }
 adapted_from: [phases/05-nlp-foundations-to-advanced/10-attention-mechanism, phases/07-transformers-deep-dive/01-why-transformers, phases/07-transformers-deep-dive/02-self-attention-from-scratch, phases/07-transformers-deep-dive/03-multi-head-attention, phases/19-capstone-projects/33-multihead-self-attention]
 ---
 

@@ -6,6 +6,7 @@ minutes: 30
 prerequisites: [tokenization-and-pretraining, logistic-regression]
 related: [tokenization-and-pretraining, adapting-llms, llm-evaluation]
 adapted_from: [phases/05-nlp-foundations-to-advanced/20-structured-outputs-constrained-decoding, phases/11-llm-engineering/03-structured-outputs]
+video: { id: decoding-explained, minutes: 3 }
 ---
 
 # Decoding

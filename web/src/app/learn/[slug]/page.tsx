@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Clock, GithubLogo } from "@phosphor-icons/react/
 import { Markdown } from "@/components/Markdown";
 import { BookmarkButton, CompleteButton, NoteBox, VisitTracker } from "@/components/PageControls";
 import { QuickToggle, ShowFullButton } from "@/components/QuickToggle";
-import { getAdjacent, getExplainers, getLesson, getLessons, getModule, REPO_URL } from "@/lib/content";
+import { getAdjacent, getExplainers, getLesson, getLessons, getModule, REPO_URL, VIDEO_BASE } from "@/lib/content";
 import { SKILLS } from "@/lib/skills";
 import { isDeepSection, stripH1, toc } from "@/lib/toc";
 
@@ -82,6 +82,19 @@ export default async function LessonPage({ params }: PageProps<"/learn/[slug]">)
           </div>
         </header>
 
+        {lesson.video && (
+          <figure className="mb-8">
+            <video controls preload="metadata" crossOrigin="anonymous" playsInline
+              poster={`${VIDEO_BASE}/${lesson.video.id}.jpg`}
+              className="w-full aspect-video rounded-xl border border-line bg-black">
+              <source src={`${VIDEO_BASE}/${lesson.video.id}.mp4`} type="video/mp4" />
+              <track kind="captions" src={`${VIDEO_BASE}/${lesson.video.id}.vtt`} srcLang="en" label="English" />
+            </video>
+            <figcaption className="mt-2 text-sm text-muted">
+              Video explainer, {lesson.video.minutes} min. Watch it, read the lesson, or both. Narration voice by ElevenLabs.
+            </figcaption>
+          </figure>
+        )}
         {explainer && (
           <p className="mb-6 rounded-xl border border-accent/40 bg-accent-soft/40 px-4 py-3 text-sm text-muted">
             <strong className="text-ink">Visual explainer:</strong> <Link href={`/explainers/${explainer.id}/`} className="text-accent hover:underline">{explainer.title}</Link>, a {explainer.minutes}-minute scroll-through where the lab moves as you read. Or press <strong>Watch</strong> on the lab below.

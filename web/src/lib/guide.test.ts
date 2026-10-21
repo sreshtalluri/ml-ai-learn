@@ -111,3 +111,10 @@ describe("learning path phases", () => {
     expect(listed).toEqual(getModules().map((m) => m.number).sort((a, b) => a - b));
   });
 });
+
+describe("lesson videos", () => {
+  it("every video frontmatter has a kebab-case id and a positive length", () => {
+    const bad = getLessons().filter((l) => l.video && !(/^[a-z0-9-]+$/.test(l.video.id) && l.video.minutes > 0)).map((l) => l.slug);
+    expect(bad).toEqual([]);
+  });
+});

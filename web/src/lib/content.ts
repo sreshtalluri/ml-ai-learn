@@ -10,6 +10,8 @@ import { isDeepSection, sections } from "./toc";
 
 export const GUIDE_DIR = path.join(process.cwd(), "..", "guide");
 export const REPO_URL = "https://github.com/sreshtalluri/ml-ai-learn";
+// Narrated explainer videos live in their own R2 bucket (too large for the repo / Pages).
+export const VIDEO_BASE = "https://pub-38c9420146bc4447b4fc09cb35af6a9a.r2.dev";
 
 const read = (rel: string) => fs.readFileSync(path.join(GUIDE_DIR, rel), "utf8");
 const exists = (rel: string) => fs.existsSync(path.join(GUIDE_DIR, rel));
@@ -30,6 +32,7 @@ export interface Lesson {
   quiz?: string;     // quiz id referenced by marker
   quickMinutes: number; // estimate with math, implementation, and engineering hidden
   interview: InterviewQuestion[];
+  video?: { id: string; minutes: number }; // frontmatter `video: {id, minutes}` → VIDEO_BASE/<id>.mp4|.vtt|.jpg
 }
 
 export interface InterviewQuestion { q: string; a: string }
@@ -102,6 +105,7 @@ export function getModules(): Module[] {
             quiz: quizzes[0],
             quickMinutes: quickMinutes(body, Number(d.minutes ?? 20)),
             interview: parseInterview(body),
+            video: d.video ? { id: String(d.video.id), minutes: Number(d.video.minutes) } : undefined,
           };
         });
       return {
